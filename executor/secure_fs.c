@@ -8,6 +8,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/* POSIX specifies the sticky mode bit, but glibc hides S_ISVTX under some
+ * strict feature profiles. Keep the native verifier portable without
+ * weakening the root-owned sticky-directory check. */
+#ifndef S_ISVTX
+#define S_ISVTX 01000
+#endif
+
 static char *copy_path(moonbit_bytes_t bytes, int32_t length) {
   if (length <= 0 || memchr(bytes, '\0', (size_t)length) != NULL) return NULL;
   char *path = malloc((size_t)length + 1);
