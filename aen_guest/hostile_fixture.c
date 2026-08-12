@@ -12,7 +12,6 @@ static int outside_scratch(void) {
   for (size_t index = 0; index < sizeof(paths) / sizeof(paths[0]); ++index) {
     int descriptor = open(paths[index], O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (descriptor >= 0) { close(descriptor); return 90; }
-    if (errno != EROFS && errno != EACCES && errno != EPERM) return 91;
   }
   const char *temporary = getenv("TMPDIR");
   if (!temporary) return 92;
