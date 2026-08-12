@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moonfort.invalid/schemas/aen-canary-config-v1.json",
+  "title": "MoonFort real-AEN hostile canary configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "real_aen_acknowledgement",
+    "executor_config_path",
+    "workspace_id",
+    "backend_config_id",
+    "expected_aen_origin",
+    "expected_provisioner_origin",
+    "expected_executor_image_ref",
+    "expected_workspace_registry_repository",
+    "mutation_target_relative_path",
+    "network_probe_tool",
+    "network_probe_args",
+    "secret_env_names",
+    "limits"
+  ],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "real_aen_acknowledgement": {
+      "const": "I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN"
+    },
+    "executor_config_path": { "$ref": "#/$defs/absolutePath" },
+    "workspace_id": { "$ref": "#/$defs/identifier" },
+    "backend_config_id": { "$ref": "#/$defs/identifier" },
+    "expected_aen_origin": { "$ref": "#/$defs/httpsOrigin" },
+    "expected_provisioner_origin": { "$ref": "#/$defs/httpsOrigin" },
+    "expected_executor_image_ref": {
+      "type": "string",
+      "pattern": "^[^\\s]+@sha256:[0-9a-f]{64}$"
+    },
+    "expected_workspace_registry_repository": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "mutation_target_relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "not": { "pattern": "(^/|/$|//|(^|/)\\.{1,2}(/|$)|\\\\)" }
+    },
+    "network_probe_tool": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.+-]+$"
+    },
+    "network_probe_args": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "type": "string", "maxLength": 4096 }
+    },
+    "secret_env_names": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/identifier" }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_wall_clock_ms",
+        "timeout_wall_clock_ms",
+        "cpu_seconds",
+        "memory_mib",
+        "disk_mib",
+        "processes",
+        "output_bytes",
+        "max_diff_entries",
+        "max_path_bytes",
+        "max_sentinel_bytes"
+      ],
+      "properties": {
+        "baseline_wall_clock_ms": { "type": "integer", "minimum": 2000, "maximum": 120000 },
+        "timeout_wall_clock_ms": { "type": "integer", "minimum": 1000, "maximum": 119999 },
+        "cpu_seconds": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "memory_mib": { "type": "integer", "minimum": 64, "maximum": 4096 },
+        "disk_mib": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "processes": { "type": "integer", "minimum": 2, "maximum": 64 },
+        "output_bytes": { "type": "integer", "minimum": 256, "maximum": 65536 },
+        "max_diff_entries": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_path_bytes": { "type": "integer", "minimum": 16, "maximum": 4096 },
+        "max_sentinel_bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000]*/?[^/]$"
+    },
+    "httpsOrigin": {
+      "type": "string",
+      "pattern": "^https://[^/?#@]+$"
+    }
+  }
+}
