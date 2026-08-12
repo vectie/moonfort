@@ -33,6 +33,14 @@ and Linux GitHub-hosted runners. Linux installs the fixed `/usr/bin/bwrap`
 backend; absence of usable user/mount/network namespaces is a hard test failure.
 The job never changes policy to make a failing kernel probe appear successful.
 
+GitHub Actions run `31592306809` passed both strict jobs on revision
+`83eae7fc0afab2be3f4336c42d8b9be530aae404`:
+
+```text
+macos-14 native enforcement      success
+ubuntu-22.04 native enforcement  success
+```
+
 The Linux proof uses Ubuntu 22.04, whose bubblewrap 0.6 creates explicit
 user/mount/PID/network namespaces and drops every child capability but predates
 the defense-in-depth `--disable-userns` switch. Linux receipts therefore list
