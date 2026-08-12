@@ -34,20 +34,35 @@ trap 'rm -rf "$audit_tmp"' EXIT HUP INT TERM
 violations="$audit_tmp/violations.tsv"
 : >"$violations"
 
-# This is intentionally the only production allowlist. The adapter owns fixed,
-# reviewed host utilities; agent/tool packages must call it or ExecutionSandbox.
+# These are exact primitive-bearing implementation files, not package-wide
+# exemptions. A newly added generic process wrapper in either authority package
+# must therefore fail this audit until the guard and its review fixture are
+# updated deliberately.
 is_trusted_host_process_path() {
   case "$1" in
-    internal/trusted_host_process/*) return 0 ;;
+    internal/trusted_host_process/moon.pkg|\
+    internal/trusted_host_process/process.mbt|\
+    internal/trusted_host_process/daemon_child.mbt|\
+    internal/trusted_host_process/lifecycle.mbt|\
+    internal/trusted_host_process/process.c) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# File-exact exception for the v3 adapter. It may start only the
-# operator-configured MoonFort grant publisher and executor.
+# File-exact exception for the v3 adapter's process primitive and package
+# manifest. The higher-level adapter/protocol files are scanned normally.
 is_execution_sandbox_adapter_path() {
   case "$1" in
-    internal/execution_sandbox_adapter/*) return 0 ;;
+    internal/execution_sandbox_adapter/moon.pkg|\
+    internal/execution_sandbox_adapter/process.mbt) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_approved_execution_sandbox_importer() {
+  case "$1" in
+    internal/execution_sandbox/moon.pkg|\
+    cmd/daemon/moon.pkg) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -175,6 +190,23 @@ while IFS= read -r -d '' absolute; do
     */moon.pkg|moon.pkg) scan_package_file "$relative" ;;
     *) scan_raw_file "$relative" ;;
   esac
+done < <(
+  find "$moonclaw_root" -type f \( -name '*.mbt' -o -name 'moon.pkg' \) -print0
+)
+
+# The low-level adapter accepts only operator-owned binaries, but importing it
+# still confers host-process authority. Keep the importer set closed so a new
+# first-party package cannot bypass the typed ExecutionSandbox protocol while
+# remaining invisible to the raw-call scan above.
+while IFS= read -r -d '' absolute; do
+  relative=${absolute#"$moonclaw_root"/}
+  is_first_party_production_source "$relative" || continue
+  is_approved_execution_sandbox_importer "$relative" && continue
+  grep -n '"vectie/moonclaw/internal/execution_sandbox_adapter"' "$absolute" \
+    2>/dev/null | while IFS=: read -r line detail; do
+      record 'execution-sandbox-adapter-import' "$relative" "$line" \
+        "unapproved package imports raw MoonFort process authority: $detail"
+    done
 done < <(
   find "$moonclaw_root" -type f \( -name '*.mbt' -o -name 'moon.pkg' \) -print0
 )

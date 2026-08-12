@@ -19,6 +19,8 @@ mkdir -p \
   "$fixture/internal/spawn" \
   "$fixture/internal/pdf_ocr" \
   "$fixture/internal/execution_sandbox_adapter" \
+  "$fixture/internal/execution_sandbox" \
+  "$fixture/internal/rogue_adapter_user" \
   "$fixture/internal/rogue_process_user" \
   "$fixture/internal/test_import_fixture" \
   "$fixture/internal/trusted_host_process" \
@@ -32,7 +34,9 @@ printf 'import { "vectie/moonlib/spawn" }\n@spawn.spawn("sh", [])\n' \
 printf '@spawn.spawn(command, args)\n' >"$fixture/packtool/command_executor.mbt"
 printf '@execute_command.new(cwd)\n' >"$fixture/job/analysis_contracts.mbt"
 printf '@spawn.spawn(config.executor_path, config.executor_args)\n' \
-  >"$fixture/internal/execution_sandbox_adapter/adapter.mbt"
+  >"$fixture/internal/execution_sandbox_adapter/rogue.mbt"
+printf 'import { "vectie/moonclaw/internal/execution_sandbox_adapter" }\n' \
+  >"$fixture/internal/rogue_adapter_user/moon.pkg"
 printf 'return ExecutionIsolationResolution::new(cwd=fallback_cwd)\n' \
   >"$fixture/job/execution_isolation.mbt"
 printf '@spawn.spawn(command, args)\n' >"$fixture/job/provider_task_command.mbt"
@@ -78,7 +82,8 @@ for category in \
   trusted-git-bypass \
   unclassified-host-process \
   native-ocr-command \
-  authorization-snapshot-gap
+  authorization-snapshot-gap \
+  execution-sandbox-adapter-import
 do
   grep -q "\[$category\]" "$output" || {
     printf 'missing category: %s\n' "$category" >&2
@@ -99,12 +104,20 @@ do
   }
 done
 
-if grep -q 'trusted_host_process/adapter.mbt' "$output"; then
+if grep -q 'trusted_host_process/process.mbt' "$output"; then
   printf 'trusted host adapter was not allowlisted\n' >&2
   exit 1
 fi
-if grep -q 'execution_sandbox_adapter/adapter.mbt' "$output"; then
-  printf 'ExecutionSandbox adapter was not narrowly allowlisted\n' >&2
+grep -q 'execution_sandbox_adapter/rogue.mbt' "$output" || {
+  printf 'new file inside ExecutionSandbox adapter escaped exact allowlist\n' >&2
+  exit 1
+}
+grep -q 'rogue_adapter_user/moon.pkg' "$output" || {
+  printf 'unapproved ExecutionSandbox adapter importer escaped audit\n' >&2
+  exit 1
+}
+if grep -q 'execution_sandbox_adapter/process.mbt' "$output"; then
+  printf 'reviewed ExecutionSandbox primitive file was not allowlisted\n' >&2
   exit 1
 fi
 if grep -q 'ignored_wbtest.mbt' "$output"; then
@@ -119,9 +132,14 @@ fi
 # A minimal repository with the approved adapter only must pass.
 clean=$fixture/clean
 mkdir -p "$clean/internal/trusted_host_process"
+mkdir -p "$clean/internal/execution_sandbox" "$clean/internal/execution_sandbox_adapter"
 printf '{"name":"test/moonclaw-clean"}\n' >"$clean/moon.mod"
 printf 'import { "moonbitlang/async/process" }\n@process.run(command, args)\n' \
-  >"$clean/internal/trusted_host_process/adapter.mbt"
+  >"$clean/internal/trusted_host_process/process.mbt"
+printf 'import { "moonbitlang/async/process" }\n@process.run(command, args)\n' \
+  >"$clean/internal/execution_sandbox_adapter/process.mbt"
+printf 'import { "vectie/moonclaw/internal/execution_sandbox_adapter" }\n' \
+  >"$clean/internal/execution_sandbox/moon.pkg"
 bash "$guard" "$clean" >/dev/null
 
 # A typed moon_check dispatch is accepted only when its implementation crosses
