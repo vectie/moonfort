@@ -72,8 +72,8 @@ fn linux_bubblewrap_arguments(
     fail("trusted executable must not reside in workspace or writable scratch")
   }
   let args = [
-    "--die-with-parent", "--new-session", "--unshare-all", "--unshare-net", "--disable-userns",
-    "--cap-drop", "ALL", "--clearenv", "--hostname", "moonfort",
+    "--die-with-parent", "--new-session", "--unshare-all", "--unshare-user", "--unshare-net",
+    "--disable-userns", "--cap-drop", "ALL", "--clearenv", "--hostname", "moonfort",
   ]
   // Bind only runtime trees, never the host root. In particular, /etc, /home,
   // /root, and /var are absent. Reserved namespace locations cannot be opened
