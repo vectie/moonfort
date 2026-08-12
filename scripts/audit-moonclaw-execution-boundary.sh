@@ -210,10 +210,45 @@ if [ -f "$moonclaw_root/$tool_exec_file" ]; then
   done
 fi
 
-record_matches 'mooncode-command-dispatch' \
-  'cmd/daemon/mooncode_tools.mbt' \
-  '"shell"[[:space:]]*=>[[:space:]]*$|"(moon_ide|moon_cmd)"[[:space:]]*=>[[:space:]]*mooncode_tool_' \
-  'agent tool dispatch reaches a native command capability'
+process_tools=cmd/daemon/mooncode_process_tools.mbt
+runtime_turn=cmd/daemon/mooncode_runtime_turn.mbt
+sandbox_gate=cmd/daemon/mooncode_execution_sandbox_gate.mbt
+
+# Positive command routes are permitted only when the dispatcher selects the
+# reviewed wrapper and that wrapper names the closed ExecutionSandbox API. The
+# all-first-party scan above remains authoritative for raw process primitives;
+# these checks add semantic dispatch/approval requirements without exempting a
+# single source file from raw-process detection.
+if grep -q '"shell"[[:space:]]*=>' "$moonclaw_root/$tool_exec_file" 2>/dev/null; then
+  if ! grep -q 'mooncode_tool_shell_in_runtime' "$moonclaw_root/$tool_exec_file" 2>/dev/null || \
+    ! grep -q '@execution_sandbox[.]run_approved_shell[(]' "$moonclaw_root/$process_tools" 2>/dev/null || \
+    ! grep -q 'mooncode_runtime_bind_sandbox_approval_plan[(]' "$moonclaw_root/$runtime_turn" 2>/dev/null || \
+    ! grep -q 'mooncode_runtime_authorized_tool_call[(]' "$moonclaw_root/$runtime_turn" 2>/dev/null || \
+    ! grep -q 'mooncode_prepare_shell_approval_plan[(]' "$moonclaw_root/$sandbox_gate" 2>/dev/null; then
+    record 'mooncode-command-dispatch' "$process_tools" 1 \
+      'shell dispatch is not bound to an exact approved ExecutionSandbox grant'
+  fi
+fi
+
+if grep -q '"moon_ide"[[:space:]]*=>[[:space:]]*mooncode_tool_moon_ide' \
+    "$moonclaw_root/$tool_exec_file" 2>/dev/null && \
+  ! grep -q '@execution_sandbox[.]run_exec[(]' \
+    "$moonclaw_root/$process_tools" 2>/dev/null; then
+  record 'mooncode-command-dispatch' "$process_tools" 1 \
+    'moon_ide dispatch is not bound to the typed ExecutionSandbox route'
+fi
+
+if grep -q '"moon_cmd"[[:space:]]*=>[[:space:]]*mooncode_tool_moon_cmd' \
+    "$moonclaw_root/$tool_exec_file" 2>/dev/null; then
+  if ! grep -q '@execution_sandbox[.]run_exec[(]' "$moonclaw_root/$process_tools" 2>/dev/null || \
+    ! grep -q '@execution_sandbox[.]run_approved_exec[(]' "$moonclaw_root/$process_tools" 2>/dev/null || \
+    ! grep -q 'mooncode_prepare_moon_cmd_approval_plan[(]' "$moonclaw_root/$sandbox_gate" 2>/dev/null || \
+    ! grep -q 'mooncode_runtime_bind_sandbox_approval_plan[(]' "$moonclaw_root/$runtime_turn" 2>/dev/null || \
+    ! grep -q 'mooncode_runtime_authorized_tool_call[(]' "$moonclaw_root/$runtime_turn" 2>/dev/null; then
+    record 'mooncode-command-dispatch' "$process_tools" 1 \
+      'moon_cmd dispatch is not bound to typed and exact-approved ExecutionSandbox routes'
+  fi
+fi
 
 # `moon_check` is the first positive typed route. It is allowed only while its
 # implementation calls the closed v3 ExecutionSandbox operation; raw process

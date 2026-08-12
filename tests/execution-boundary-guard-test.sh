@@ -140,4 +140,24 @@ if bash "$guard" "$clean" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Positive shell/moon dispatch requires both the closed broker calls and the
+# durable approval round-trip. Raw process scanning is still active for every
+# one of these files.
+printf '"shell" => mooncode_tool_shell_in_runtime(runtime, root, arguments)\n"moon_ide" => mooncode_tool_moon_ide(root, arguments)\n"moon_cmd" => mooncode_tool_moon_cmd(root, arguments)\n' \
+  >"$clean/cmd/daemon/mooncode_tools.mbt"
+printf '@execution_sandbox.run_approved_shell(config, root, cwd, cmd, plan)\n@execution_sandbox.run_exec(config, root, cwd, "moon", args, timeout)\n@execution_sandbox.run_approved_exec(config, root, cwd, "moon", args, plan)\n' \
+  >"$clean/cmd/daemon/mooncode_process_tools.mbt"
+printf 'mooncode_prepare_shell_approval_plan(root, arguments)\nmooncode_prepare_moon_cmd_approval_plan(root, arguments)\n' \
+  >"$clean/cmd/daemon/mooncode_execution_sandbox_gate.mbt"
+printf 'mooncode_runtime_bind_sandbox_approval_plan(root, tool_call)\nmooncode_runtime_authorized_tool_call(tool_call, approval)\n' \
+  >"$clean/cmd/daemon/mooncode_runtime_turn.mbt"
+bash "$guard" "$clean" >/dev/null
+
+printf '@execution_sandbox.run_exec(config, root, cwd, "moon", args, timeout)\n@execution_sandbox.run_approved_exec(config, root, cwd, "moon", args, plan)\n' \
+  >"$clean/cmd/daemon/mooncode_process_tools.mbt"
+if bash "$guard" "$clean" >/dev/null 2>&1; then
+  printf 'expected guard to reject shell dispatch without exact approved route\n' >&2
+  exit 1
+fi
+
 printf 'execution-boundary guard tests: PASS\n'
