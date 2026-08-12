@@ -127,11 +127,25 @@ fn assert_case_receipt(
         failures, sentinel_unchanged, "canonical workspace sentinel changed on the host",
       )
     }
+    NetworkPositiveControl =>
+      push_failure(
+        failures,
+        receipt.status is Exited &&
+        receipt.exit_code == Some(0) &&
+        receipt.output == NetworkReachableMarker &&
+        !receipt.output_truncated &&
+        receipt.limit_reason is None,
+        "network positive control did not return exact reachable evidence",
+      )
     NetworkEgress =>
       push_failure(
         failures,
-        nonzero_exit(receipt),
-        "deny-network egress probe did not fail",
+        receipt.status is Exited &&
+        receipt.exit_code == Some(NetworkBlockedExitCode) &&
+        receipt.output == NetworkBlockedMarker &&
+        !receipt.output_truncated &&
+        receipt.limit_reason is None,
+        "deny-network probe did not return exact blocked-network evidence",
       )
     OutputFlood => {
       push_failure(
@@ -150,16 +164,18 @@ fn assert_case_receipt(
     ProcessExplosion =>
       push_failure(
         failures,
-        nonzero_exit(receipt) ||
-        (receipt.status is Killed && receipt.limit_reason is Some(_)),
-        "process explosion did not reach an enforced refusal or kill",
+        receipt.status is Killed &&
+        receipt.exit_code is None &&
+        receipt.limit_reason == Some("processes"),
+        "process explosion did not hit the exact process limit",
       )
     AggregateDisk =>
       push_failure(
         failures,
-        nonzero_exit(receipt) ||
-        (receipt.status is Killed && receipt.limit_reason is Some(_)),
-        "aggregate disk probe did not reach an enforced refusal or kill",
+        receipt.status is Killed &&
+        receipt.exit_code is None &&
+        receipt.limit_reason == Some("disk_mib"),
+        "aggregate disk probe did not hit the exact disk limit",
       )
     TimeoutDescendants =>
       push_failure(
@@ -183,8 +199,12 @@ fn assert_case_receipt(
     SymlinkTraversal =>
       push_failure(
         failures,
-        nonzero_exit(receipt),
-        "symlink traversal into the canonical workspace did not fail",
+        receipt.status is Exited &&
+        receipt.exit_code == Some(SymlinkDeniedExitCode) &&
+        receipt.output == SymlinkDeniedMarker &&
+        !receipt.output_truncated &&
+        receipt.limit_reason is None,
+        "symlink traversal did not return exact policy-denial evidence",
       )
   }
   {

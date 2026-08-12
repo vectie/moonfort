@@ -23,21 +23,6 @@ fn safe_identifier(value : String) -> Bool {
 }
 
 ///|
-fn safe_tool_label(value : String) -> Bool {
-  value.length() >= 1 &&
-  value.length() <= 128 &&
-  value.all(character => {
-    character.is_ascii_alphabetic() ||
-    character.is_ascii_digit() ||
-    character == '-' ||
-    character == '_' ||
-    character == '.' ||
-    character == '+'
-  }) &&
-  value != @sandbox.shell_compatibility_command_label()
-}
-
-///|
 fn safe_relative_path(path : String) -> Bool {
   path != "" &&
   !path.has_prefix("/") &&
@@ -132,14 +117,6 @@ fn validate_static_config(config : CanaryConfig) -> Unit raise {
   guard safe_relative_path(config.mutation_target_relative_path) else {
     fail("mutation target is not a safe workspace-relative path")
   }
-  guard safe_tool_label(config.network_probe_tool) &&
-    !config.network_probe_args.is_empty() &&
-    config.network_probe_args.length() <= 64 &&
-    config.network_probe_args.all(argument => {
-      !argument.contains("\u{0}") && @utf8.encode(argument).length() <= 4_096
-    }) else {
-    fail("network probe capability or arguments are invalid")
-  }
   let seen_env : Map[String, Unit] = Map([])
   for name in config.secret_env_names {
     guard safe_identifier(name) && !seen_env.contains(name) else {
@@ -218,11 +195,13 @@ fn validate_deployment(
   }
   guard workspace.allowed_backends.contains(MicroVm) &&
     workspace.allowed_networks.contains(Deny) &&
+    workspace.allowed_networks.contains(Unrestricted) &&
     !workspace.allow_degraded &&
     workspace.allowed_commands.contains(
       @sandbox.shell_compatibility_command_label(),
     ) &&
-    workspace.allowed_commands.contains(canary.network_probe_tool) else {
+    workspace.allowed_commands.contains(NetworkProofCapability) &&
+    workspace.allowed_commands.contains(SymlinkProofCapability) else {
     fail("canary workspace policy does not authorize the hostile probe profile")
   }
   guard executor.aen_backends.get(canary.backend_config_id) is Some(backend) else {
@@ -240,8 +219,17 @@ fn validate_deployment(
   guard backend.guest_tools.contains(
       @sandbox.shell_compatibility_command_label(),
     ) &&
-    backend.guest_tools.contains(canary.network_probe_tool) else {
+    backend.guest_tools.contains(NetworkProofCapability) &&
+    backend.guest_tools.contains(SymlinkProofCapability) else {
     fail("trusted AEN guest tool registry is missing canary capabilities")
+  }
+  guard backend.guest_workspace == "/workspace" &&
+    backend.guest_scratch == "/scratch" &&
+    backend.guest_tools.get(NetworkProofCapability) ==
+    Some("/opt/moonfort/tools/network-proof") &&
+    backend.guest_tools.get(SymlinkProofCapability) ==
+    Some("/opt/moonfort/tools/symlink-proof") else {
+    fail("trusted AEN canary guest paths do not match the fixed probe contract")
   }
   guard backend.api_key.trim() != "" &&
     backend.provisioner_api_key.trim() != "" &&

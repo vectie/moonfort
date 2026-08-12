@@ -8,6 +8,10 @@ directly:
   helper binaries, and the tool registry before mounting a private overlay.
 - `guest_attester inventory` hashes only the overlay upper directory and emits
   the bounded `ScratchInventory` wire shape.
+- `guest_attester network-attest` re-verifies its own pinned digest and reads
+  every `/proc/sys/net/ipv6/conf/*/disable_ipv6` value without following
+  symlinks. It emits success only when IPv6 is absent from the kernel or
+  disabled for every present interface.
 - `guest_supervisor run` refuses executables outside the digest-pinned tool
   registry, makes the target root recursively read-only except scratch, drops
   to nobody with no-new-privileges, uses a fixed environment and closed stdin,
@@ -19,6 +23,26 @@ The production image must run helpers as root with overlayfs and a writable
 cgroup-v2 hierarchy. Missing kernel controls are refusal conditions. The
 runtime never invokes a shell, searches `PATH`, reads caller environment, or
 falls back to execution outside its cgroup.
+
+The optional canary tools are closed operations built by
+`scripts/build-aen-canary-probes.sh LITERAL_IPV4 PORT EXPECTED_TOKEN OUTPUT_DIR`:
+
+- `moonfort-network-proof-v1` accepts only `probe`, uses a compile-time literal
+  IPv4/port and exact request/response over a direct `AF_INET` socket, and does
+  not use DNS, TLS, redirects, proxies, or caller environment. Reachability is
+  exit 0 with exact marker `MOONFORT_NETWORK_REACHABLE_V1`. Blocked exit 90 is
+  only corroborative for `EACCES`/`EPERM` or connect timeout after the same
+  endpoint passes the unrestricted positive control. Refusal, routing, and
+  protocol failures are distinct and never emit the blocked marker.
+- `moonfort-symlink-proof-v1` accepts only `probe SAFE_RELATIVE_SENTINEL`, uses
+  fixed `/scratch` and `/workspace` roots, and emits the policy-denied marker
+  with exit 91 only for `EROFS`/`EACCES`/`EPERM`. Deployment must validate
+  those exact guest roots; the host canary separately verifies the canonical
+  sentinel is unchanged.
+
+Add the script's two digest-bearing rows to the tool lock. Packaging never
+executes either input and binds both binaries into the sorted tool registry and
+executor-root manifest digests.
 
 Build with `make -C aen_guest`. Package with
 `scripts/package-aen-guest-rootfs.sh`; that script hashes rather than executes

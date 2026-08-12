@@ -117,6 +117,7 @@ async fn run_canary(
       // Do not create another hostile VM after cleanup uncertainty or evidence
       // that the canonical canary workspace changed.
       continue_runs = result.cleanup_verified &&
+        !(plan.case is NetworkPositiveControl && !result.passed) &&
         !result.failures.contains(
           "canonical workspace sentinel changed on the host",
         )

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://moonfort.invalid/schemas/aen-canary-config-v1.json",
+  "$id": "https://moonfort.invalid/schemas/aen-canary-config-v2.json",
   "title": "MoonFort real-AEN hostile canary configuration",
   "type": "object",
   "additionalProperties": false,
@@ -15,13 +15,11 @@
     "expected_executor_image_ref",
     "expected_workspace_registry_repository",
     "mutation_target_relative_path",
-    "network_probe_tool",
-    "network_probe_args",
     "secret_env_names",
     "limits"
   ],
   "properties": {
-    "protocol_version": { "const": 1 },
+    "protocol_version": { "const": 2 },
     "real_aen_acknowledgement": {
       "const": "I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN"
     },
@@ -45,18 +43,6 @@
       "minLength": 1,
       "maxLength": 4096,
       "not": { "pattern": "(^/|/$|//|(^|/)\\.{1,2}(/|$)|\\\\)" }
-    },
-    "network_probe_tool": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9_.+-]+$"
-    },
-    "network_probe_args": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 64,
-      "items": { "type": "string", "maxLength": 4096 }
     },
     "secret_env_names": {
       "type": "array",

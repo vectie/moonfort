@@ -1,5 +1,32 @@
 ///|
-const CanaryProtocolVersion : Int = 1
+const CanaryProtocolVersion : Int = 2
+
+///|
+const NetworkProofCapability : String = "moonfort-network-proof-v1"
+
+///|
+const NetworkProofArgument : String = "probe"
+
+///|
+const NetworkReachableMarker : String = "MOONFORT_NETWORK_REACHABLE_V1\n"
+
+///|
+const NetworkBlockedMarker : String = "MOONFORT_NETWORK_BLOCKED_V1\n"
+
+///|
+const NetworkBlockedExitCode : Int = 90
+
+///|
+const SymlinkProofCapability : String = "moonfort-symlink-proof-v1"
+
+///|
+const SymlinkProofArgument : String = "probe"
+
+///|
+const SymlinkDeniedMarker : String = "MOONFORT_SYMLINK_POLICY_DENIED_V1\n"
+
+///|
+const SymlinkDeniedExitCode : Int = 91
 
 ///|
 const RealAenAcknowledgement : String = "I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN"
@@ -30,8 +57,6 @@ struct CanaryConfig {
   expected_executor_image_ref : String
   expected_workspace_registry_repository : String
   mutation_target_relative_path : String
-  network_probe_tool : String
-  network_probe_args : Array[String]
   secret_env_names : Array[String]
   limits : CanaryLimits
 } derive(Debug, Eq, FromJson)
@@ -65,6 +90,7 @@ struct CanaryReport {
 ///|
 enum CanaryCase {
   CanonicalMutation
+  NetworkPositiveControl
   NetworkEgress
   OutputFlood
   ProcessExplosion
@@ -78,6 +104,7 @@ enum CanaryCase {
 fn CanaryCase::name(self : CanaryCase) -> String {
   match self {
     CanonicalMutation => "canonical-mutation"
+    NetworkPositiveControl => "network-positive-control"
     NetworkEgress => "network-egress"
     OutputFlood => "output-flood"
     ProcessExplosion => "process-explosion"

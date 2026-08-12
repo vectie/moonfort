@@ -3,6 +3,7 @@ struct CanaryPlan {
   case : CanaryCase
   command : @sandbox.SandboxCommand
   allowed_commands : Array[String]
+  network : @sandbox.SandboxNetworkMode
   limits : @sandbox.SandboxLimits
 } derive(Debug, Eq)
 
@@ -33,6 +34,7 @@ fn shell_plan(
     case,
     command: Shell(script~),
     allowed_commands: [@sandbox.shell_compatibility_command_label()],
+    network: Deny,
     limits,
   }
 }
@@ -55,7 +57,6 @@ fn build_plans(
   let target = shell_quote(
     "\{backend.guest_workspace}/\{config.mutation_target_relative_path}",
   )
-  let guest_workspace = shell_quote(backend.guest_workspace)
   let chunk = repeated_text("0123456789abcdef", 64)
   let disk_blocks = config.limits.disk_mib * 1_024 + 1
   let process_count = config.limits.processes * 4 + 8
@@ -70,12 +71,17 @@ fn build_plans(
       limits,
     ),
     {
+      case: NetworkPositiveControl,
+      command: Exec(tool=NetworkProofCapability, args=[NetworkProofArgument]),
+      allowed_commands: [NetworkProofCapability],
+      network: Unrestricted,
+      limits,
+    },
+    {
       case: NetworkEgress,
-      command: Exec(
-        tool=config.network_probe_tool,
-        args=config.network_probe_args.copy(),
-      ),
-      allowed_commands: [config.network_probe_tool],
+      command: Exec(tool=NetworkProofCapability, args=[NetworkProofArgument]),
+      allowed_commands: [NetworkProofCapability],
+      network: Deny,
       limits,
     },
     shell_plan(
@@ -99,11 +105,16 @@ fn build_plans(
       timeout_limits,
     ),
     shell_plan(SecretEnvRead, "env", limits),
-    shell_plan(
-      SymlinkTraversal,
-      "ln -s \{guest_workspace} moonfort-canary-link && printf moonfort-aen-canary > moonfort-canary-link/\{shell_quote(config.mutation_target_relative_path)}",
+    {
+      case: SymlinkTraversal,
+      command: Exec(tool=SymlinkProofCapability, args=[
+        SymlinkProofArgument,
+        config.mutation_target_relative_path,
+      ]),
+      allowed_commands: [SymlinkProofCapability],
+      network: Deny,
       limits,
-    ),
+    },
   ]
 }
 
@@ -121,7 +132,7 @@ fn make_grant(
     workspace_id: config.workspace_id,
     backend: MicroVm,
     enforcement_requirement: RequireEnforced,
-    network: Deny,
+    network: plan.network,
     allowed_egress: [],
     allowed_commands: plan.allowed_commands.copy(),
     limits: plan.limits,

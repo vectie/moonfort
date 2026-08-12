@@ -19,11 +19,65 @@ jobs:
         run: make -C aen_guest
       - name: Build hostile filesystem fixture
         run: cc -O2 -static -Wall -Wextra -Werror -Wpedantic aen_guest/hostile_fixture.c -o _build/aen-guest/bin/hostile_fixture
+      - name: Build and contract-test fixed canary probes
+        run: |
+          set -eu
+          port=38471
+          scripts/build-aen-canary-probes.sh 127.0.0.1 "$port" MOONFORT_NETWORK_ENDPOINT_V1 _build/aen-guest/probes > _build/aen-guest/probe.lock
+          cc -O2 -static -std=c11 -Wall -Wextra -Werror -Wpedantic aen_guest/network_fixture.c -o _build/aen-guest/network-fixture
+          ! _build/aen-guest/probes/network-proof arbitrary
+          ! _build/aen-guest/probes/symlink-proof arbitrary
+          _build/aen-guest/network-fixture "$port" exact & fixture_pid=$!
+          sleep 0.2
+          test "$(_build/aen-guest/probes/network-proof probe)" = MOONFORT_NETWORK_REACHABLE_V1
+          wait "$fixture_pid"
+          _build/aen-guest/network-fixture "$port" bad & fixture_pid=$!
+          sleep 0.2
+          set +e
+          bad_output=$(_build/aen-guest/probes/network-proof probe)
+          bad_status=$?
+          set -e
+          wait "$fixture_pid"
+          test "$bad_status" = 102
+          test -z "$bad_output"
+          set +e
+          refused_output=$(_build/aen-guest/probes/network-proof probe)
+          refused_status=$?
+          set -e
+          test "$refused_status" = 93
+          test -z "$refused_output"
+          awk -F '\t' '$1=="moonfort-network-proof-v1" && $2!="" && $3=="/opt/moonfort/tools/network-proof" && $4~/^[a-f0-9]{64}$/ { found=1 } END { exit !found }' _build/aen-guest/probe.lock
+          awk -F '\t' '$1=="moonfort-symlink-proof-v1" && $2!="" && $3=="/opt/moonfort/tools/symlink-proof" && $4~/^[a-f0-9]{64}$/ { found=1 } END { exit !found }' _build/aen-guest/probe.lock
+      - name: Bind fixed probes into immutable tool registry
+        run: |
+          set -eu
+          cp _build/aen-guest/probe.lock _build/aen-guest/probe-only.lock
+          scripts/package-aen-guest-rootfs.sh "$PWD/_build/aen-guest/probe-rootfs" "$PWD/_build/aen-guest/bin/guest_attester" "$PWD/_build/aen-guest/bin/guest_supervisor" "$PWD/_build/aen-guest/probe-only.lock" > _build/aen-guest/probe-digests.json
+          registry=_build/aen-guest/probe-rootfs/opt/moonfort/etc/tool-registry.tsv
+          awk -F '\t' '$1=="moonfort-network-proof-v1" && $2=="/opt/moonfort/tools/network-proof" && $3~/^[a-f0-9]{64}$/ { found=1 } END { exit !found }' "$registry"
+          awk -F '\t' '$1=="moonfort-symlink-proof-v1" && $2=="/opt/moonfort/tools/symlink-proof" && $3~/^[a-f0-9]{64}$/ { found=1 } END { exit !found }' "$registry"
+          test "$(sha256sum "$registry" | awk '{print $1}')" = "$(jq -r .toolRegistryDigest _build/aen-guest/probe-digests.json)"
       - name: Refuse arbitrary helper operations and missing policy
         run: |
           set -eu
           ! _build/aen-guest/bin/guest_attester arbitrary
           ! _build/aen-guest/bin/guest_supervisor arbitrary
+      - name: Prove IPv6 evidence is self-digest-bound and fail-closed
+        run: |
+          set -eu
+          digest=$(sha256sum _build/aen-guest/bin/guest_attester | awk '{print $1}')
+          ! _build/aen-guest/bin/guest_attester network-attest --contract moonfort-guest-v1 --attester-digest aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          ipv6_disabled=true
+          if [ -d /proc/sys/net/ipv6/conf ]; then
+            for path in /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+              [ "$(cat "$path")" = 1 ] || ipv6_disabled=false
+            done
+          fi
+          if [ "$ipv6_disabled" = true ]; then
+            _build/aen-guest/bin/guest_attester network-attest --contract moonfort-guest-v1 --attester-digest "$digest" | jq -e '.ipv6Disabled == true'
+          else
+            ! _build/aen-guest/bin/guest_attester network-attest --contract moonfort-guest-v1 --attester-digest "$digest"
+          fi
       - name: Package locked runtime without executing tool inputs
         run: |
           set -eu
