@@ -23,6 +23,8 @@ async fn main {
         approval_digest: "",
         command_digest: "",
         promoted_paths: [],
+        destination_outcome: "not-applied",
+        uncertain_paths: [],
         completed: false,
         error: Some({
           code: "configuration-refused",
@@ -39,6 +41,8 @@ async fn main {
             approval_digest: "",
             command_digest: "",
             promoted_paths: [],
+            destination_outcome: "not-applied",
+            uncertain_paths: [],
             completed: false,
             error: Some({
               code: "configuration-refused",
@@ -60,6 +64,8 @@ async fn main {
             approval_digest: "",
             command_digest: "",
             promoted_paths: [],
+            destination_outcome: "not-applied",
+            uncertain_paths: [],
             completed: false,
             error: Some({
               code: "protocol-refused",

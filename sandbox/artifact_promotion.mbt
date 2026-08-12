@@ -98,6 +98,7 @@ pub struct SandboxPromotionPlan {
 ///|
 pub(all) enum SandboxPromotionRefusal {
   EmptyPromotionPlan
+  MultiplePromotionItems(Int)
   UnsafeSourcePath(String)
   UnsafeDestinationPath(String)
   SourceNotFound(String)
@@ -118,6 +119,7 @@ pub(all) enum SandboxPromotionRefusal {
 pub fn SandboxPromotionRefusal::code(self : SandboxPromotionRefusal) -> String {
   match self {
     EmptyPromotionPlan => "empty-promotion-plan"
+    MultiplePromotionItems(_) => "multiple-promotion-items"
     UnsafeSourcePath(_) => "unsafe-source-path"
     UnsafeDestinationPath(_) => "unsafe-destination-path"
     SourceNotFound(_) => "source-not-found"
@@ -139,6 +141,35 @@ pub fn SandboxPromotionRefusal::code(self : SandboxPromotionRefusal) -> String {
 pub(all) struct SandboxPromotionResult {
   promoted_paths : Array[String]
 } derive(Debug, Eq, ToJson, FromJson)
+
+///|
+/// The durable outcome of applying one reviewed promotion. `RecoveryRequired`
+/// means the native operation reported I/O failure after it may have changed
+/// the destination; callers must preserve the retention and inspect the named
+/// destination before retrying or cleaning anything up.
+pub(all) enum SandboxPromotionOutcome {
+  AppliedDurable(SandboxPromotionResult)
+  NotApplied(SandboxPromotionRefusal)
+  RecoveryRequired(destination_path~ : String, native_status~ : Int)
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
+fn promotion_outcome_from_native_status(
+  item : SandboxPromotionItem,
+  status : Int,
+) -> SandboxPromotionOutcome {
+  match status {
+    0 => AppliedDurable({ promoted_paths: [item.destination_relative_path] })
+    1 | 3 => NotApplied(DestinationStateChanged(item.destination_relative_path))
+    2 => NotApplied(SourceFingerprintMismatch(item.source_relative_path))
+    4 =>
+      RecoveryRequired(
+        destination_path=item.destination_relative_path,
+        native_status=status,
+      )
+    other => NotApplied(DestinationIo(secure_fs_status_code(other)))
+  }
+}
 
 ///|
 pub fn bind_receipt_scratch_result(
@@ -191,13 +222,17 @@ async fn validate_destination_confinement(
   let mut current = destination_root
   for index, component_view in components {
     let component = component_view.to_owned()
+    let is_final = index == components.length() - 1
     let names = @fs.readdir(current)
     if !names.contains(component) {
-      return None
+      return if is_final {
+        None
+      } else {
+        Some(DestinationParentNotDirectory(destination_path))
+      }
     }
     current = "\{current}/\{component}"
     let kind = @fs.kind(current, follow_symlink=false)
-    let is_final = index == components.length() - 1
     match kind {
       SymLink => return Some(DestinationSymlink(destination_path))
       Directory if is_final =>
@@ -218,9 +253,9 @@ async fn validate_destination_confinement(
 }
 
 ///|
-/// Build a reviewable promotion plan without copying anything. A backend that
-/// applies the plan must re-run the same confinement checks immediately before
-/// each atomic per-file promotion; the plan intentionally has no bulk-copy API.
+/// Build a reviewable, exactly-one-file promotion plan without copying
+/// anything. The backend re-runs the same confinement checks immediately
+/// before the atomic promotion; destination parents must already exist.
 pub async fn plan_sandbox_promotion(
   inventory : ScratchInventory,
   destination_root : String,
@@ -228,6 +263,9 @@ pub async fn plan_sandbox_promotion(
 ) -> Result[SandboxPromotionPlan, SandboxPromotionRefusal] {
   if requests.is_empty() {
     return Err(EmptyPromotionPlan)
+  }
+  if requests.length() != 1 {
+    return Err(MultiplePromotionItems(requests.length()))
   }
   if !path_is_canonical_absolute(destination_root) {
     return Err(DestinationRootInvalid(destination_root))
@@ -299,7 +337,7 @@ pub async fn plan_sandbox_promotion(
 }
 
 ///|
-/// Apply a reviewed plan one regular file at a time. Native fd-relative
+/// Apply a reviewed plan containing exactly one regular file. Native fd-relative
 /// traversal pins every source/destination directory without following
 /// symlinks. Each item also binds the reviewed destination state. Absent files
 /// are installed with an atomic no-replace rename; existing regular files are
@@ -309,68 +347,61 @@ pub async fn apply_sandbox_promotion(
   scratch_root : String,
   plan : SandboxPromotionPlan,
   disk_limit_bytes? : Int64 = 2_147_483_648L,
-) -> Result[SandboxPromotionResult, SandboxPromotionRefusal] {
+) -> SandboxPromotionOutcome {
   try {
+    if plan.items.is_empty() {
+      return NotApplied(EmptyPromotionPlan)
+    }
+    if plan.items.length() != 1 {
+      return NotApplied(MultiplePromotionItems(plan.items.length()))
+    }
     if @fs.realpath(scratch_root) != scratch_root ||
       @fs.realpath(plan.destination_root) != plan.destination_root {
-      return Err(DestinationRootInvalid(plan.destination_root))
+      return NotApplied(DestinationRootInvalid(plan.destination_root))
     }
     let current = match inventory_scratch(scratch_root, disk_limit_bytes) {
       Ok(value) => value
-      Err(reason) => return Err(DestinationIo(reason.code()))
+      Err(reason) => return NotApplied(DestinationIo(reason.code()))
     }
-    let promoted_paths : Array[String] = []
-    for item in plan.items {
-      guard find_scratch_entry(current, item.source_relative_path)
-        is Some(entry) else {
-        return Err(SourceNotFound(item.source_relative_path))
-      }
-      if !(entry.kind is RegularFile) ||
-        entry.fingerprint != item.expected_source_fingerprint ||
-        entry.size_bytes != item.size_bytes {
-        return Err(SourceFingerprintMismatch(item.source_relative_path))
-      }
-      if validate_destination_confinement(
-          plan.destination_root,
-          item.destination_relative_path,
-        )
-        is Some(reason) {
-        return Err(reason)
-      }
-      let status = secure_promote_regular(
-        scratch_root,
-        item.source_relative_path,
+    let item = plan.items[0]
+    guard find_scratch_entry(current, item.source_relative_path) is Some(entry) else {
+      return NotApplied(SourceNotFound(item.source_relative_path))
+    }
+    if !(entry.kind is RegularFile) ||
+      entry.fingerprint != item.expected_source_fingerprint ||
+      entry.size_bytes != item.size_bytes {
+      return NotApplied(SourceFingerprintMismatch(item.source_relative_path))
+    }
+    if validate_destination_confinement(
         plan.destination_root,
         item.destination_relative_path,
-        item.size_bytes,
-        item.expected_source_fingerprint,
-        match item.expected_destination_state {
-          ReviewedDestinationAbsent => 0
-          ReviewedDestinationRegular(..) => 1
-        },
-        match item.expected_destination_state {
-          ReviewedDestinationAbsent => 0L
-          ReviewedDestinationRegular(size_bytes~, ..) => size_bytes
-        },
-        match item.expected_destination_state {
-          ReviewedDestinationAbsent => ""
-          ReviewedDestinationRegular(fingerprint~, ..) => fingerprint
-        },
       )
-      if status == 2 {
-        return Err(SourceFingerprintMismatch(item.source_relative_path))
-      }
-      if status == 3 || status == 1 {
-        return Err(DestinationStateChanged(item.destination_relative_path))
-      }
-      if status != 0 {
-        return Err(DestinationIo(secure_fs_status_code(status)))
-      }
-      promoted_paths.push(item.destination_relative_path)
+      is Some(reason) {
+      return NotApplied(reason)
     }
-    Ok({ promoted_paths, })
+    let status = secure_promote_regular(
+      scratch_root,
+      item.source_relative_path,
+      plan.destination_root,
+      item.destination_relative_path,
+      item.size_bytes,
+      item.expected_source_fingerprint,
+      match item.expected_destination_state {
+        ReviewedDestinationAbsent => 0
+        ReviewedDestinationRegular(..) => 1
+      },
+      match item.expected_destination_state {
+        ReviewedDestinationAbsent => 0L
+        ReviewedDestinationRegular(size_bytes~, ..) => size_bytes
+      },
+      match item.expected_destination_state {
+        ReviewedDestinationAbsent => ""
+        ReviewedDestinationRegular(fingerprint~, ..) => fingerprint
+      },
+    )
+    promotion_outcome_from_native_status(item, status)
   } catch {
     error if @async.is_being_cancelled() => raise error
-    error => Err(DestinationIo("\{error}"))
+    error => NotApplied(DestinationIo("\{error}"))
   }
 }

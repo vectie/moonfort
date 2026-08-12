@@ -229,11 +229,15 @@ async test "promotion refuses symlink destinations and applies regular files" {
   ])
   guard rejected is Err(reason) else { fail("expected destination refusal") }
   assert_eq(reason.code(), "destination-symlink")
+  @fs.mkdir("\{destination}/safe", permission=0o700)
   let plan = plan_sandbox_promotion(inventory, destination, [
     { artifact_path: "artifact", destination_path: "safe/file" },
   ]).unwrap()
-  let promoted = apply_sandbox_promotion(scratch, plan).unwrap()
-  assert_eq(promoted.promoted_paths, ["safe/file"])
+  let promoted = apply_sandbox_promotion(scratch, plan)
+  guard promoted is AppliedDurable(result) else {
+    fail("expected durable promotion")
+  }
+  assert_eq(result.promoted_paths, ["safe/file"])
   assert_eq(@fs.read_file("\{destination}/safe/file").text(), "payload")
   assert_false(@fs.exists("\{outside}/file"))
   ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
@@ -262,7 +266,9 @@ async test "promotion pins destination ancestry after reviewed plan" {
   @fs.rename("\{destination}/parent", "\{destination}/reviewed-parent")
   @fs.symlink("\{destination}/parent", target=outside)
   let result = apply_sandbox_promotion(scratch, plan)
-  guard result is Err(reason) else { fail("expected swapped parent refusal") }
+  guard result is NotApplied(reason) else {
+    fail("expected swapped parent refusal")
+  }
   assert_eq(reason.code(), "destination-symlink")
   assert_false(@fs.exists("\{outside}/file"))
   ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
@@ -288,7 +294,7 @@ async test "promotion refuses destination created after absent review" {
   )
   @fs.write_file("\{destination}/result", "attacker", create_mode=CreateNew)
   let applied = apply_sandbox_promotion(scratch, plan)
-  guard applied is Err(reason) else {
+  guard applied is NotApplied(reason) else {
     fail("expected created destination refusal")
   }
   assert_eq(reason.code(), "destination-state-changed")
@@ -326,7 +332,7 @@ async test "promotion refuses same-size destination replacement after review" {
   @fs.write_file("\{destination}/replacement", "after!!", create_mode=CreateNew)
   @fs.rename("\{destination}/replacement", "\{destination}/result")
   let applied = apply_sandbox_promotion(scratch, plan)
-  guard applied is Err(reason) else {
+  guard applied is NotApplied(reason) else {
     fail("expected replaced destination refusal")
   }
   assert_eq(reason.code(), "destination-state-changed")
@@ -350,11 +356,48 @@ async test "promotion atomically exchanges an unchanged reviewed destination" {
   let plan = plan_sandbox_promotion(inventory, destination, [
     { artifact_path: "artifact", destination_path: "result" },
   ]).unwrap()
-  let applied = apply_sandbox_promotion(scratch, plan).unwrap()
-  assert_eq(applied.promoted_paths, ["result"])
+  let applied = apply_sandbox_promotion(scratch, plan)
+  guard applied is AppliedDurable(result) else {
+    fail("expected durable promotion")
+  }
+  assert_eq(result.promoted_paths, ["result"])
   assert_eq(@fs.read_file("\{destination}/result").text(), "reviewed")
   let names = @fs.readdir(destination)
   assert_eq(names, ["result"])
+  ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
+}
+
+///|
+async test "promotion requires exactly one item and existing parents" {
+  let scratch = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-cardinality-source-"),
+  )
+  let destination = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-cardinality-dest-"),
+  )
+  @fs.write_file("\{scratch}/one", "one", create_mode=CreateNew)
+  @fs.write_file("\{scratch}/two", "two", create_mode=CreateNew)
+  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let empty = plan_sandbox_promotion(inventory, destination, [])
+  guard empty is Err(empty_reason) else { fail("expected empty refusal") }
+  assert_eq(empty_reason.code(), "empty-promotion-plan")
+  let multiple = plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "one", destination_path: "one" },
+    { artifact_path: "two", destination_path: "two" },
+  ])
+  guard multiple is Err(multiple_reason) else {
+    fail("expected multiple-item refusal")
+  }
+  assert_eq(multiple_reason.code(), "multiple-promotion-items")
+  let missing_parent = plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "one", destination_path: "missing/result" },
+  ])
+  guard missing_parent is Err(parent_reason) else {
+    fail("expected missing-parent refusal")
+  }
+  assert_eq(parent_reason.code(), "destination-parent-not-directory")
+  assert_false(@fs.exists("\{destination}/missing"))
   ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
   ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
 }

@@ -406,8 +406,11 @@ async test "promotion requires matching retained execution digests" {
   )
   assert_false(mismatch.completed)
   assert_false(@fs.exists("\{config.workspaces["book"].root}/promoted"))
+  @fs.mkdir("\{config.workspaces["book"].root}/promoted", permission=0o700)
   let promoted = promote_retention(base, config)
   assert_true(promoted.completed)
+  assert_eq(promoted.destination_outcome, "applied-durable")
+  assert_true(promoted.uncertain_paths.is_empty())
   assert_eq(promoted.workspace_id, "book")
   assert_eq(
     promoted.approval_digest,
@@ -500,6 +503,7 @@ async test "verified AEN export is retained promoted and replay refused" {
       },
     ],
   }
+  @fs.mkdir("\{config.workspaces["book"].root}/reviewed", permission=0o700)
   let promoted = promote_retention(request, config)
   assert_true(promoted.completed)
   assert_eq(
@@ -727,5 +731,126 @@ async test "retention write refuses expiration overflow" {
     ),
   )
   assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "promotion claim durably binds the exact reviewed item" {
+  let (config, roots) = test_executor_config()
+  let (scratch, retention_id) = allocate_scratch("request-claim", config)
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "artifact",
+    kind: RegularFile,
+    size_bytes: 8L,
+    fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"reviewed")),
+  }
+  assert_true(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [entry],
+      config,
+    ),
+  )
+  @fs.mkdir("\{config.workspaces["book"].root}/reviewed", permission=0o700)
+  let inventory : @sandbox.ScratchInventory = {
+    entries: [entry],
+    total_bytes: 8L,
+  }
+  let plan = @sandbox.plan_sandbox_promotion(
+    inventory,
+    config.workspaces["book"].root,
+    [{ artifact_path: "artifact", destination_path: "reviewed/result" }],
+  ).unwrap()
+  let record = load_retention_record(retention_id, config)
+  let item = plan.items()[0]
+  let claimed = claim_retention_for_promotion(record, item, config)
+  assert_false(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
+  let claim_path = "\{config.retention_root}/\{retention_id}.claim"
+  let claim : PromotionClaim = @json.from_json(
+    @json.parse(
+      bounded_regular_file(claim_path, config.limits.max_protocol_bytes),
+    ),
+  )
+  assert_eq(claim.record, record)
+  assert_eq(claim.item, item)
+  assert_eq(claim.phase, "prepared")
+  assert_eq(sweep_expired_retentions(config), 0)
+  assert_true(@fs.exists(claimed))
+  assert_true(@fs.exists(claim_path))
+  assert_true(restore_claimed_retention(claimed, record, config))
+  assert_true(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
+  assert_false(@fs.exists(claimed))
+  assert_false(@fs.exists(claim_path))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove("\{config.retention_root}/\{retention_id}.json")
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "multi-item promotion refuses before claiming or writing" {
+  let (config, roots) = test_executor_config()
+  let (scratch, retention_id) = allocate_scratch("request-multi", config)
+  @fs.write_file("\{scratch}/a", "a", create_mode=CreateNew, permission=0o600)
+  @fs.write_file("\{scratch}/b", "b", create_mode=CreateNew, permission=0o600)
+  let entries : Array[@sandbox.ScratchEntry] = [
+    {
+      relative_path: "a",
+      kind: RegularFile,
+      size_bytes: 1L,
+      fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"a")),
+    },
+    {
+      relative_path: "b",
+      kind: RegularFile,
+      size_bytes: 1L,
+      fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"b")),
+    },
+  ]
+  assert_true(
+    retain_scratch(
+      scratch, retention_id, "book", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      entries, config,
+    ),
+  )
+  let response = promote_retention(
+    {
+      protocol_version: 3,
+      retention_id,
+      workspace_id: "book",
+      approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      command_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      items: [
+        { artifact_path: "a", destination_path: "a" },
+        { artifact_path: "b", destination_path: "b" },
+      ],
+    },
+    config,
+  )
+  assert_false(response.completed)
+  assert_eq(response.destination_outcome, "not-applied")
+  assert_true(response.uncertain_paths.is_empty())
+  assert_true(
+    response.error is Some(error) &&
+    error.message.contains("multiple-promotion-items"),
+  )
+  assert_true(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
+  assert_false(@fs.exists("\{config.retention_root}/\{retention_id}.promoting"))
+  assert_false(@fs.exists("\{config.retention_root}/\{retention_id}.claim"))
+  assert_false(@fs.exists("\{config.workspaces["book"].root}/a"))
+  assert_false(@fs.exists("\{config.workspaces["book"].root}/b"))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove("\{config.retention_root}/\{retention_id}.json")
   cleanup_test_roots(roots)
 }

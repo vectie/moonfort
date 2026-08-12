@@ -1,4 +1,5 @@
 import {
+  "moonbitlang/async",
   "moonbitlang/async/fs",
   "moonbitlang/core/buffer",
   "moonbitlang/core/encoding/utf8",
@@ -8,10 +9,6 @@ import {
   "vectie/moonfort/aen_backend",
   "vectie/moonfort/sandbox",
 }
-
-import {
-  "moonbitlang/async",
-} for "wbtest"
 
 supported_targets = "+native"
 

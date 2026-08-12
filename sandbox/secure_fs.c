@@ -653,11 +653,10 @@ int32_t moonfort_secure_destination_state(
   }
   char leaf[NAME_MAX + 1];
   int parent = open_relative_parent(root, destination_path, 0, leaf);
-  int parent_error = errno;
   free(destination_path);
   close(root);
   if (parent < 0) {
-    return parent_error == ENOENT ? SECURE_FS_OK : SECURE_FS_DESTINATION;
+    return SECURE_FS_DESTINATION;
   }
   int64_t size = 0;
   unsigned char digest[32];
@@ -733,7 +732,7 @@ int32_t moonfort_secure_promote_regular(
     source_root_fd, source_path, 0, source_leaf
   );
   int destination_parent = open_relative_parent(
-    destination_root_fd, destination_path, 1, destination_leaf
+    destination_root_fd, destination_path, 0, destination_leaf
   );
   free(source_path);
   free(destination_path);
@@ -802,6 +801,7 @@ int32_t moonfort_secure_promote_regular(
     return SECURE_FS_DESTINATION;
   }
   int result = SECURE_FS_OK;
+  int destination_directory_mutated = 1;
   int64_t copied = 0;
   struct sha256_state hasher;
   sha256_init(&hasher);
@@ -858,7 +858,6 @@ int32_t moonfort_secure_promote_regular(
   }
   close(source);
   close(output);
-  int destination_directory_mutated = 0;
   if (result == SECURE_FS_OK && expected_destination_kind == 0) {
     if (atomic_rename_no_replace(
           destination_parent,
@@ -871,7 +870,6 @@ int32_t moonfort_secure_promote_regular(
         ? SECURE_FS_UNSUPPORTED
         : SECURE_FS_DESTINATION;
     } else {
-      destination_directory_mutated = 1;
     }
   } else if (result == SECURE_FS_OK) {
     if (atomic_rename_exchange(
@@ -885,7 +883,6 @@ int32_t moonfort_secure_promote_regular(
         ? SECURE_FS_UNSUPPORTED
         : SECURE_FS_DESTINATION;
     } else {
-      destination_directory_mutated = 1;
       int64_t swapped_size = 0;
       unsigned char swapped_digest[32];
       int swapped_state = inspect_destination_regular(
@@ -918,7 +915,6 @@ int32_t moonfort_secure_promote_regular(
              proven; preserve both names for operator recovery. */
           result = SECURE_FS_IO;
         } else {
-          destination_directory_mutated = 1;
           result = SECURE_FS_DESTINATION;
         }
       }
@@ -929,11 +925,10 @@ int32_t moonfort_secure_promote_regular(
       }
     }
   }
-  if (destination_directory_mutated && fsync(destination_parent) != 0) {
-    result = SECURE_FS_IO;
-  }
   if (result != SECURE_FS_OK && expected_destination_kind == 0) {
-    (void)unlinkat(destination_parent, temporary, 0);
+    if (unlinkat(destination_parent, temporary, 0) != 0 && errno != ENOENT) {
+      result = SECURE_FS_IO;
+    }
   } else if (result != SECURE_FS_OK && expected_destination_kind == 1) {
     struct stat leftover;
     if (fstatat(
@@ -944,8 +939,13 @@ int32_t moonfort_secure_promote_regular(
         ) == 0 && output_status_valid && S_ISREG(leftover.st_mode) &&
         leftover.st_dev == output_status.st_dev &&
         leftover.st_ino == output_status.st_ino) {
-      (void)unlinkat(destination_parent, temporary, 0);
+      if (unlinkat(destination_parent, temporary, 0) != 0) {
+        result = SECURE_FS_IO;
+      }
     }
+  }
+  if (destination_directory_mutated && fsync(destination_parent) != 0) {
+    result = SECURE_FS_IO;
   }
   close(destination_parent);
   return result;

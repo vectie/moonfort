@@ -1,6 +1,8 @@
+#define _DARWIN_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <moonbit.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,4 +94,18 @@ int32_t moonfort_secure_path(moonbit_bytes_t bytes, int32_t length, int32_t poli
     default:
       return 0;
   }
+}
+
+MOONBIT_FFI_EXPORT
+int32_t moonfort_sync_directory(moonbit_bytes_t bytes, int32_t length) {
+  char *path = copy_path(bytes, length);
+  if (path == NULL) return -1;
+  int descriptor = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  free(path);
+  if (descriptor < 0) return -1;
+  int result = fsync(descriptor);
+  int saved = errno;
+  close(descriptor);
+  errno = saved;
+  return result;
 }

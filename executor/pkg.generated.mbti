@@ -93,6 +93,8 @@ pub(all) struct GrantPublicationResponse {
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
 
+type PromotionClaim derive(ToJson, @json.FromJson)
+
 pub(all) struct RetentionPromotionRequest {
   protocol_version : Int
   retention_id : String
@@ -109,11 +111,13 @@ pub(all) struct RetentionPromotionResponse {
   approval_digest : String
   command_digest : String
   promoted_paths : Array[String]
+  destination_outcome : String
+  uncertain_paths : Array[String]
   completed : Bool
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
 
-type RetentionRecord derive(ToJson, @json.FromJson)
+type RetentionRecord derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct SandboxInvocation {
   protocol_version : Int

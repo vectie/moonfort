@@ -43,6 +43,8 @@ pub(all) struct RetentionPromotionResponse {
   approval_digest : String
   command_digest : String
   promoted_paths : Array[String]
+  destination_outcome : String
+  uncertain_paths : Array[String]
   completed : Bool
   error : ExecutorProtocolError?
 } derive(Debug, Eq, ToJson)
@@ -142,6 +144,14 @@ struct RetentionRecord {
   approval_digest : String
   command_digest : String
   reviewable_files : Array[@sandbox.ScratchEntry]
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
+/// Durable write-ahead record for the single reviewed canonical mutation.
+struct PromotionClaim {
+  record : RetentionRecord
+  item : @sandbox.SandboxPromotionItem
+  phase : String
 } derive(ToJson, FromJson)
 
 ///|

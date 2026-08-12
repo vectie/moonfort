@@ -467,16 +467,36 @@ async fn load_retention_record(
 ///|
 async fn claim_retention_for_promotion(
   record : RetentionRecord,
+  item : @sandbox.SandboxPromotionItem,
   config : ExecutorConfig,
 ) -> String {
   let available = "\{config.retention_root}/\{record.retention_id}.json"
   let claimed = "\{config.retention_root}/\{record.retention_id}.promoting"
-  @fs.rename(available, claimed, replace=false) catch {
+  let claim_path = "\{config.retention_root}/\{record.retention_id}.claim"
+  let claim : PromotionClaim = { record, item, phase: "prepared" }
+  let encoded = claim.to_json().stringify()
+  guard @utf8.encode(encoded).length() <= config.limits.max_protocol_bytes else {
+    fail("promotion claim exceeds the protocol bound")
+  }
+  @fs.write_file(
+    claim_path,
+    encoded,
+    create_mode=CreateNew,
+    permission=0o600,
+    sync=Full,
+  ) catch {
     _ => fail("retention is already being promoted or is unavailable")
   }
-  guard @fs.kind(claimed, follow_symlink=false) is Regular &&
-    protected_regular_file(claimed) else {
+  guard @fs.kind(claim_path, follow_symlink=false) is Regular &&
+    protected_regular_file(claim_path) &&
+    sync_private_directory(config.retention_root) else {
     fail("claimed retention record could not be verified")
+  }
+  @fs.rename(available, claimed, replace=false) catch {
+    _ => fail("retention could not be atomically claimed")
+  }
+  guard sync_private_directory(config.retention_root) else {
+    fail("promotion claim could not be durably committed")
   }
   claimed
 }
@@ -484,11 +504,27 @@ async fn claim_retention_for_promotion(
 ///|
 async fn restore_claimed_retention(
   claimed : String,
-  retention_id : String,
+  record : RetentionRecord,
   config : ExecutorConfig,
-) -> Unit {
-  let available = "\{config.retention_root}/\{retention_id}.json"
-  ignore(@fs.rename(claimed, available, replace=false) catch { _ => () })
+) -> Bool {
+  let available = "\{config.retention_root}/\{record.retention_id}.json"
+  let claim_path = "\{config.retention_root}/\{record.retention_id}.claim"
+  let restored = try {
+    @fs.rename(claimed, available, replace=false)
+    sync_private_directory(config.retention_root)
+  } catch {
+    _ => false
+  }
+  if !restored {
+    return false
+  }
+  let claim_removed = try {
+    @fs.remove(claim_path)
+    true
+  } catch {
+    _ => false
+  }
+  claim_removed && sync_private_directory(config.retention_root)
 }
 
 ///|
@@ -508,6 +544,8 @@ pub async fn promote_retention(
       approval_digest: "",
       command_digest: "",
       promoted_paths: [],
+      destination_outcome: "not-applied",
+      uncertain_paths: [],
       completed: false,
       error: Some({ code: "promotion-refused", message }),
     }
@@ -551,64 +589,123 @@ pub async fn promote_retention(
     Ok(value) => value
     Err(reason) => return refused("promotion planning failed: \{reason.code()}")
   }
-  let claimed = claim_retention_for_promotion(record, config) catch {
-    _ => return refused("retention is already being promoted or unavailable")
+  let planned_items = plan.items()
+  guard planned_items.length() == 1 else {
+    return refused("promotion plan does not contain exactly one item")
   }
-  match
-    @sandbox.apply_sandbox_promotion(
-      record.scratch_path,
-      plan,
-      disk_limit_bytes~,
-    ) {
-    Ok(result) => {
-      let scratch_removed = @sandbox.discard_scratch_tree(record.scratch_path)
-        is Ok(_)
-      let record_removed = if scratch_removed {
-        try {
-          @fs.remove(claimed)
-          true
-        } catch {
-          _ => false
-        }
-      } else {
-        false
+  @async.protect_from_cancel(
+    () => {
+      let claimed = claim_retention_for_promotion(
+        record,
+        planned_items[0],
+        config,
+      ) catch {
+        _ =>
+          return refused("retention is already being promoted or unavailable")
       }
-      if scratch_removed && record_removed {
-        {
-          protocol_version: 3,
-          retention_id: request.retention_id,
-          workspace_id: record.workspace_id,
-          approval_digest: record.approval_digest,
-          command_digest: record.command_digest,
-          promoted_paths: result.promoted_paths,
-          completed: true,
-          error: None,
+      match
+        @sandbox.apply_sandbox_promotion(
+          record.scratch_path,
+          plan,
+          disk_limit_bytes~,
+        ) {
+        AppliedDurable(result) => {
+          let scratch_removed = @sandbox.discard_scratch_tree(
+              record.scratch_path,
+            )
+            is Ok(_)
+          let records_removed = if scratch_removed {
+            try {
+              @fs.remove(claimed)
+              @fs.remove(
+                "\{config.retention_root}/\{request.retention_id}.claim",
+              )
+              sync_private_directory(config.retention_root)
+            } catch {
+              _ => false
+            }
+          } else {
+            false
+          }
+          if scratch_removed && records_removed {
+            {
+              protocol_version: 3,
+              retention_id: request.retention_id,
+              workspace_id: record.workspace_id,
+              approval_digest: record.approval_digest,
+              command_digest: record.command_digest,
+              promoted_paths: result.promoted_paths,
+              destination_outcome: "applied-durable",
+              uncertain_paths: [],
+              completed: true,
+              error: None,
+            }
+          } else {
+            {
+              protocol_version: 3,
+              retention_id: request.retention_id,
+              workspace_id: record.workspace_id,
+              approval_digest: record.approval_digest,
+              command_digest: record.command_digest,
+              promoted_paths: result.promoted_paths,
+              destination_outcome: "applied-durable",
+              uncertain_paths: [],
+              completed: false,
+              error: Some({
+                code: "promotion-cleanup-unverified",
+                message: "files were promoted but retention cleanup could not be verified",
+              }),
+            }
+          }
         }
-      } else {
-        {
-          protocol_version: 3,
-          retention_id: request.retention_id,
-          workspace_id: record.workspace_id,
-          approval_digest: record.approval_digest,
-          command_digest: record.command_digest,
-          promoted_paths: result.promoted_paths,
-          completed: false,
-          error: Some({
-            code: "promotion-cleanup-unverified",
-            message: "files were promoted but retention cleanup could not be verified",
-          }),
-        }
+        NotApplied(reason) =>
+          if restore_claimed_retention(claimed, record, config) {
+            refused(
+              "promotion apply failed before destination mutation: \{reason.code()}",
+            )
+          } else {
+            {
+              protocol_version: 3,
+              retention_id: request.retention_id,
+              workspace_id: record.workspace_id,
+              approval_digest: record.approval_digest,
+              command_digest: record.command_digest,
+              promoted_paths: [],
+              destination_outcome: "not-applied",
+              uncertain_paths: [],
+              completed: false,
+              error: Some({
+                code: "promotion-recovery-required",
+                message: "destination was not applied but the durable retention claim could not be restored",
+              }),
+            }
+          }
+        RecoveryRequired(destination_path~, native_status~) =>
+          {
+            protocol_version: 3,
+            retention_id: request.retention_id,
+            workspace_id: record.workspace_id,
+            approval_digest: record.approval_digest,
+            command_digest: record.command_digest,
+            promoted_paths: [],
+            destination_outcome: "recovery-required",
+            uncertain_paths: [destination_path],
+            completed: false,
+            error: Some({
+              code: "promotion-recovery-required",
+              message: "destination outcome is uncertain for \{destination_path}; retention remains locked (native status \{native_status})",
+            }),
+          }
       }
-    }
-    Err(reason) => {
-      restore_claimed_retention(claimed, request.retention_id, config)
-      refused("promotion apply failed: \{reason.code()}")
-    }
-  }
+    },
+    resume_on_cancel=true,
+  )
 }
 
 ///|
-/// Remove every expired executor-owned scratch retention record.
+/// Remove every expired, unclaimed executor-owned scratch retention record.
+/// `.promoting` claims are deliberately excluded: they may represent an
+/// indeterminate canonical write and require explicit recovery.
 pub async fn sweep_expired_retentions(config : ExecutorConfig) -> Int {
   let mut removed = 0
   let now = @env.now().reinterpret_as_int64()
@@ -616,6 +713,15 @@ pub async fn sweep_expired_retentions(config : ExecutorConfig) -> Int {
     guard name.has_suffix(".json") else { continue }
     let id = name[:name.length() - 5].to_owned()
     guard safe_identifier(id) else { continue }
+    let promoting = "\{config.retention_root}/\{id}.promoting"
+    let claim = "\{config.retention_root}/\{id}.claim"
+    if (
+        @fs.exists(promoting) &&
+        @fs.kind(promoting, follow_symlink=false) is Regular
+      ) ||
+      (@fs.exists(claim) && @fs.kind(claim, follow_symlink=false) is Regular) {
+      continue
+    }
     let path = "\{config.retention_root}/\{name}"
     let record : RetentionRecord = @json.from_json(
       @json.parse(bounded_regular_file(path, config.limits.max_protocol_bytes)),

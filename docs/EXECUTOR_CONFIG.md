@@ -106,3 +106,14 @@ whose reviewable manifest is bound to the workspace, profile, approval, and
 command digests. Promotion can select only entries in that manifest and still
 uses fd-relative source/destination revalidation. Symlinks, directories,
 special files, and removals are never materialized or promotable.
+
+Each promotion request currently accepts exactly one file and requires every
+destination parent directory to already exist. This keeps the canonical write
+to one atomic rename/exchange. A proven pre-mutation refusal restores the
+retention; a native I/O outcome that may be post-mutation returns
+`promotion-recovery-required` and leaves the `.promoting` record plus its
+exact, synced `.claim` sidecar locked for
+operator inspection. Its response has `destination_outcome` set to
+`recovery-required` and names the exact reviewed path in `uncertain_paths`;
+an empty `promoted_paths` therefore never falsely claims that no write may
+have occurred. Expiration sweeping never deletes locked claims.

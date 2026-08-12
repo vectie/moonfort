@@ -7,7 +7,7 @@ import {
 }
 
 // Values
-pub async fn apply_sandbox_promotion(String, SandboxPromotionPlan, disk_limit_bytes? : Int64) -> Result[SandboxPromotionResult, SandboxPromotionRefusal]
+pub async fn apply_sandbox_promotion(String, SandboxPromotionPlan, disk_limit_bytes? : Int64) -> SandboxPromotionOutcome
 
 pub fn backend_label(SandboxBackendKind) -> String
 
@@ -221,6 +221,12 @@ pub(all) struct SandboxPromotionItem {
   expected_destination_state : SandboxPromotionDestinationState
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) enum SandboxPromotionOutcome {
+  AppliedDurable(SandboxPromotionResult)
+  NotApplied(SandboxPromotionRefusal)
+  RecoveryRequired(destination_path~ : String, native_status~ : Int)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
 pub struct SandboxPromotionPlan {
   destination_root : String
   items : Array[SandboxPromotionItem]
@@ -230,6 +236,7 @@ pub fn SandboxPromotionPlan::items(Self) -> Array[SandboxPromotionItem]
 
 pub(all) enum SandboxPromotionRefusal {
   EmptyPromotionPlan
+  MultiplePromotionItems(Int)
   UnsafeSourcePath(String)
   UnsafeDestinationPath(String)
   SourceNotFound(String)
