@@ -33,6 +33,11 @@ fn local_e2e_grant(
 }
 
 ///|
+fn require_local_e2e() -> Bool {
+  @env.get_env_var("MOONFORT_REQUIRE_LOCAL_E2E") == Some("1")
+}
+
+///|
 async test "published grant executes only in private local snapshot and binds evidence" {
   let shell = @fs.realpath("/bin/sh")
   let (config, roots) = local_e2e_config("sh", shell)
@@ -133,6 +138,11 @@ async test "published grant executes only in private local snapshot and binds ev
       println("moonfort local E2E: sandbox-exec execution verified")
     }
     Refused => {
+      if require_local_e2e() {
+        fail(
+          "local sandbox enforcement was required but unavailable: \{receipt.denial_reason.unwrap_or("no backend reason")}",
+        )
+      }
       assert_true(receipt.status is Failed)
       assert_true(receipt.exit_code is None)
       assert_false(receipt.cleanup_verified)
@@ -183,6 +193,11 @@ async test "real local executor enforces bounded output or refuses closed" {
       assert_true(receipt.cleanup_verified)
     }
     Refused => {
+      if require_local_e2e() {
+        fail(
+          "local sandbox output enforcement was required but unavailable: \{receipt.denial_reason.unwrap_or("no backend reason")}",
+        )
+      }
       assert_true(receipt.status is Failed)
       assert_true(receipt.exit_code is None)
       assert_false(receipt.cleanup_verified)

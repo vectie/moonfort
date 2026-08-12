@@ -1,0 +1,36 @@
+name: Local sandbox proof
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-local-e2e:
+    name: ${{ matrix.os }} native enforcement
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      MOONFORT_REQUIRE_LOCAL_E2E: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Linux namespace backend
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: Resolve dependencies
+        run: moon update
+      - name: Check native packages
+        run: moon check --target native --warn-list +73
+      - name: Prove real local isolation
+        run: moon test --target native executor/local_executor_e2e_wbtest.mbt -v
