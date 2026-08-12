@@ -16,6 +16,10 @@ pub struct AenBackend[T] {
   priv guest_scratch : String
   priv guest_attester : String
   priv guest_supervisor : String
+  priv executor_root_digest : String
+  priv guest_attester_digest : String
+  priv guest_supervisor_digest : String
+  priv tool_registry_digest : String
   priv require_guest_attestation : Bool
   priv warm_snapshot_compat : Bool
   priv guest_tools : Map[String, String]
@@ -40,6 +44,10 @@ fn[T] AenBackend::new(
   guest_scratch? : String = "/scratch",
   guest_attester? : String = "/opt/moonfort/bin/attester",
   guest_supervisor? : String = "/opt/moonfort/bin/supervisor",
+  executor_root_digest? : String = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  guest_attester_digest? : String = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  guest_supervisor_digest? : String = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  tool_registry_digest? : String = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
   require_guest_attestation? : Bool = false,
   guest_tools~ : Map[String, String],
   profile~ : @sandbox.SandboxProfile,
@@ -126,6 +134,17 @@ fn[T] AenBackend::new(
       "AEN guest attester and supervisor need distinct absolute paths",
     )
   }
+  guard !require_guest_attestation ||
+    (
+      sha256_digest(executor_root_digest) &&
+      sha256_digest(guest_attester_digest) &&
+      sha256_digest(guest_supervisor_digest) &&
+      sha256_digest(tool_registry_digest)
+    ) else {
+    raise InvalidConfiguration(
+      "AEN guest runtime identities must be lowercase SHA-256 digests",
+    )
+  }
   {
     transport,
     api_key,
@@ -137,6 +156,10 @@ fn[T] AenBackend::new(
     guest_scratch,
     guest_attester,
     guest_supervisor,
+    executor_root_digest,
+    guest_attester_digest,
+    guest_supervisor_digest,
+    tool_registry_digest,
     require_guest_attestation,
     warm_snapshot_compat,
     guest_tools,
@@ -147,6 +170,15 @@ fn[T] AenBackend::new(
     pending_child_ids: [],
     state: Created,
   }
+}
+
+///|
+fn sha256_digest(value : String) -> Bool {
+  value.length() == 64 &&
+  value.all(character => {
+    (character >= '0' && character <= '9') ||
+    (character >= 'a' && character <= 'f')
+  })
 }
 
 ///|

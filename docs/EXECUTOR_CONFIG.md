@@ -51,6 +51,10 @@ approval root.
       "guest_scratch": "/scratch",
       "guest_attester": "/opt/moonfort/bin/attester",
       "guest_supervisor": "/opt/moonfort/bin/supervisor",
+      "executor_root_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "guest_attester_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "guest_supervisor_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "tool_registry_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "guest_tools": {"moon":"/opt/moon/bin/moon"}
     }
   },

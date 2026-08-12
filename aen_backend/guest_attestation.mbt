@@ -109,6 +109,14 @@ async fn[T : AenTransport] AenBackend::verify_guest_attestation(
       tool_bindings_digest(self.guest_tools),
       "--supervisor",
       self.guest_supervisor,
+      "--executor-root-digest",
+      self.executor_root_digest,
+      "--attester-digest",
+      self.guest_attester_digest,
+      "--supervisor-digest",
+      self.guest_supervisor_digest,
+      "--tool-registry-digest",
+      self.tool_registry_digest,
       "--cpu-seconds",
       self.profile.limits.cpu_seconds.to_string(),
       "--process-limit",
@@ -121,7 +129,10 @@ async fn[T : AenTransport] AenBackend::verify_guest_attestation(
   let object = json_object(detail, "guest attestation")
   guard required_string(object, "contract") == GuestAttestationContract &&
     required_string(object, "profileDigest") == self.digest &&
-    required_string(object, "executorImageRef") == self.executor_image_ref &&
+    required_string(object, "executorRootDigest") == self.executor_root_digest &&
+    required_string(object, "guestAttesterDigest") == self.guest_attester_digest &&
+    required_string(object, "guestSupervisorDigest") ==
+    self.guest_supervisor_digest &&
     required_string(object, "workspaceDigest") ==
     self.workspace_lease.workspace_digest &&
     required_string(object, "workspacePath") == self.guest_workspace &&
@@ -138,8 +149,7 @@ async fn[T : AenTransport] AenBackend::verify_guest_attestation(
     self.workspace_lease.entry_count &&
     required_string(object, "scratchBaselineBytes") ==
     self.workspace_lease.total_bytes.to_string() &&
-    required_string(object, "toolBindingsDigest") ==
-    tool_bindings_digest(self.guest_tools) &&
+    required_string(object, "toolRegistryDigest") == self.tool_registry_digest &&
     required_string(object, "supervisorPath") == self.guest_supervisor &&
     required_int(object, "cpuSeconds") == self.profile.limits.cpu_seconds &&
     required_int(object, "processLimit") == self.profile.limits.processes &&

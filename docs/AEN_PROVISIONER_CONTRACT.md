@@ -92,6 +92,14 @@ to 4096 entries and 4 MiB response, to obtain content-hashed structured changes.
 An envd watcher independently supplies the changed-path event set. Failure of
 either source refuses the run.
 
+AEN control-plane readback, not the guest, binds the registry manifest used to
+boot the VM. Embedding that manifest digest in the same image would be circular.
+The protected executor configuration therefore supplies a non-circular root
+manifest digest and exact attester, supervisor, and tool-registry digests. The
+attester recomputes all four inside the VM. The supervisor then rechecks its own
+binary, the persisted profile/limit policy, the registry, and the selected tool
+file before launch. Any mismatch refuses execution.
+
 ## External deployment requirements
 
 MoonFort contains the client, the loopback provisioner service, fd-relative
@@ -99,7 +107,9 @@ snapshot and deterministic OCI staging implementation, validation, request
 mapping, receipt verification, cleanup protocol, and adversarial tests. A
 production installation must run that service under a dedicated account,
 synchronously expose its OCI spool through the configured immutable repository,
-operate the AEN cluster, and build/publish the two fixed guest helpers in the
-immutable executor image. Until those artifacts and the registry publication
-gate are configured, the backend intentionally refuses; it never executes on
-the host as a fallback. See `AEN_PROVISIONER_DEPLOYMENT.md`.
+operate the AEN cluster, and publish the locally built immutable executor image.
+This repository contains the fixed helpers, digest-locking packager, and
+digest-only image definition. An exact AEN-compatible base image and registry
+publication remain deployment inputs. Until they are configured, the backend
+intentionally refuses; it never executes on the host as a fallback. See
+`AEN_PROVISIONER_DEPLOYMENT.md`.

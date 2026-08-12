@@ -19,6 +19,10 @@ pub(all) struct AenExecutionConfig {
   guest_scratch : String
   guest_attester : String
   guest_supervisor : String
+  executor_root_digest : String
+  guest_attester_digest : String
+  guest_supervisor_digest : String
+  tool_registry_digest : String
   guest_tools : Map[String, String]
 } derive(Eq)
 
@@ -70,6 +74,10 @@ pub async fn execute_aen_sandbox(
     guest_scratch=config.guest_scratch,
     guest_attester=config.guest_attester,
     guest_supervisor=config.guest_supervisor,
+    executor_root_digest=config.executor_root_digest,
+    guest_attester_digest=config.guest_attester_digest,
+    guest_supervisor_digest=config.guest_supervisor_digest,
+    tool_registry_digest=config.tool_registry_digest,
     require_guest_attestation=true,
     guest_tools=config.guest_tools,
     profile~,

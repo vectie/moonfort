@@ -65,6 +65,10 @@ fn trusted_aen_execution_config(
     guest_scratch: trusted.guest_scratch,
     guest_attester: trusted.guest_attester,
     guest_supervisor: trusted.guest_supervisor,
+    executor_root_digest: trusted.executor_root_digest,
+    guest_attester_digest: trusted.guest_attester_digest,
+    guest_supervisor_digest: trusted.guest_supervisor_digest,
+    tool_registry_digest: trusted.tool_registry_digest,
     guest_tools: trusted.guest_tools,
   }
 }
