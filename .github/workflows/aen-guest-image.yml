@@ -76,7 +76,7 @@ jobs:
           sudo mkdir -m 0700 /scratch-diff
           sudo /opt/moonfort/bin/attester prepare-and-attest --contract moonfort-guest-v1 --workspace /workspace --workspace-digest "$workspace_digest" --scratch /scratch-diff --profile-digest "$profile" --supervisor /opt/moonfort/bin/supervisor --executor-root-digest "$root_digest" --attester-digest "$attester_digest" --supervisor-digest "$supervisor_digest" --tool-registry-digest "$registry_digest" --cpu-seconds 10 --process-limit 32 --scratch-disk-mib 1 >/dev/null
           sudo -u nobody sh -c 'printf after > /scratch-diff/modify.txt; printf added > /scratch-diff/add.txt; rm /scratch-diff/delete.txt'
-          sudo /opt/moonfort/bin/attester inventory --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --disk-mib 1 --max-entries 4096 > _build/aen-guest/overlay-diff.json
+          sudo /opt/moonfort/bin/attester inventory --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --disk-mib 1 --max-entries 4096 --baseline-bytes 13 --baseline-entries 2 > _build/aen-guest/overlay-diff.json
           jq -e '.baseline.entries | map(.relative_path) | sort == ["delete.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
           jq -e '.inventory.entries | map(.relative_path) | sort == ["add.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
           jq -e '(.baseline.entries[] | select(.relative_path=="modify.txt") | .fingerprint) != (.inventory.entries[] | select(.relative_path=="modify.txt") | .fingerprint)' _build/aen-guest/overlay-diff.json

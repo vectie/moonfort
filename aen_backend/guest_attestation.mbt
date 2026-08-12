@@ -181,6 +181,10 @@ async fn[T : AenTransport] AenBackend::inventory_guest_changes(
       self.profile.limits.disk_mib.to_string(),
       "--max-entries",
       "4096",
+      "--baseline-bytes",
+      self.workspace_lease.total_bytes.max(1L).to_string(),
+      "--baseline-entries",
+      self.workspace_lease.entry_count.max(1).to_string(),
     ],
     "/",
     max_bytes=4_194_304,
@@ -204,9 +208,9 @@ async fn[T : AenTransport] AenBackend::inventory_guest_changes(
   let inventory : @sandbox.ScratchInventory = @json.from_json(inventory_json) catch {
     _ => raise ProtocolFailure("guest inventory is malformed")
   }
-  guard baseline.entries.length() <= 4_096 &&
+  guard baseline.entries.length() == self.workspace_lease.entry_count &&
     inventory.entries.length() <= 4_096 &&
-    baseline.total_bytes <= self.profile.limits.disk_mib.to_int64() * 1_048_576L &&
+    baseline.total_bytes == self.workspace_lease.total_bytes &&
     inventory.total_bytes <=
     self.profile.limits.disk_mib.to_int64() * 1_048_576L else {
     raise ProtocolFailure("guest inventory exceeds the profile bound")

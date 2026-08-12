@@ -201,6 +201,7 @@ static void prepare(int argc,char **argv){
 static void inventory_command(int argc,char **argv){
   const char *contract=argument(argc,argv,"--contract"),*scratch=argument(argc,argv,"--scratch"),*profile=argument(argc,argv,"--profile-digest");
   long long disk=number_argument(argc,argv,"--disk-mib",1048576),maximum=number_argument(argc,argv,"--max-entries",4096);
+  long long baseline_bytes=number_argument(argc,argv,"--baseline-bytes",LLONG_MAX),baseline_entries=number_argument(argc,argv,"--baseline-entries",1000000);
   if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_canonical_absolute(scratch)||!mf_valid_digest(profile))mf_die("inventory request is malformed");
   char policy[MF_PATH_MAX],policy_name[80],state[MF_PATH_MAX*3];
   int policy_name_length=snprintf(policy_name,sizeof(policy_name),"policy-%s",profile);
@@ -211,7 +212,7 @@ static void inventory_command(int argc,char **argv){
   if(fields!=10||strcmp(saved_contract,contract)||strcmp(saved_profile,profile)||strcmp(saved_scratch,scratch)||saved_disk!=disk||!mf_canonical_absolute(workspace))mf_die("inventory is not bound to a prepared profile");
   int baseline_root=open(workspace,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(baseline_root<0)mf_die("workspace baseline unavailable");
   dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"profileDigest\":\"%s\",\"baseline\":{\"entries\":[",profile);
-  struct inventory baseline={.entries=0,.bytes=0,.maximum_entries=maximum,.maximum_bytes=disk*1048576LL,.emit_json=1,.first=1};walk_tree(&baseline,baseline_root,"",0);close(baseline_root);
+  struct inventory baseline={.entries=0,.bytes=0,.maximum_entries=baseline_entries,.maximum_bytes=baseline_bytes,.emit_json=1,.first=1};walk_tree(&baseline,baseline_root,"",0);close(baseline_root);
   dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"},\"inventory\":{\"entries\":[",baseline.bytes);
   int merged_root=open(scratch,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(merged_root<0)mf_die("merged scratch view unavailable");
   struct inventory current={.entries=0,.bytes=0,.maximum_entries=maximum,.maximum_bytes=disk*1048576LL,.emit_json=1,.first=1};walk_tree(&current,merged_root,"",0);close(merged_root);
