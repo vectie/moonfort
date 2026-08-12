@@ -4,7 +4,7 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "git@github.com:vectie/moonfort"
 
 license = "Apache-2.0"
 

@@ -3,6 +3,7 @@ package "vectie/moonfort/aen_backend"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
   "vectie/moonfort/sandbox",
 }
 
@@ -34,7 +35,6 @@ pub struct AenBackend[T] {
 pub async fn[T : AenTransport] AenBackend::discard(Self[T]) -> Bool
 pub async fn[T : AenTransport] AenBackend::exec(Self[T], @sandbox.PreparedSandboxCommand, working_directory? : String) -> @sandbox.SandboxReceipt
 pub async fn[T : AenTransport] AenBackend::fork(Self[T], Int) -> AenForkResult
-pub fn[T] AenBackend::new(T, api_key~ : String, snapshot_id~ : String, expected_vcpu_count~ : Int, guest_workspace? : String, guest_scratch? : String, guest_tools~ : Map[String, String], profile~ : @sandbox.SandboxProfile) -> Self[T] raise AenBackendError
 pub async fn[T : AenTransport] AenBackend::pause(Self[T]) -> @sandbox.SandboxReceipt
 pub async fn[T : AenTransport] AenBackend::reset(Self[T]) -> @sandbox.SandboxReceipt
 pub async fn[T : AenTransport] AenBackend::resume_sandbox(Self[T]) -> @sandbox.SandboxReceipt
@@ -55,10 +55,18 @@ pub(all) enum AenExecEvent {
 pub(all) struct AenExecutionConfig {
   base_url : String
   api_key : String
-  snapshot_id : String
+  executor_image_ref : String
   expected_vcpu_count : Int
+  expected_root_disk_mib : Int
+  provisioner_url : String
+  provisioner_api_key : String
+  provisioner_receipt_key : String
+  workspace_id : String
+  max_workspace_bytes : Int64
   guest_workspace : String
   guest_scratch : String
+  guest_attester : String
+  guest_supervisor : String
   guest_tools : Map[String, String]
 } derive(Eq)
 
@@ -118,6 +126,20 @@ pub(all) enum AenStreamControl {
   ContinueStream
   StopStream
 } derive(Eq, @debug.Debug)
+
+pub(all) struct AenWorkspaceLease {
+  protocol_version : Int
+  lease_id : String
+  run_id : String
+  workspace_id : String
+  profile_digest : String
+  workspace_digest : String
+  image_ref : String
+  entry_count : Int
+  total_bytes : Int64
+  staging_cleanup_verified : Bool
+  receipt_mac : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
 pub struct ConnectDecoder {
   // private fields

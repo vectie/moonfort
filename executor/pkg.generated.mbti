@@ -120,10 +120,18 @@ pub(all) struct SandboxInvocation {
 pub(all) struct TrustedAenConfig {
   base_url : String
   api_key : String
-  snapshot_id : String
+  executor_image_ref : String
   expected_vcpu_count : Int
+  expected_root_disk_mib : Int
+  provisioner_url : String
+  provisioner_api_key : String
+  provisioner_receipt_key : String
+  provisioner_key_id : String
+  max_workspace_bytes : Int64
   guest_workspace : String
   guest_scratch : String
+  guest_attester : String
+  guest_supervisor : String
   guest_tools : Map[String, String]
 } derive(@json.FromJson)
 

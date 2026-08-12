@@ -1,0 +1,87 @@
+# Executor-owned configuration
+
+`cmd/executor` requires `MOONFORT_EXECUTOR_CONFIG` to name a canonical regular
+file owned by the executor user (or root), not writable by group/other, beneath
+a trusted canonical parent chain. The approval, scratch, and retention roots
+must be executor-private directories (no group/other permissions) and already
+exist as pairwise-disjoint canonical directories. `approval_root/pending` and
+`approval_root/consumed` must also exist with the same private permissions.
+Registered workspace/read roots and executables must be owned by the executor
+user (or root), must not be group/world writable, and must have trusted parent
+chains. These paths are deployment-controlled, not writable by MoonDesk,
+agents, plugins, or sandboxed children.
+
+`cmd/grant-publisher` uses the same protected configuration. Deploy it as a
+narrow local broker reachable only by MoonClaw's approval controller; do not
+grant MoonClaw, MoonDesk, or agent tools direct filesystem write access to the
+approval root.
+
+```json
+{
+  "approval_root": "/var/lib/moonfort/approvals",
+  "scratch_root": "/var/lib/moonfort/scratch",
+  "retention_root": "/var/lib/moonfort/retention",
+  "workspaces": {
+    "moonbook-main": {
+      "root": "/srv/moonbooks/main",
+      "read_only_roots": ["/srv/moonbooks/main"],
+      "allowed_backends": ["MicroVm"],
+      "allowed_networks": ["Deny"],
+      "allowed_egress": [],
+      "allowed_commands": ["moon"],
+      "allow_degraded": false
+    }
+  },
+  "local_tools": {
+    "moon": "/opt/moon/bin/moon"
+  },
+  "aen_backends": {
+    "production": {
+      "base_url": "https://aen.internal.example",
+      "api_key": "injected-secret",
+      "executor_image_ref": "registry.internal/moonfort/executor@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "expected_vcpu_count": 2,
+      "expected_root_disk_mib": 4096,
+      "provisioner_url": "https://moonfort-provisioner.internal.example",
+      "provisioner_api_key": "injected-provisioner-secret",
+      "provisioner_receipt_key": "injected-at-least-32-byte-hmac-key",
+      "provisioner_key_id": "production-2026-08",
+      "max_workspace_bytes": "2147483648",
+      "guest_workspace": "/workspace",
+      "guest_scratch": "/scratch",
+      "guest_attester": "/opt/moonfort/bin/attester",
+      "guest_supervisor": "/opt/moonfort/bin/supervisor",
+      "guest_tools": {"moon":"/opt/moon/bin/moon"}
+    }
+  },
+  "limits": {
+    "max_protocol_bytes": 1048576,
+    "max_wall_clock_ms": 600000,
+    "max_cpu_seconds": 300,
+    "max_memory_mib": 4096,
+    "max_disk_mib": 8192,
+    "max_processes": 256,
+    "max_output_bytes": 10485760,
+    "max_command_args": 256,
+    "max_argument_bytes": 65536,
+    "max_changed_paths": 10000,
+    "retention_ms": "86400000"
+  }
+}
+```
+
+Generate the actual file from typed configuration and validate it during
+deployment. AEN and provisioner secrets should normally come from a protected secret
+materialization at service start, with the resulting config file mode
+0600 and never included in logs, crash reports, grants, or receipts. Executor
+and provisioned workspace images must use immutable `@sha256:` references;
+mutable tags are rejected.
+
+MoonBit's JSON encoding represents `Int64` fields such as `retention_ms` and a
+grant's `expires_at_ms` and `max_workspace_bytes` as decimal strings; other integer fields above are
+ordinary JSON numbers.
+
+The executor applies independent hard maxima even to trusted configuration.
+Local runs accept only deny-network profiles and always report `Degraded`.
+Production untrusted work should authorize only `MicroVm` and
+`RequireEnforced`.
