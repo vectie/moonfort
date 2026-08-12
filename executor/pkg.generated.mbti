@@ -1,0 +1,142 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/executor"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+  "vectie/moonfort/sandbox",
+}
+
+// Values
+pub fn completed_response(String, @sandbox.SandboxReceipt) -> ExecutorResponse
+
+pub async fn execute_invocation(SandboxInvocation, ExecutorConfig) -> ExecutorResponse
+
+pub async fn load_executor_config(String) -> ExecutorConfig
+
+pub async fn promote_retention(RetentionPromotionRequest, ExecutorConfig) -> RetentionPromotionResponse
+
+pub async fn publish_grant(GrantPublicationRequest, ExecutorConfig) -> GrantPublicationResponse
+
+pub fn rejected_response(String, String, String) -> ExecutorResponse
+
+pub async fn sweep_expired_retentions(ExecutorConfig) -> Int
+
+// Errors
+
+// Types and methods
+pub(all) struct ExecutionGrant {
+  protocol_version : Int
+  approval_id : String
+  request_id : String
+  workspace_id : String
+  backend : @sandbox.SandboxBackendKind
+  enforcement_requirement : @sandbox.SandboxEnforcementRequirement
+  network : @sandbox.SandboxNetworkMode
+  allowed_egress : Array[String]
+  allowed_commands : Array[String]
+  limits : @sandbox.SandboxLimits
+  working_directory : String
+  command : @sandbox.SandboxCommand
+  backend_config_id : String
+  expires_at_ms : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ExecutorConfig {
+  approval_root : String
+  scratch_root : String
+  retention_root : String
+  workspaces : Map[String, WorkspacePolicy]
+  local_tools : Map[String, String]
+  aen_backends : Map[String, TrustedAenConfig]
+  limits : ExecutorLimits
+} derive(@json.FromJson)
+
+pub(all) struct ExecutorLimits {
+  max_protocol_bytes : Int
+  max_wall_clock_ms : Int
+  max_cpu_seconds : Int
+  max_memory_mib : Int
+  max_disk_mib : Int
+  max_processes : Int
+  max_output_bytes : Int
+  max_command_args : Int
+  max_argument_bytes : Int
+  max_changed_paths : Int
+  retention_ms : Int64
+} derive(@json.FromJson)
+
+pub(all) struct ExecutorProtocolError {
+  code : String
+  message : String
+} derive(Eq, ToJson, @debug.Debug)
+
+pub struct ExecutorResponse {
+  protocol_version : Int
+  approval_id : String
+  receipt : @sandbox.SandboxReceipt?
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
+pub fn ExecutorResponse::error(Self) -> ExecutorProtocolError?
+pub fn ExecutorResponse::receipt(Self) -> @sandbox.SandboxReceipt?
+
+pub(all) struct GrantPublicationRequest {
+  protocol_version : Int
+  grant : ExecutionGrant
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct GrantPublicationResponse {
+  protocol_version : Int
+  approval_id : String
+  approval_digest : String
+  published : Bool
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
+
+pub(all) struct RetentionPromotionRequest {
+  protocol_version : Int
+  retention_id : String
+  workspace_id : String
+  approval_digest : String
+  command_digest : String
+  items : Array[@sandbox.SandboxPromotionRequest]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionPromotionResponse {
+  protocol_version : Int
+  retention_id : String
+  promoted_paths : Array[String]
+  completed : Bool
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
+
+type RetentionRecord derive(ToJson, @json.FromJson)
+
+pub(all) struct SandboxInvocation {
+  protocol_version : Int
+  approval_id : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct TrustedAenConfig {
+  base_url : String
+  api_key : String
+  snapshot_id : String
+  expected_vcpu_count : Int
+  guest_workspace : String
+  guest_scratch : String
+  guest_tools : Map[String, String]
+} derive(@json.FromJson)
+
+pub(all) struct WorkspacePolicy {
+  root : String
+  read_only_roots : Array[String]
+  allowed_backends : Array[@sandbox.SandboxBackendKind]
+  allowed_networks : Array[@sandbox.SandboxNetworkMode]
+  allowed_egress : Array[String]
+  allowed_commands : Array[String]
+  allow_degraded : Bool
+} derive(@json.FromJson)
+
+// Type aliases
+
+// Traits

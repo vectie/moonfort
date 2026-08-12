@@ -1,0 +1,8 @@
+import {
+  "moonbitlang/core/json",
+  "vectie/moonfort/sandbox",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "+native"

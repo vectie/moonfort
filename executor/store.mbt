@@ -1,0 +1,531 @@
+///|
+const MaxExecutorConfigBytes : Int = 1_048_576
+
+///|
+async fn bounded_regular_file(path : String, limit : Int) -> String {
+  guard canonical_absolute_path(path) && limit > 0 else {
+    fail("invalid bounded file request")
+  }
+  guard @fs.kind(path, follow_symlink=false) is Regular else {
+    fail("trusted file is not regular")
+  }
+  guard protected_regular_file(path) else {
+    fail("trusted file ownership or permissions are unsafe")
+  }
+  guard @fs.realpath(path) == path else {
+    fail("trusted file path is not canonical")
+  }
+  let file = @fs.open(path, mode=ReadOnly)
+  defer file.close()
+  guard file.kind() is Regular else { fail("trusted file changed type") }
+  let size = file.size()
+  guard size >= 0L && size <= limit.to_int64() else {
+    fail("trusted file exceeds byte limit")
+  }
+  let output = @buffer.Buffer(size_hint=size.to_int().min(8_192))
+  for ;; {
+    guard file.read_some(max_len=(limit - output.length() + 1).min(8_192))
+      is Some(chunk) else {
+      break
+    }
+    guard output.length() + chunk.length() <= limit else {
+      fail("trusted file exceeds byte limit")
+    }
+    output.write_bytes(chunk)
+  }
+  guard file.size() == size &&
+    @fs.kind(path, follow_symlink=false) is Regular &&
+    @fs.realpath(path) == path else {
+    fail("trusted file changed during read")
+  }
+  @utf8.decode(output.to_bytes())
+}
+
+///|
+pub async fn load_executor_config(path : String) -> ExecutorConfig {
+  let config : ExecutorConfig = @json.from_json(
+    @json.parse(bounded_regular_file(path, MaxExecutorConfigBytes)),
+  )
+  guard canonical_absolute_path(config.approval_root) &&
+    @fs.realpath(config.approval_root) == config.approval_root &&
+    @fs.kind(config.approval_root, follow_symlink=false) is Directory else {
+    fail("approval root is not a canonical trusted directory")
+  }
+  guard private_directory(config.approval_root) else {
+    fail("approval root ownership or permissions are unsafe")
+  }
+  guard canonical_absolute_path(config.scratch_root) &&
+    @fs.realpath(config.scratch_root) == config.scratch_root &&
+    @fs.kind(config.scratch_root, follow_symlink=false) is Directory else {
+    fail("scratch root is not a canonical trusted directory")
+  }
+  guard private_directory(config.scratch_root) else {
+    fail("scratch root ownership or permissions are unsafe")
+  }
+  guard canonical_absolute_path(config.retention_root) &&
+    @fs.realpath(config.retention_root) == config.retention_root &&
+    @fs.kind(config.retention_root, follow_symlink=false) is Directory else {
+    fail("retention root is not a canonical trusted directory")
+  }
+  guard private_directory(config.retention_root) else {
+    fail("retention root ownership or permissions are unsafe")
+  }
+  guard !paths_overlap(config.approval_root, config.scratch_root) &&
+    !paths_overlap(config.approval_root, config.retention_root) &&
+    !paths_overlap(config.scratch_root, config.retention_root) else {
+    fail("executor-owned roots must be pairwise disjoint")
+  }
+  guard config.limits.max_protocol_bytes > 0 &&
+    config.limits.max_protocol_bytes <= 1_048_576 &&
+    config.limits.max_wall_clock_ms > 0 &&
+    config.limits.max_wall_clock_ms <= 86_400_000 &&
+    config.limits.max_cpu_seconds > 0 &&
+    config.limits.max_cpu_seconds <= 86_400 &&
+    config.limits.max_memory_mib > 0 &&
+    config.limits.max_memory_mib <= 1_048_576 &&
+    config.limits.max_disk_mib > 0 &&
+    config.limits.max_disk_mib <= 1_048_576 &&
+    config.limits.max_processes > 0 &&
+    config.limits.max_processes <= 65_536 &&
+    config.limits.max_output_bytes > 0 &&
+    config.limits.max_output_bytes <= 1_073_741_824 &&
+    config.limits.max_command_args > 0 &&
+    config.limits.max_command_args <= 4_096 &&
+    config.limits.max_argument_bytes > 0 &&
+    config.limits.max_argument_bytes <= 1_048_576 &&
+    config.limits.max_changed_paths > 0 &&
+    config.limits.max_changed_paths <= 1_000_000 &&
+    config.limits.retention_ms > 0L else {
+    fail("executor deployment limits are invalid")
+  }
+  for name, workspace in config.workspaces {
+    guard safe_identifier(name) &&
+      canonical_absolute_path(workspace.root) &&
+      @fs.realpath(workspace.root) == workspace.root &&
+      @fs.kind(workspace.root, follow_symlink=false) is Directory &&
+      trusted_directory(workspace.root) &&
+      !paths_overlap(workspace.root, config.approval_root) &&
+      !paths_overlap(workspace.root, config.scratch_root) &&
+      !paths_overlap(workspace.root, config.retention_root) else {
+      fail("workspace registry contains an invalid root")
+    }
+    for root in workspace.read_only_roots {
+      guard canonical_absolute_path(root) &&
+        @fs.realpath(root) == root &&
+        @fs.kind(root, follow_symlink=false) is Directory &&
+        trusted_directory(root) &&
+        !paths_overlap(root, config.approval_root) &&
+        !paths_overlap(root, config.scratch_root) &&
+        !paths_overlap(root, config.retention_root) else {
+        fail("workspace registry contains an invalid read root")
+      }
+    }
+    guard workspace.read_only_roots.any(root => {
+      path_contains(root, workspace.root)
+    }) else {
+      fail("workspace registry read roots do not cover its root")
+    }
+  }
+  for label, executable in config.local_tools {
+    guard safe_identifier(label) &&
+      label != @sandbox.shell_compatibility_command_label() &&
+      canonical_absolute_path(executable) &&
+      @fs.realpath(executable) == executable &&
+      @fs.kind(executable, follow_symlink=false) is Regular &&
+      trusted_executable(executable) else {
+      fail("local tool registry contains an invalid executable")
+    }
+  }
+  for id, backend in config.aen_backends {
+    guard safe_identifier(id) &&
+      canonical_https_origin(backend.base_url) &&
+      backend.api_key.trim() != "" &&
+      immutable_oci_reference(backend.executor_image_ref) &&
+      backend.expected_vcpu_count > 0 &&
+      backend.expected_root_disk_mib >= 1_024 &&
+      backend.expected_root_disk_mib % 1_024 == 0 &&
+      canonical_https_origin(backend.provisioner_url) &&
+      backend.provisioner_api_key.trim() != "" &&
+      backend.provisioner_receipt_key.length() >= 32 &&
+      safe_identifier(backend.provisioner_key_id) &&
+      backend.max_workspace_bytes > 0L &&
+      backend.guest_workspace.has_prefix("/") &&
+      backend.guest_scratch.has_prefix("/") &&
+      backend.guest_attester.has_prefix("/") &&
+      backend.guest_supervisor.has_prefix("/") else {
+      fail("AEN registry contains an invalid trusted deployment")
+    }
+  }
+  config
+}
+
+///|
+async fn consume_grant(
+  invocation : SandboxInvocation,
+  config : ExecutorConfig,
+) -> ExecutionGrant {
+  guard invocation.protocol_version == 3 &&
+    safe_identifier(invocation.approval_id) else {
+    fail("invalid invocation")
+  }
+  let pending_root = "\{config.approval_root}/pending"
+  let consumed_root = "\{config.approval_root}/consumed"
+  guard @fs.realpath(pending_root) == pending_root &&
+    @fs.realpath(consumed_root) == consumed_root &&
+    @fs.kind(pending_root, follow_symlink=false) is Directory &&
+    @fs.kind(consumed_root, follow_symlink=false) is Directory &&
+    private_directory(pending_root) &&
+    private_directory(consumed_root) else {
+    fail("grant store is unavailable")
+  }
+  let pending = "\{pending_root}/\{invocation.approval_id}.json"
+  let consumed = "\{consumed_root}/\{invocation.approval_id}.json"
+  guard @fs.kind(pending, follow_symlink=false) is Regular else {
+    fail("approval is unknown, expired, or already consumed")
+  }
+  @fs.rename(pending, consumed, replace=false) catch {
+    _ => fail("approval is unknown, expired, or already consumed")
+  }
+  let grant : ExecutionGrant = @json.from_json(
+    @json.parse(
+      bounded_regular_file(consumed, config.limits.max_protocol_bytes),
+    ),
+  )
+  grant
+}
+
+///|
+/// Validate and atomically publish one human-approved grant.
+pub async fn publish_grant(
+  request : GrantPublicationRequest,
+  config : ExecutorConfig,
+) -> GrantPublicationResponse {
+  let grant = request.grant
+  let approval_id = grant.approval_id
+  let refusal = if request.protocol_version != 3 {
+    "unsupported publication protocol"
+  } else if !safe_identifier(approval_id) {
+    "invalid approval identity"
+  } else {
+    validate_grant(grant, { protocol_version: 3, approval_id }, config)
+  }
+  if refusal != "" {
+    return {
+      protocol_version: 3,
+      approval_id,
+      approval_digest: "",
+      published: false,
+      error: Some({ code: "grant-refused", message: refusal }),
+    }
+  }
+  let pending_root = "\{config.approval_root}/pending"
+  let consumed_root = "\{config.approval_root}/consumed"
+  let destination = "\{pending_root}/\{approval_id}.json"
+  let consumed = "\{consumed_root}/\{approval_id}.json"
+  guard @fs.realpath(pending_root) == pending_root &&
+    @fs.realpath(consumed_root) == consumed_root &&
+    @fs.kind(pending_root, follow_symlink=false) is Directory &&
+    @fs.kind(consumed_root, follow_symlink=false) is Directory &&
+    private_directory(pending_root) &&
+    private_directory(consumed_root) else {
+    return {
+      protocol_version: 3,
+      approval_id,
+      approval_digest: "",
+      published: false,
+      error: Some({
+        code: "publication-refused",
+        message: "grant store is unavailable",
+      }),
+    }
+  }
+  guard !@fs.exists(destination) && !@fs.exists(consumed) else {
+    return {
+      protocol_version: 3,
+      approval_id,
+      approval_digest: "",
+      published: false,
+      error: Some({
+        code: "grant-conflict",
+        message: "approval identity was already published or consumed",
+      }),
+    }
+  }
+  guard @env.rand(16) is Some(random) else {
+    return {
+      protocol_version: 3,
+      approval_id,
+      approval_digest: "",
+      published: false,
+      error: Some({
+        code: "publication-refused",
+        message: "secure publication identity is unavailable",
+      }),
+    }
+  }
+  let staging = "\{pending_root}/.publish-\{@crypto.bytes_to_hex_string(random)}.tmp"
+  let digest = grant_digest(grant)
+  try {
+    @fs.write_file(
+      staging,
+      grant.to_json().stringify(),
+      create_mode=CreateNew,
+      permission=0o600,
+      sync=Full,
+    )
+    guard @fs.kind(staging, follow_symlink=false) is Regular &&
+      @fs.realpath(staging) == staging else {
+      fail("staged grant could not be verified")
+    }
+    @fs.rename(staging, destination, replace=false)
+    {
+      protocol_version: 3,
+      approval_id,
+      approval_digest: digest,
+      published: true,
+      error: None,
+    }
+  } catch {
+    _ => {
+      ignore(@fs.remove(staging) catch { _ => () })
+      {
+        protocol_version: 3,
+        approval_id,
+        approval_digest: "",
+        published: false,
+        error: Some({
+          code: "publication-refused",
+          message: "grant could not be published atomically",
+        }),
+      }
+    }
+  }
+}
+
+///|
+async fn allocate_scratch(
+  _request_id : String,
+  config : ExecutorConfig,
+) -> (String, String) {
+  guard @env.rand(16) is Some(random) else {
+    fail("secure randomness is unavailable")
+  }
+  let retention_id = @crypto.bytes_to_hex_string(random)
+  let scratch = "\{config.scratch_root}/\{retention_id}"
+  @fs.mkdir(scratch, permission=0o700)
+  guard @fs.realpath(scratch) == scratch &&
+    @fs.kind(scratch, follow_symlink=false) is Directory else {
+    ignore(@sandbox.discard_scratch_tree(scratch))
+    fail("private scratch creation could not be verified")
+  }
+  (scratch, retention_id)
+}
+
+///|
+async fn retain_scratch(
+  scratch : String,
+  retention_id : String,
+  approval_digest : String,
+  command_digest : String,
+  config : ExecutorConfig,
+) -> Bool {
+  guard safe_identifier(retention_id) &&
+    scratch == "\{config.scratch_root}/\{retention_id}" else {
+    return false
+  }
+  let record : RetentionRecord = {
+    retention_id,
+    scratch_path: scratch,
+    expires_at_ms: @env.now().reinterpret_as_int64() +
+    config.limits.retention_ms,
+    approval_digest,
+    command_digest,
+  }
+  let path = "\{config.retention_root}/\{retention_id}.json"
+  try {
+    @fs.write_file(
+      path,
+      record.to_json().stringify(),
+      create_mode=CreateNew,
+      permission=0o600,
+      sync=Full,
+    )
+    @fs.kind(path, follow_symlink=false) is Regular
+  } catch {
+    _ => false
+  }
+}
+
+///|
+async fn load_retention_record(
+  retention_id : String,
+  config : ExecutorConfig,
+) -> RetentionRecord {
+  guard safe_identifier(retention_id) else { fail("invalid retention ID") }
+  let path = "\{config.retention_root}/\{retention_id}.json"
+  guard @fs.kind(path, follow_symlink=false) is Regular &&
+    protected_regular_file(path) else {
+    fail("retention record is unavailable")
+  }
+  let record : RetentionRecord = @json.from_json(
+    @json.parse(bounded_regular_file(path, 16_384)),
+  )
+  guard record.retention_id == retention_id &&
+    record.scratch_path == "\{config.scratch_root}/\{retention_id}" &&
+    record.expires_at_ms > @env.now().reinterpret_as_int64() &&
+    @fs.realpath(record.scratch_path) == record.scratch_path &&
+    @fs.kind(record.scratch_path, follow_symlink=false) is Directory else {
+    fail("retention record is expired or inconsistent")
+  }
+  record
+}
+
+///|
+async fn claim_retention_for_promotion(
+  record : RetentionRecord,
+  config : ExecutorConfig,
+) -> String {
+  let available = "\{config.retention_root}/\{record.retention_id}.json"
+  let claimed = "\{config.retention_root}/\{record.retention_id}.promoting"
+  @fs.rename(available, claimed, replace=false) catch {
+    _ => fail("retention is already being promoted or is unavailable")
+  }
+  guard @fs.kind(claimed, follow_symlink=false) is Regular &&
+    protected_regular_file(claimed) else {
+    fail("claimed retention record could not be verified")
+  }
+  claimed
+}
+
+///|
+async fn restore_claimed_retention(
+  claimed : String,
+  retention_id : String,
+  config : ExecutorConfig,
+) -> Unit {
+  let available = "\{config.retention_root}/\{retention_id}.json"
+  ignore(@fs.rename(claimed, available, replace=false) catch { _ => () })
+}
+
+///|
+/// Promote only explicitly reviewed regular files from an executor-owned
+/// retention into the registered canonical workspace. Promotion atomically
+/// claims the retention before applying and consumes it after verified
+/// cleanup; source fingerprints are revalidated by the sandbox layer.
+pub async fn promote_retention(
+  request : RetentionPromotionRequest,
+  config : ExecutorConfig,
+) -> RetentionPromotionResponse {
+  let refused = fn(message : String) -> RetentionPromotionResponse {
+    {
+      protocol_version: 3,
+      retention_id: request.retention_id,
+      promoted_paths: [],
+      completed: false,
+      error: Some({ code: "promotion-refused", message }),
+    }
+  }
+  if request.protocol_version != 3 ||
+    !safe_identifier(request.workspace_id) ||
+    request.items.is_empty() ||
+    request.items.length() > config.limits.max_changed_paths {
+    return refused("promotion request is invalid or exceeds deployment policy")
+  }
+  guard config.workspaces.get(request.workspace_id) is Some(workspace) else {
+    return refused("promotion names an unknown workspace")
+  }
+  let record = load_retention_record(request.retention_id, config) catch {
+    _ => return refused("retention is unavailable, expired, or invalid")
+  }
+  if record.approval_digest != request.approval_digest ||
+    record.command_digest != request.command_digest {
+    return refused("promotion digests do not match the retained execution")
+  }
+  let disk_limit_bytes = config.limits.max_disk_mib.to_int64() * 1024L * 1024L
+  let inventory = match
+    @sandbox.inventory_scratch(record.scratch_path, disk_limit_bytes) {
+    Ok(value) => value
+    Err(_) => return refused("retained scratch could not be safely inventoried")
+  }
+  let plan = match
+    @sandbox.plan_sandbox_promotion(inventory, workspace.root, request.items) {
+    Ok(value) => value
+    Err(reason) => return refused("promotion planning failed: \{reason.code()}")
+  }
+  let claimed = claim_retention_for_promotion(record, config) catch {
+    _ => return refused("retention is already being promoted or unavailable")
+  }
+  match
+    @sandbox.apply_sandbox_promotion(
+      record.scratch_path,
+      plan,
+      disk_limit_bytes~,
+    ) {
+    Ok(result) => {
+      let scratch_removed = @sandbox.discard_scratch_tree(record.scratch_path)
+        is Ok(_)
+      let record_removed = if scratch_removed {
+        try {
+          @fs.remove(claimed)
+          true
+        } catch {
+          _ => false
+        }
+      } else {
+        false
+      }
+      if scratch_removed && record_removed {
+        {
+          protocol_version: 3,
+          retention_id: request.retention_id,
+          promoted_paths: result.promoted_paths,
+          completed: true,
+          error: None,
+        }
+      } else {
+        {
+          protocol_version: 3,
+          retention_id: request.retention_id,
+          promoted_paths: result.promoted_paths,
+          completed: false,
+          error: Some({
+            code: "promotion-cleanup-unverified",
+            message: "files were promoted but retention cleanup could not be verified",
+          }),
+        }
+      }
+    }
+    Err(reason) => {
+      restore_claimed_retention(claimed, request.retention_id, config)
+      refused("promotion apply failed: \{reason.code()}")
+    }
+  }
+}
+
+///|
+/// Remove every expired executor-owned scratch retention record.
+pub async fn sweep_expired_retentions(config : ExecutorConfig) -> Int {
+  let mut removed = 0
+  let now = @env.now().reinterpret_as_int64()
+  for name in @fs.readdir(config.retention_root, sort=true) {
+    guard name.has_suffix(".json") else { continue }
+    let id = name[:name.length() - 5].to_owned()
+    guard safe_identifier(id) else { continue }
+    let path = "\{config.retention_root}/\{name}"
+    let record : RetentionRecord = @json.from_json(
+      @json.parse(bounded_regular_file(path, 16_384)),
+    ) catch {
+      _ => continue
+    }
+    if record.retention_id != id ||
+      record.scratch_path != "\{config.scratch_root}/\{id}" ||
+      record.expires_at_ms > now {
+      continue
+    }
+    if @sandbox.discard_scratch_tree(record.scratch_path) is Ok(_) {
+      @fs.remove(path)
+      removed += 1
+    }
+  }
+  removed
+}

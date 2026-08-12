@@ -1,0 +1,20 @@
+import {
+  "moonbitlang/async/fs",
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x/crypto",
+  "vectie/moonfort/aen_backend",
+  "vectie/moonfort/sandbox",
+}
+
+import {
+  "moonbitlang/async",
+} for "wbtest"
+
+supported_targets = "+native"
+
+options(
+  "native-stub": [ "secure_fs.c" ],
+)
