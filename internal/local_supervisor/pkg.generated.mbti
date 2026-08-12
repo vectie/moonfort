@@ -1,0 +1,52 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/internal/local_supervisor"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn run(Request) -> Result raise SupervisorError
+
+// Errors
+pub(all) suberror SupervisorError {
+  InvalidRequest(String)
+  NativeProtocol(String)
+} derive(Eq, ToJson, @debug.Debug)
+
+// Types and methods
+pub(all) struct Limits {
+  wall_clock_ms : Int64
+  cpu_seconds : Int64
+  address_space_bytes : Int64
+  file_size_bytes : Int64
+  open_files : Int64
+  processes : Int64
+  aggregate_disk_bytes : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Request {
+  argv : Array[String]
+  cwd : String
+  environment : Map[String, String]
+  output_path : String
+  disk_root : String
+  output_bytes : Int64
+  limits : Limits
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Result {
+  kind : String
+  exit_code : Int?
+  signal : Int?
+  limit : String?
+  setup_stage : String?
+  os_errno : Int?
+  elapsed_ms : Int64
+  applied_limits : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits

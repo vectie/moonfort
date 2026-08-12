@@ -1,0 +1,380 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/sandbox"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub async fn apply_sandbox_promotion(String, SandboxPromotionPlan, disk_limit_bytes? : Int64) -> Result[SandboxPromotionResult, SandboxPromotionRefusal]
+
+pub fn backend_label(SandboxBackendKind) -> String
+
+pub fn bind_receipt_scratch_result(SandboxReceipt, ScratchDiff, Array[SandboxArtifact]) -> Result[SandboxReceipt, SandboxArtifactRefusal]
+
+pub fn contract_json() -> Json
+
+pub fn declare_sandbox_artifacts(ScratchInventory, Array[String]) -> Result[Array[SandboxArtifact], SandboxArtifactRefusal]
+
+pub fn default_limits() -> SandboxLimits
+
+pub fn diff_scratch(ScratchInventory, ScratchInventory) -> ScratchDiff
+
+pub fn discard_scratch_tree(String) -> Result[Unit, SandboxStorageRefusal]
+
+pub fn exited_receipt(String, SandboxBackendKind, SandboxEnforcement, String, Int, String) -> SandboxReceipt
+
+pub fn failed_receipt(String, SandboxBackendKind, SandboxEnforcement, String, String) -> SandboxReceipt
+
+pub async fn inventory_scratch(String, Int64) -> Result[ScratchInventory, SandboxStorageRefusal]
+
+pub fn killed_receipt(String, SandboxBackendKind, SandboxEnforcement, String, String, Bool, String) -> SandboxReceipt
+
+pub async fn local_backend_readiness() -> SandboxBackendReadiness
+
+pub fn local_profile(String, String, String) -> SandboxProfile
+
+pub async fn materialize_workspace_snapshot(String, String, disk_limit_bytes? : Int64) -> Result[ScratchInventory, SandboxStorageRefusal]
+
+pub fn network_label(SandboxNetworkMode) -> String
+
+pub fn new_sandbox_run(SandboxProfile) -> Result[SandboxRunContract, SandboxLifecycleRefusal]
+
+pub async fn plan_sandbox_promotion(ScratchInventory, String, Array[SandboxPromotionRequest]) -> Result[SandboxPromotionPlan, SandboxPromotionRefusal]
+
+pub fn prepare_sandbox_command(SandboxProfile, SandboxCommand, SandboxBackendReadiness) -> SandboxPreparation
+
+pub fn profile_digest(SandboxProfile) -> String
+
+pub fn profile_is_valid(SandboxProfile) -> Bool
+
+pub fn profile_rejection(SandboxProfile) -> String
+
+pub fn refused_receipt(String, SandboxBackendKind, String, String) -> SandboxReceipt
+
+pub async fn reset_workspace_snapshot(String, String, Int64) -> Result[ScratchInventory, SandboxStorageRefusal]
+
+pub async fn run_local_sandbox(SandboxProfile, SandboxCommand, Array[LocalSandboxTool], working_directory? : String) -> SandboxReceipt
+
+pub fn scratch_relative_path_is_safe(String) -> Bool
+
+pub fn shell_compatibility_command_label() -> String
+
+// Errors
+
+// Types and methods
+pub(all) struct LocalSandboxTool {
+  capability_label : String
+  executable_path : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct PreparedSandboxCommand {
+  profile : SandboxProfile
+  profile_digest : String
+  command : SandboxCommand
+  capability_label : String
+  enforcement : SandboxEnforcement
+} derive(Eq, @debug.Debug)
+pub fn PreparedSandboxCommand::capability_label(Self) -> String
+pub fn PreparedSandboxCommand::command(Self) -> SandboxCommand
+pub fn PreparedSandboxCommand::enforcement(Self) -> SandboxEnforcement
+pub fn PreparedSandboxCommand::profile(Self) -> SandboxProfile
+pub fn PreparedSandboxCommand::profile_digest(Self) -> String
+
+pub(all) struct SandboxArtifact {
+  relative_path : String
+  size_bytes : Int64
+  fingerprint : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SandboxArtifactRefusal {
+  UnsafeArtifactPath(String)
+  ArtifactNotFound(String)
+  ArtifactNotRegularFile(path~ : String, kind~ : ScratchEntryKind)
+  DuplicateArtifactPath(String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxArtifactRefusal::code(Self) -> String
+
+pub(all) enum SandboxBackendKind {
+  LocalOs
+  MicroVm
+  Unavailable
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SandboxBackendReadiness {
+  BackendEnforced
+  BackendDegraded(String)
+  BackendUnavailable(String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxBackendReadiness::label(Self) -> String
+
+pub(all) enum SandboxCommand {
+  Exec(tool~ : String, args~ : Array[String])
+  Shell(script~ : String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxCommand::kind(Self) -> SandboxCommandKind
+
+pub(all) enum SandboxCommandKind {
+  ExecCommand
+  ShellCompatibilityCommand
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxCommandKind::label(Self) -> String
+
+pub(all) enum SandboxEnforcement {
+  Enforced
+  Degraded
+  Refused
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SandboxEnforcementRequirement {
+  RequireEnforced
+  AllowDegraded
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SandboxLifecycleRefusal {
+  InvalidLifecycleProfile(String)
+  InvalidLifecycleTransition(operation~ : String, actual~ : SandboxLifecycleState)
+  PreparedRunMismatch
+  ReceiptRunMismatch
+  ReceiptNotTerminal
+  StorageRefused(SandboxStorageRefusal)
+  ResetDidNotRestoreBaseline(ScratchDiff)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxLifecycleRefusal::code(Self) -> String
+
+pub(all) enum SandboxLifecycleState {
+  Created
+  Starting
+  Ready
+  Executing
+  Stopping
+  Stopped
+  SnapshottingReady
+  SnapshottingStopped
+  Resetting
+  Failed
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxLifecycleState::label(Self) -> String
+
+pub(all) struct SandboxLimits {
+  wall_clock_ms : Int
+  cpu_seconds : Int
+  memory_mib : Int
+  disk_mib : Int
+  processes : Int
+  output_bytes : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum SandboxNetworkMode {
+  Deny
+  AllowList
+  Unrestricted
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub enum SandboxPreparation {
+  Prepared(PreparedSandboxCommand)
+  Refused(SandboxPreparationRefusal)
+} derive(Eq, @debug.Debug)
+pub fn SandboxPreparation::is_prepared(Self) -> Bool
+pub fn SandboxPreparation::prepared(Self) -> PreparedSandboxCommand?
+pub fn SandboxPreparation::refusal(Self) -> SandboxPreparationRefusal?
+
+pub(all) enum SandboxPreparationRefusal {
+  InvalidProfile(String)
+  EmptyCommand(SandboxCommandKind)
+  InvalidExecToolLabel(String)
+  CommandContainsNul(kind~ : SandboxCommandKind, argument_index~ : Int)
+  CommandNotAllowed(String)
+  BackendUnavailable(backend~ : SandboxBackendKind, reason~ : String)
+  LocalBackendCannotClaimEnforced
+  DegradedNotAllowed(backend~ : SandboxBackendKind, reason~ : String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPreparationRefusal::code(Self) -> String
+pub fn SandboxPreparationRefusal::message(Self) -> String
+
+pub(all) struct SandboxProfile {
+  run_id : String
+  workspace_root : String
+  scratch_root : String
+  backend : SandboxBackendKind
+  enforcement_requirement : SandboxEnforcementRequirement
+  network : SandboxNetworkMode
+  read_only_roots : Array[String]
+  allowed_egress : Array[String]
+  allowed_commands : Array[String]
+  limits : SandboxLimits
+  read_only_workspace : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxProfile::allow_degraded(Self) -> Self
+
+pub(all) struct SandboxPromotionItem {
+  source_relative_path : String
+  destination_relative_path : String
+  expected_source_fingerprint : String
+  size_bytes : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SandboxPromotionPlan {
+  destination_root : String
+  items : Array[SandboxPromotionItem]
+} derive(Eq, @debug.Debug)
+pub fn SandboxPromotionPlan::destination_root(Self) -> String
+pub fn SandboxPromotionPlan::items(Self) -> Array[SandboxPromotionItem]
+
+pub(all) enum SandboxPromotionRefusal {
+  EmptyPromotionPlan
+  UnsafeSourcePath(String)
+  UnsafeDestinationPath(String)
+  SourceNotFound(String)
+  SourceNotRegularFile(path~ : String, kind~ : ScratchEntryKind)
+  DuplicateDestinationPath(String)
+  DestinationRootNotCanonical(expected~ : String, actual~ : String)
+  DestinationRootInvalid(String)
+  DestinationSymlink(String)
+  DestinationParentNotDirectory(String)
+  DestinationIsDirectory(String)
+  DestinationUnsupported(path~ : String, kind~ : String)
+  SourceFingerprintMismatch(String)
+  DestinationIo(String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionRefusal::code(Self) -> String
+
+pub(all) struct SandboxPromotionRequest {
+  artifact_path : String
+  destination_path : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SandboxPromotionResult {
+  promoted_paths : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct SandboxReceipt {
+  run_id : String
+  approval_id : String
+  approval_digest : String
+  command_digest : String
+  backend : SandboxBackendKind
+  enforcement : SandboxEnforcement
+  status : SandboxRunStatus
+  profile_digest : String
+  exit_code : Int?
+  output : String
+  output_truncated : Bool
+  limit_reason : String?
+  unverified_limits : Array[String]
+  changed_paths : Array[String]
+  changes : Array[ScratchDiffEntry]
+  artifacts : Array[String]
+  denial_reason : String?
+  cleanup_verified : Bool
+  retention_id : String?
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxReceipt::with_approval_binding(Self, approval_id~ : String, approval_digest~ : String, command_digest~ : String, cleanup_verified~ : Bool, retention_id? : String) -> Self
+
+pub struct SandboxRunContract {
+  profile : SandboxProfile
+  profile_digest : String
+  state : SandboxLifecycleState
+  baseline : ScratchInventory?
+  latest : ScratchInventory?
+  revision : Int
+} derive(Eq, @debug.Debug)
+pub fn SandboxRunContract::baseline(Self) -> ScratchInventory?
+pub fn SandboxRunContract::begin_exec(Self, PreparedSandboxCommand) -> Result[Self, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::begin_reset(Self) -> Result[Self, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::begin_snapshot(Self) -> Result[Self, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::begin_start(Self) -> Result[Self, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::begin_stop(Self) -> Result[Self, SandboxLifecycleRefusal]
+pub async fn SandboxRunContract::complete_exec(Self, SandboxReceipt) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
+pub async fn SandboxRunContract::complete_reset(Self) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
+pub async fn SandboxRunContract::complete_snapshot(Self) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
+pub async fn SandboxRunContract::complete_start(Self) -> Result[Self, SandboxLifecycleRefusal]
+pub async fn SandboxRunContract::complete_stop(Self) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::latest(Self) -> ScratchInventory?
+pub fn SandboxRunContract::mark_failed(Self) -> Self
+pub fn SandboxRunContract::profile(Self) -> SandboxProfile
+pub fn SandboxRunContract::profile_digest(Self) -> String
+pub fn SandboxRunContract::revision(Self) -> Int
+pub fn SandboxRunContract::state(Self) -> SandboxLifecycleState
+
+pub struct SandboxRunObservation {
+  run : SandboxRunContract
+  snapshot : SandboxScratchSnapshot
+  diff_from_baseline : ScratchDiff
+} derive(Eq, @debug.Debug)
+pub fn SandboxRunObservation::diff_from_baseline(Self) -> ScratchDiff
+pub fn SandboxRunObservation::run(Self) -> SandboxRunContract
+pub fn SandboxRunObservation::snapshot(Self) -> SandboxScratchSnapshot
+
+pub(all) enum SandboxRunStatus {
+  Created
+  Running
+  Exited
+  Killed
+  Failed
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SandboxScratchSnapshot {
+  run_id : String
+  profile_digest : String
+  revision : Int
+  inventory : ScratchInventory
+} derive(Eq, @debug.Debug)
+pub fn SandboxScratchSnapshot::inventory(Self) -> ScratchInventory
+pub fn SandboxScratchSnapshot::manifest_json(Self) -> Json
+pub fn SandboxScratchSnapshot::profile_digest(Self) -> String
+pub fn SandboxScratchSnapshot::revision(Self) -> Int
+pub fn SandboxScratchSnapshot::run_id(Self) -> String
+
+pub(all) enum SandboxStorageRefusal {
+  InvalidScratchRoot(String)
+  ScratchRootNotCanonical(expected~ : String, actual~ : String)
+  UnsafeEntryName(String)
+  UnsupportedEntry(path~ : String, kind~ : String)
+  EntryChangedDuringInventory(String)
+  DiskLimitExceeded(limit_bytes~ : Int64, observed_bytes~ : Int64)
+  StorageIo(String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxStorageRefusal::code(Self) -> String
+
+pub(all) enum ScratchChangeKind {
+  Added
+  Modified
+  Removed
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ScratchDiff {
+  entries : Array[ScratchDiffEntry]
+  before_bytes : Int64
+  after_bytes : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ScratchDiffEntry {
+  relative_path : String
+  change : ScratchChangeKind
+  before : ScratchEntry?
+  after : ScratchEntry?
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ScratchEntry {
+  relative_path : String
+  kind : ScratchEntryKind
+  size_bytes : Int64
+  fingerprint : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum ScratchEntryKind {
+  RegularFile
+  DirectoryEntry
+  SymbolicLink
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct ScratchInventory {
+  entries : Array[ScratchEntry]
+  total_bytes : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits
