@@ -8,6 +8,12 @@ directly:
   helper binaries, and the tool registry before mounting a private overlay.
 - `guest_attester inventory` hashes only the overlay upper directory and emits
   the bounded `ScratchInventory` wire shape.
+- `guest_attester export-file` accepts one safe relative path plus the exact
+  profile, helper digest, regular-file size, SHA-256, and fixed 8 MiB bound.
+  It traverses from the prepared scratch dirfd without following links,
+  hashes the pinned file and exported bytes in linear time, and emits one
+  bounded base64 JSON value. It cannot enumerate or select files independently; the
+  host invokes it only for regular post-run entries from the verified diff.
 - `guest_attester network-attest` re-verifies its own pinned digest and reads
   every `/proc/sys/net/ipv6/conf/*/disable_ipv6` value without following
   symlinks. It emits success only when IPv6 is absent from the kernel or
@@ -23,6 +29,11 @@ The production image must run helpers as root with overlayfs and a writable
 cgroup-v2 hierarchy. Missing kernel controls are refusal conditions. The
 runtime never invokes a shell, searches `PATH`, reads caller environment, or
 falls back to execution outside its cgroup.
+
+Symlinks, directories, special files, and removals are never exported. The
+executor reconstructs regular files in its private scratch with mode `0600`,
+rehashes the complete result, and binds the exact reviewable manifest into its
+TTL retention record before AEN VM and workspace-lease cleanup.
 
 The optional canary tools are closed operations built by
 `scripts/build-aen-canary-probes.sh LITERAL_IPV4 PORT EXPECTED_TOKEN OUTPUT_DIR`:

@@ -321,7 +321,21 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
   )
   assert_true(
     retain_scratch(
-      scratch, retention_id, "book", "approval-digest", "command-digest", config,
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [
+        {
+          relative_path: "made",
+          kind: RegularFile,
+          size_bytes: 8L,
+          fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"artifact")),
+        },
+      ],
+      config,
     ),
   )
   let scratch = "\{config.scratch_root}/\{retention_id}"
@@ -354,15 +368,31 @@ async test "promotion requires matching retained execution digests" {
   )
   assert_true(
     retain_scratch(
-      scratch, retention_id, "book", "approval-digest", "command-digest", config,
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [
+        {
+          relative_path: "generated.txt",
+          kind: RegularFile,
+          size_bytes: 17L,
+          fingerprint: @crypto.bytes_to_hex_string(
+            @crypto.sha256(b"reviewed artifact"),
+          ),
+        },
+      ],
+      config,
     ),
   )
   let base : RetentionPromotionRequest = {
     protocol_version: 3,
     retention_id,
     workspace_id: "book",
-    approval_digest: "approval-digest",
-    command_digest: "command-digest",
+    approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    command_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     items: [
       {
         artifact_path: "generated.txt",
@@ -379,8 +409,14 @@ async test "promotion requires matching retained execution digests" {
   let promoted = promote_retention(base, config)
   assert_true(promoted.completed)
   assert_eq(promoted.workspace_id, "book")
-  assert_eq(promoted.approval_digest, "approval-digest")
-  assert_eq(promoted.command_digest, "command-digest")
+  assert_eq(
+    promoted.approval_digest,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  )
+  assert_eq(
+    promoted.command_digest,
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  )
   assert_eq(promoted.promoted_paths, ["promoted/generated.txt"])
   let promoted_bytes = @fs.read_file(
     "\{config.workspaces["book"].root}/promoted/generated.txt",
@@ -389,5 +425,307 @@ async test "promotion requires matching retained execution digests" {
   let replay = promote_retention(base, config)
   assert_false(replay.completed)
   assert_true(replay.error is Some(error) && error.code == "promotion-refused")
+  cleanup_test_roots(roots)
+}
+
+///|
+fn exported_aen_receipt(
+  relative_path : String,
+  payload : Bytes,
+  fingerprint? : String,
+  artifacts? : Array[String],
+) -> @sandbox.SandboxReceipt {
+  let fingerprint = fingerprint.unwrap_or(
+    @crypto.bytes_to_hex_string(@crypto.sha256(payload)),
+  )
+  let entry : @sandbox.ScratchEntry = {
+    relative_path,
+    kind: RegularFile,
+    size_bytes: payload.length().to_int64(),
+    fingerprint,
+  }
+  {
+    ..@sandbox.exited_receipt(
+      "aen-run",
+      MicroVm,
+      Enforced,
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      0,
+      "",
+    ),
+    changed_paths: [relative_path],
+    changes: [
+      { relative_path, change: Added, before: None, after: Some(entry) },
+    ],
+    artifacts: artifacts.unwrap_or([relative_path]),
+    cleanup_verified: true,
+  }
+}
+
+///|
+async test "verified AEN export is retained promoted and replay refused" {
+  let (config, roots) = test_executor_config()
+  let (scratch, retention_id) = allocate_scratch("request-aen-promote", config)
+  let payload = b"reviewed microVM artifact"
+  @fs.write_file(
+    "\{scratch}/result.txt",
+    payload,
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let receipt = exported_aen_receipt("result.txt", payload)
+  assert_true(
+    retain_execution_result(
+      MicroVm,
+      receipt,
+      scratch,
+      retention_id,
+      "book",
+      receipt.profile_digest,
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      config,
+    ),
+  )
+  let request : RetentionPromotionRequest = {
+    protocol_version: 3,
+    retention_id,
+    workspace_id: "book",
+    approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    command_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    items: [
+      {
+        artifact_path: "result.txt",
+        destination_path: "reviewed/aen-result.txt",
+      },
+    ],
+  }
+  let promoted = promote_retention(request, config)
+  assert_true(promoted.completed)
+  assert_eq(
+    @fs.read_file("\{config.workspaces["book"].root}/reviewed/aen-result.txt").binary(),
+    payload,
+  )
+  assert_false(promote_retention(request, config).completed)
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "AEN retention refuses forged bytes and artifact substitution" {
+  let (config, roots) = test_executor_config()
+  let payload = b"actual bytes"
+  let forged_fingerprint = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  let (forged_scratch, forged_id) = allocate_scratch(
+    "request-aen-forged", config,
+  )
+  @fs.write_file(
+    "\{forged_scratch}/result.txt",
+    payload,
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let forged = exported_aen_receipt(
+    "result.txt",
+    payload,
+    fingerprint=forged_fingerprint,
+  )
+  assert_false(
+    retain_execution_result(
+      MicroVm,
+      forged,
+      forged_scratch,
+      forged_id,
+      "book",
+      forged.profile_digest,
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      config,
+    ),
+  )
+  let (substituted_scratch, substituted_id) = allocate_scratch(
+    "request-aen-substituted", config,
+  )
+  @fs.write_file(
+    "\{substituted_scratch}/result.txt",
+    payload,
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let substituted = exported_aen_receipt("result.txt", payload, artifacts=[
+    "different.txt",
+  ])
+  assert_false(
+    retain_execution_result(
+      MicroVm,
+      substituted,
+      substituted_scratch,
+      substituted_id,
+      "book",
+      substituted.profile_digest,
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      config,
+    ),
+  )
+  assert_true(@sandbox.discard_scratch_tree(forged_scratch) is Ok(_))
+  assert_true(@sandbox.discard_scratch_tree(substituted_scratch) is Ok(_))
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "retention manifest is sorted unique and aggregate bounded" {
+  let (config, roots) = test_executor_config()
+  let entry = fn(path : String, size : Int64) -> @sandbox.ScratchEntry {
+    {
+      relative_path: path,
+      kind: RegularFile,
+      size_bytes: size,
+      fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    }
+  }
+  assert_true(
+    retention_manifest_is_valid([entry("a", 1L), entry("b", 2L)], config),
+  )
+  assert_false(
+    retention_manifest_is_valid([entry("b", 2L), entry("a", 1L)], config),
+  )
+  assert_false(
+    retention_manifest_is_valid([entry("a", 1L), entry("a", 1L)], config),
+  )
+  assert_false(
+    retention_manifest_is_valid(
+      [entry("large", config.limits.max_disk_mib.to_int64() * 1_048_576L + 1L)],
+      config,
+    ),
+  )
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "retention refuses oversized encoding and tampered manifest order" {
+  let (base_config, roots) = test_executor_config()
+  let small_config : ExecutorConfig = {
+    ..base_config,
+    limits: { ..base_config.limits, max_protocol_bytes: 128 },
+  }
+  let (oversized_scratch, oversized_id) = allocate_scratch(
+    "request-oversized-record", small_config,
+  )
+  @fs.write_file(
+    "\{oversized_scratch}/artifact",
+    "x",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  assert_false(
+    retain_scratch(
+      oversized_scratch,
+      oversized_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [
+        {
+          relative_path: "artifact",
+          kind: RegularFile,
+          size_bytes: 1L,
+          fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"x")),
+        },
+      ],
+      small_config,
+    ),
+  )
+  assert_false(
+    @fs.exists("\{small_config.retention_root}/\{oversized_id}.json"),
+  )
+  let (scratch, retention_id) = allocate_scratch(
+    "request-tampered-record", base_config,
+  )
+  @fs.write_file("\{scratch}/a", "a", create_mode=CreateNew, permission=0o600)
+  @fs.write_file("\{scratch}/b", "b", create_mode=CreateNew, permission=0o600)
+  let files : Array[@sandbox.ScratchEntry] = [
+    {
+      relative_path: "a",
+      kind: RegularFile,
+      size_bytes: 1L,
+      fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"a")),
+    },
+    {
+      relative_path: "b",
+      kind: RegularFile,
+      size_bytes: 1L,
+      fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"b")),
+    },
+  ]
+  assert_true(
+    retain_scratch(
+      scratch, retention_id, "book", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      files, base_config,
+    ),
+  )
+  let metadata = "\{base_config.retention_root}/\{retention_id}.json"
+  let record : RetentionRecord = @json.from_json(
+    @json.parse(
+      bounded_regular_file(metadata, base_config.limits.max_protocol_bytes),
+    ),
+  )
+  @fs.write_file(
+    metadata,
+    { ..record, reviewable_files: [files[1], files[0]] }.to_json().stringify(),
+    create_mode=CreateOrTruncate,
+    permission=0o600,
+  )
+  let refused = try {
+    ignore(load_retention_record(retention_id, base_config))
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(refused)
+  assert_true(@sandbox.discard_scratch_tree(oversized_scratch) is Ok(_))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove(metadata)
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "retention write refuses expiration overflow" {
+  let (base_config, roots) = test_executor_config()
+  let config : ExecutorConfig = {
+    ..base_config,
+    limits: { ..base_config.limits, retention_ms: 9_223_372_036_854_775_807L },
+  }
+  assert_false(retention_window_is_valid(config.limits.retention_ms))
+  let (scratch, retention_id) = allocate_scratch(
+    "request-expiration-overflow", config,
+  )
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "x",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  assert_false(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [
+        {
+          relative_path: "artifact",
+          kind: RegularFile,
+          size_bytes: 1L,
+          fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"x")),
+        },
+      ],
+      config,
+    ),
+  )
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
   cleanup_test_roots(roots)
 }

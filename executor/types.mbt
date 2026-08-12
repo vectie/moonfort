@@ -138,8 +138,10 @@ struct RetentionRecord {
   scratch_path : String
   expires_at_ms : Int64
   workspace_id : String
+  profile_digest : String
   approval_digest : String
   command_digest : String
+  reviewable_files : Array[@sandbox.ScratchEntry]
 } derive(ToJson, FromJson)
 
 ///|

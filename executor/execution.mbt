@@ -75,6 +75,96 @@ fn trusted_aen_execution_config(
 }
 
 ///|
+async fn aen_export_matches_receipt(
+  receipt : @sandbox.SandboxReceipt,
+  scratch : String,
+  config : ExecutorConfig,
+) -> Bool {
+  let expected : Array[@sandbox.ScratchEntry] = []
+  let expected_paths : Array[String] = []
+  for change in receipt.changes {
+    match change.change {
+      Removed => ()
+      Added | Modified =>
+        match change.after {
+          Some(entry) if entry.kind is RegularFile => {
+            expected.push(entry)
+            expected_paths.push(entry.relative_path)
+          }
+          Some(_) => ()
+          None => return false
+        }
+    }
+  }
+  expected.sort_by_key(entry => entry.relative_path)
+  expected_paths.sort()
+  let artifacts = receipt.artifacts.copy()
+  artifacts.sort()
+  guard !expected.is_empty() && artifacts == expected_paths else {
+    return false
+  }
+  let inventory = match
+    @sandbox.inventory_scratch(
+      scratch,
+      config.limits.max_disk_mib.to_int64() * 1_048_576L,
+    ) {
+    Ok(value) => value
+    Err(_) => return false
+  }
+  let actual = inventory.entries.filter(entry => entry.kind is RegularFile)
+  actual == expected &&
+  inventory.entries.all(entry => {
+    entry.kind is DirectoryEntry || expected.contains(entry)
+  })
+}
+
+///|
+async fn retain_execution_result(
+  backend : @sandbox.SandboxBackendKind,
+  receipt : @sandbox.SandboxReceipt,
+  scratch : String,
+  retention_id : String,
+  workspace_id : String,
+  profile_digest : String,
+  approval_digest : String,
+  command_digest : String,
+  config : ExecutorConfig,
+) -> Bool {
+  let reviewable_files : Array[@sandbox.ScratchEntry] = []
+  for change in receipt.changes {
+    match change.change {
+      Removed => ()
+      Added | Modified =>
+        match change.after {
+          Some(entry) if entry.kind is RegularFile =>
+            reviewable_files.push(entry)
+          Some(_) => ()
+          None => return false
+        }
+    }
+  }
+  let within_path_limit = !receipt.changed_paths.is_empty() &&
+    receipt.changed_paths.length() <= config.limits.max_changed_paths
+  let retain_local = backend is LocalOs &&
+    receipt.status is Exited &&
+    receipt.enforcement is Degraded &&
+    within_path_limit
+  let retain_aen = backend is MicroVm &&
+    receipt.status is Exited &&
+    receipt.enforcement is Enforced &&
+    receipt.cleanup_verified &&
+    within_path_limit &&
+    aen_export_matches_receipt(receipt, scratch, config)
+  if !(retain_local || retain_aen) {
+    return false
+  }
+  retain_scratch(
+    scratch, retention_id, workspace_id, profile_digest, approval_digest, command_digest,
+    reviewable_files, config,
+  )
+}
+
+///|
 /// Run one atomically consumed, executor-owned approval grant.
 pub async fn execute_invocation(
   invocation : SandboxInvocation,
@@ -165,23 +255,17 @@ pub async fn execute_invocation(
     grant.backend_config_id,
     backend_binding_digest,
   )
-  let retain_local = grant.backend is LocalOs &&
-    raw_receipt.status is Exited &&
-    raw_receipt.enforcement is Degraded &&
-    !raw_receipt.changed_paths.is_empty() &&
-    raw_receipt.changed_paths.length() <= config.limits.max_changed_paths
-  let retained = if retain_local {
-    retain_scratch(
-      scratch,
-      retention_id,
-      grant.workspace_id,
-      approval_digest,
-      command_digest,
-      config,
-    )
-  } else {
-    false
-  }
+  let retained = retain_execution_result(
+    grant.backend,
+    raw_receipt,
+    scratch,
+    retention_id,
+    grant.workspace_id,
+    @sandbox.profile_digest(profile),
+    approval_digest,
+    command_digest,
+    config,
+  )
   let host_cleanup_verified = if retained {
     true
   } else {

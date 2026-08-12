@@ -135,6 +135,11 @@ jobs:
           jq -e '.baseline.entries | map(.relative_path) | sort == ["delete.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
           jq -e '.inventory.entries | map(.relative_path) | sort == ["add.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
           jq -e '(.baseline.entries[] | select(.relative_path=="modify.txt") | .fingerprint) != (.inventory.entries[] | select(.relative_path=="modify.txt") | .fingerprint)' _build/aen-guest/overlay-diff.json
+          add_digest=$(sha256sum /scratch-diff/add.txt | awk '{print $1}')
+          sudo /opt/moonfort/bin/attester export-file --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --attester-digest "$attester_digest" --path add.txt --fingerprint "$add_digest" --size 5 --max-bytes 8388608 > _build/aen-guest/export.json
+          jq -e --arg digest "$add_digest" '.contract=="moonfort-guest-v1" and .path=="add.txt" and .fingerprint==$digest and .size=="5" and .payload=="YWRkZWQ="' _build/aen-guest/export.json
+          ! sudo /opt/moonfort/bin/attester export-file --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --attester-digest "$attester_digest" --path ../workspace/modify.txt --fingerprint "$add_digest" --size 5 --max-bytes 8388608
+          ! sudo /opt/moonfort/bin/attester export-file --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --attester-digest "$attester_digest" --path add.txt --fingerprint aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --size 5 --max-bytes 8388608
       - uses: hustcer/setup-moonbit@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

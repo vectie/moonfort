@@ -53,6 +53,14 @@ static long long number_argument(int argc, char **argv, const char *name, long l
   return value;
 }
 
+static long long nonnegative_argument(int argc, char **argv, const char *name, long long maximum) {
+  const char *text=argument(argc,argv,name);char *end=NULL;
+  if(!text||!*text||text[0]=='-'||strlen(text)>20)mf_die("missing nonnegative numeric argument");
+  errno=0;long long value=strtoll(text,&end,10);
+  if(errno||*end||value<0||value>maximum)mf_die("nonnegative numeric argument is outside its fixed bound");
+  return value;
+}
+
 static int compare_names(const void *left, const void *right) {
   return strcmp(*(char *const *)left, *(char *const *)right);
 }
@@ -219,6 +227,71 @@ static void inventory_command(int argc,char **argv){
   dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"}}\n",current.bytes);
 }
 
+static int safe_relative_path(const char *path){
+  if(!path||!*path||*path=='/'||strlen(path)>=MF_PATH_MAX||strchr(path,'\\')||strchr(path,'\n')||strchr(path,'\t'))return 0;
+  const char *component=path;
+  for(const char *cursor=path;;++cursor){
+    if(*cursor=='/'||!*cursor){
+      size_t length=(size_t)(cursor-component);
+      if(!length||(length==1&&component[0]=='.')||(length==2&&component[0]=='.'&&component[1]=='.'))return 0;
+      if(!*cursor)break;
+      component=cursor+1;
+    }
+  }
+  return 1;
+}
+
+static int open_regular_beneath(int root,const char *relative){
+  char path[MF_PATH_MAX];size_t length=strlen(relative);memcpy(path,relative,length+1);
+  int directory=dup(root);if(directory<0)return -1;
+  char *save=NULL,*component=strtok_r(path,"/",&save);
+  while(component){
+    char *next=strtok_r(NULL,"/",&save);
+    if(!next){int file=openat(directory,component,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);close(directory);return file;}
+    int child=openat(directory,component,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);close(directory);
+    if(child<0)return -1;
+    directory=child;component=next;
+  }
+  close(directory);return -1;
+}
+
+static void write_base64(const unsigned char *input,size_t length){
+  static const char alphabet[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  size_t encoded_length=((length+2)/3)*4;char *encoded=malloc(encoded_length+1);if(!encoded)mf_die("export encoding allocation failed");
+  size_t source=0,target=0;
+  while(source<length){
+    unsigned int value=(unsigned int)input[source++]<<16;int remaining=1;
+    if(source<length){value|=(unsigned int)input[source++]<<8;++remaining;}
+    if(source<length){value|=input[source++];++remaining;}
+    encoded[target++]=alphabet[(value>>18)&63];encoded[target++]=alphabet[(value>>12)&63];
+    encoded[target++]=remaining>=2?alphabet[(value>>6)&63]:'=';encoded[target++]=remaining==3?alphabet[value&63]:'=';
+  }
+  encoded[target]=0;mf_write_all(STDOUT_FILENO,encoded,target);free(encoded);
+}
+
+static void export_file(int argc,char **argv){
+  const char *contract=argument(argc,argv,"--contract"),*scratch=argument(argc,argv,"--scratch"),*profile=argument(argc,argv,"--profile-digest"),*path=argument(argc,argv,"--path"),*fingerprint=argument(argc,argv,"--fingerprint"),*attester=argument(argc,argv,"--attester-digest");
+  long long size=nonnegative_argument(argc,argv,"--size",8388608),maximum=number_argument(argc,argv,"--max-bytes",8388608);
+  if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_canonical_absolute(scratch)||!mf_valid_digest(profile)||!safe_relative_path(path)||!mf_valid_digest(fingerprint)||!mf_valid_digest(attester)||size>maximum)mf_die("export request is malformed");
+  char self[MF_SHA256_HEX];if(mf_hash_self(self)||strcmp(self,attester))mf_die("guest attester digest mismatch");
+  char policy[MF_PATH_MAX],policy_name[80],state[MF_PATH_MAX*3];int policy_name_length=snprintf(policy_name,sizeof(policy_name),"policy-%s",profile);
+  if(policy_name_length<=0||(size_t)policy_name_length>=sizeof(policy_name)||mf_join_path(policy,sizeof(policy),MF_RUNTIME_DIR,policy_name)||mf_read_text_file(policy,state,sizeof(state))<0)mf_die("export policy unavailable");
+  char saved_contract[64],saved_profile[MF_SHA256_HEX],workspace[MF_PATH_MAX],saved_scratch[MF_PATH_MAX],supervisor_digest[MF_SHA256_HEX],registry_digest[MF_SHA256_HEX],root_digest[MF_SHA256_HEX],extra;long long cpu=0,processes=0,saved_disk=0;
+  int fields=sscanf(state,"%63[^\n]\n%64[a-f0-9]\n%lld\n%lld\n%lld\n%4095[^\n]\n%4095[^\n]\n%64[a-f0-9]\n%64[a-f0-9]\n%64[a-f0-9]\n%c",saved_contract,saved_profile,&cpu,&processes,&saved_disk,workspace,saved_scratch,supervisor_digest,registry_digest,root_digest,&extra);
+  if(fields!=10||strcmp(saved_contract,contract)||strcmp(saved_profile,profile)||strcmp(saved_scratch,scratch))mf_die("export is not bound to a prepared profile");
+  int root=open(scratch,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(root<0)mf_die("export scratch root is unsafe");
+  int file=open_regular_beneath(root,path);close(root);struct stat before,after;
+  if(file<0||fstat(file,&before)||!S_ISREG(before.st_mode)||before.st_size!=size)mf_die("export source is not the expected regular file");
+  char digest[MF_SHA256_HEX];if(mf_hash_fd(file,digest,before.st_size)||strcmp(digest,fingerprint))mf_die("export source fingerprint changed");
+  size_t wanted=(size_t)size;unsigned char *chunk=malloc(wanted?wanted:1);if(!chunk)mf_die("export allocation failed");
+  size_t used=0;while(used<wanted){ssize_t count=pread(file,chunk+used,wanted-used,(off_t)used);if(count<0&&errno==EINTR)continue;if(count<=0)mf_die("export source ended unexpectedly");used+=(size_t)count;}
+  struct mf_sha256 payload_hash;unsigned char payload_raw[32];char payload_digest[MF_SHA256_HEX];mf_sha256_init(&payload_hash);mf_sha256_update(&payload_hash,chunk,used);mf_sha256_finish(&payload_hash,payload_raw);mf_hex(payload_raw,32,payload_digest);
+  if(strcmp(payload_digest,fingerprint)||fstat(file,&after)||after.st_dev!=before.st_dev||after.st_ino!=before.st_ino||after.st_size!=before.st_size)mf_die("export source changed while reading");
+  close(file);
+  dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"profileDigest\":\"%s\",\"guestAttesterDigest\":\"%s\",\"path\":",profile,self);mf_json_string(STDOUT_FILENO,path);
+  dprintf(STDOUT_FILENO,",\"size\":\"%lld\",\"fingerprint\":\"%s\",\"payload\":\"",size,fingerprint);write_base64(chunk,used);mf_write_all(STDOUT_FILENO,"\"}\n",3);free(chunk);
+}
+
 static int sysctl_is_one(int directory,const char *name){
   int child=openat(directory,name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(child<0)return 0;
   int file=openat(child,"disable_ipv6",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);close(child);if(file<0)return 0;
@@ -243,6 +316,7 @@ int main(int argc,char **argv){
   if(argc<2)mf_die("a fixed operation is required");
   if(!strcmp(argv[1],"prepare-and-attest"))prepare(argc,argv);
   else if(!strcmp(argv[1],"inventory"))inventory_command(argc,argv);
+  else if(!strcmp(argv[1],"export-file"))export_file(argc,argv);
   else if(!strcmp(argv[1],"network-attest"))network_attest(argc,argv);
   else mf_die("operation is not allowed");
   return 0;

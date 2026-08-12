@@ -28,6 +28,42 @@ pub(all) struct AenExecutionConfig {
 } derive(Eq)
 
 ///|
+fn with_lease_cleanup_handle(
+  receipt : @sandbox.SandboxReceipt,
+  lease_released : Bool,
+  lease_id : String,
+) -> @sandbox.SandboxReceipt {
+  if lease_released {
+    return receipt
+  }
+  let lease_handle = "aen-lease:\{opaque_provider_identifier(lease_id)}"
+  {
+    ..receipt,
+    retention_id: Some(
+      match receipt.retention_id {
+        Some(vm_handle) => "aen-cleanup:\{vm_handle}|\{lease_handle}"
+        None => lease_handle
+      },
+    ),
+  }
+}
+
+///|
+fn refused_with_lease_cleanup(
+  backend : AenBackend[AenHttpTransport],
+  reason : String,
+  vm_cleanup : Bool,
+  lease_released : Bool,
+  lease_id : String,
+) -> @sandbox.SandboxReceipt {
+  let receipt = backend.refused_after_cleanup(
+    reason,
+    vm_cleanup && lease_released,
+  )
+  with_lease_cleanup_handle(receipt, lease_released, lease_id)
+}
+
+///|
 /// Run one prepared command in a newly attested AEN sandbox and delete the VM
 /// afterward. Any configuration, attestation, execution, or cleanup failure
 /// produces a refused receipt; this function has no local-process fallback.
@@ -92,7 +128,7 @@ pub async fn execute_aen_sandbox(
       ) catch {
         _ => false
       }
-      return {
+      let receipt = {
         ..@sandbox.refused_receipt(
           profile.run_id,
           MicroVm,
@@ -100,12 +136,9 @@ pub async fn execute_aen_sandbox(
           "invalid AEN backend configuration: \{Repr(error)}",
         ),
         cleanup_verified: released,
-        retention_id: if released {
-          None
-        } else {
-          Some("aen-lease:\{opaque_provider_identifier(lease.lease_id)}")
-        },
+        retention_id: None,
       }
+      return with_lease_cleanup_handle(receipt, released, lease.lease_id)
     }
   }
   let started = backend.start()
@@ -117,15 +150,11 @@ pub async fn execute_aen_sandbox(
     ) catch {
       _ => false
     }
-    return {
+    let receipt = {
       ..started,
       cleanup_verified: started.cleanup_verified && released,
-      retention_id: if started.cleanup_verified && released {
-        None
-      } else {
-        Some("aen-lease:\{opaque_provider_identifier(lease.lease_id)}")
-      },
     }
+    return with_lease_cleanup_handle(receipt, released, lease.lease_id)
   }
   let preparation = @sandbox.prepare_sandbox_command(
     profile,
@@ -145,13 +174,39 @@ pub async fn execute_aen_sandbox(
     ) catch {
       _ => false
     }
-    return backend.refused_after_cleanup(reason, cleanup && released)
+    return refused_with_lease_cleanup(
+      backend,
+      reason,
+      cleanup,
+      released,
+      lease.lease_id,
+    )
   }
   let receipt = backend.exec(prepared, working_directory~)
   let receipt = if receipt.enforcement is Enforced &&
     receipt.status is Running &&
     !receipt.changed_paths.is_empty() {
-    let snapshot = backend.snapshot(name="moonfort-\{profile.run_id}") catch {
+    guard backend.sandbox_id() is Some(sandbox_id) else {
+      let cleanup = backend.discard()
+      let released = release_workspace(
+        provisioner,
+        api_key=config.provisioner_api_key,
+        lease_id=lease.lease_id,
+      ) catch {
+        _ => false
+      }
+      return refused_with_lease_cleanup(
+        backend,
+        "AEN changed run lost its sandbox identity",
+        cleanup,
+        released,
+        lease.lease_id,
+      )
+    }
+    let artifacts = backend.materialize_guest_changes(
+      sandbox_id,
+      receipt.changes,
+    ) catch {
       _ => {
         let cleanup = backend.discard()
         let released = release_workspace(
@@ -161,17 +216,16 @@ pub async fn execute_aen_sandbox(
         ) catch {
           _ => false
         }
-        return backend.refused_after_cleanup(
-          "AEN could not preserve changed artifacts",
-          cleanup && released,
+        return refused_with_lease_cleanup(
+          backend,
+          "AEN could not export changed regular files",
+          cleanup,
+          released,
+          lease.lease_id,
         )
       }
     }
-    {
-      ..receipt,
-      artifacts: snapshot.receipt.artifacts,
-      retention_id: snapshot.artifact_id.map(id => "aen-snapshot:\{id}"),
-    }
+    { ..receipt, artifacts, retention_id: None }
   } else {
     receipt
   }
@@ -192,16 +246,15 @@ pub async fn execute_aen_sandbox(
         receipt.status
       },
       cleanup_verified: true,
-      retention_id: if receipt.artifacts.is_empty() {
-        None
-      } else {
-        receipt.retention_id
-      },
+      retention_id: None,
     }
   } else {
-    backend.refused_after_cleanup(
+    refused_with_lease_cleanup(
+      backend,
       "AEN VM or workspace lease cleanup could not be verified after execution",
-      false,
+      cleanup,
+      released,
+      lease.lease_id,
     )
   }
 }

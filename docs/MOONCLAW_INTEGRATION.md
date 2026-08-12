@@ -78,8 +78,10 @@ profile digest, terminal status, and cleanup state.
 
 Changed local scratch is retained under an opaque ID only after a 0600 TTL
 record is durably created in the executor-owned retention root. Expired records
-are safely swept without following links. AEN changed output is snapshotted
-before verified VM deletion. MoonDesk receives only relative changed paths and
+are safely swept without following links. AEN changed regular files are
+exported through the fixed digest-bound guest helper into the same private
+retention model before verified VM deletion and workspace-lease release.
+MoonDesk receives only relative changed paths and
 declared artifacts; promotion uses MoonFort's reviewed per-file promotion API.
 The production `cmd/promote-retention` controller accepts a bounded request
 containing only the opaque retention ID, workspace registry ID, the exact

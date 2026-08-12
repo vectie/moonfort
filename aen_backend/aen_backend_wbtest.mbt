@@ -51,6 +51,33 @@ struct CancellationTransport {
 }
 
 ///|
+struct ExportTransport {
+  sequences : Array[Array[Bytes]]
+  requests : Array[AenRequest]
+  mut index : Int
+}
+
+///|
+impl AenTransport for ExportTransport with fn request(_self, _request) {
+  raise TransportFailure("export transport does not accept control requests")
+}
+
+///|
+impl AenTransport for ExportTransport with fn stream(self, request, consume~) {
+  self.requests.push(request)
+  guard self.index < self.sequences.length() else {
+    raise TransportFailure("export stream queue exhausted")
+  }
+  let sequence = self.sequences[self.index]
+  self.index += 1
+  for chunk in sequence {
+    if consume(chunk) is StopStream {
+      return
+    }
+  }
+}
+
+///|
 impl AenTransport for CancellationTransport with fn request(self, request) {
   self.requests.push(request)
   if request.verb is Post && request.path == "/sandboxes" {
@@ -98,6 +125,47 @@ fn test_profile(output_bytes? : Int = 256) -> @sandbox.SandboxProfile {
     },
     read_only_workspace: true,
   }
+}
+
+///|
+fn export_profile(scratch : String) -> @sandbox.SandboxProfile {
+  { ..test_profile(), scratch_root: scratch }
+}
+
+///|
+fn export_response(
+  profile : @sandbox.SandboxProfile,
+  path : String,
+  fingerprint : String,
+  size : Int64,
+  payload : Bytes,
+) -> Array[Bytes] {
+  let body : Json = {
+    "contract": GuestAttestationContract,
+    "profileDigest": @sandbox.profile_digest(profile),
+    "guestAttesterDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "path": path,
+    "size": size.to_string(),
+    "fingerprint": fingerprint,
+    "payload": @base64.encode(payload),
+  }
+  exec_stream(@utf8.encode(body.stringify()), 0)
+}
+
+///|
+fn export_backend(
+  transport : ExportTransport,
+  profile : @sandbox.SandboxProfile,
+) -> AenBackend[ExportTransport] raise AenBackendError {
+  AenBackend::new(
+    transport,
+    api_key="test-key",
+    snapshot_id="snapshot-1",
+    guest_attester_digest="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    expected_vcpu_count=2,
+    guest_tools={ "moon": "/opt/moon/bin/moon" },
+    profile~,
+  )
 }
 
 ///|
@@ -668,6 +736,217 @@ test "AEN working directory accepts only normalized relative paths" {
 }
 
 ///|
+async test "fixed guest export materializes only diff-bound regular bytes" {
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-export-"))
+  let profile = export_profile(scratch)
+  let payload = b"reviewed AEN artifact"
+  let fingerprint = @crypto.bytes_to_hex_string(@crypto.sha256(payload))
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "nested/result.txt",
+    kind: RegularFile,
+    size_bytes: payload.length().to_int64(),
+    fingerprint,
+  }
+  let transport : ExportTransport = {
+    sequences: [
+      export_response(
+        profile,
+        entry.relative_path,
+        fingerprint,
+        entry.size_bytes,
+        payload,
+      ),
+    ],
+    requests: [],
+    index: 0,
+  }
+  let backend = export_backend(transport, profile)
+  let paths = backend.materialize_guest_changes("sbx-export", [
+    {
+      relative_path: entry.relative_path,
+      change: Added,
+      before: None,
+      after: Some(entry),
+    },
+  ])
+  assert_eq(paths, ["nested/result.txt"])
+  assert_eq(@fs.read_file("\{scratch}/nested/result.txt").binary(), payload)
+  assert_eq(transport.requests.length(), 1)
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+}
+
+///|
+async test "export inventory comparison is independent of path sort convention" {
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-export-order-"))
+  let profile = export_profile(scratch)
+  let aa = b"first"
+  let z = b"second"
+  let aa_hash = @crypto.bytes_to_hex_string(@crypto.sha256(aa))
+  let z_hash = @crypto.bytes_to_hex_string(@crypto.sha256(z))
+  let entries : Array[@sandbox.ScratchEntry] = [
+    {
+      relative_path: "aa",
+      kind: RegularFile,
+      size_bytes: 5L,
+      fingerprint: aa_hash,
+    },
+    {
+      relative_path: "z",
+      kind: RegularFile,
+      size_bytes: 6L,
+      fingerprint: z_hash,
+    },
+  ]
+  let transport : ExportTransport = {
+    sequences: [
+      export_response(profile, "aa", aa_hash, 5L, aa),
+      export_response(profile, "z", z_hash, 6L, z),
+    ],
+    requests: [],
+    index: 0,
+  }
+  let backend = export_backend(transport, profile)
+  let paths = backend.materialize_guest_changes(
+    "sbx-export",
+    entries.map(entry => {
+      relative_path: entry.relative_path,
+      change: Added,
+      before: None,
+      after: Some(entry),
+    }),
+  )
+  assert_eq(paths, ["aa", "z"])
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+}
+
+///|
+async test "host rehash rejects forged guest export bytes" {
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-forged-export-"))
+  let profile = export_profile(scratch)
+  let expected = b"expected"
+  let forged = b"forged!!"
+  let fingerprint = @crypto.bytes_to_hex_string(@crypto.sha256(expected))
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "result.txt",
+    kind: RegularFile,
+    size_bytes: expected.length().to_int64(),
+    fingerprint,
+  }
+  let transport : ExportTransport = {
+    sequences: [
+      export_response(
+        profile,
+        entry.relative_path,
+        fingerprint,
+        entry.size_bytes,
+        forged,
+      ),
+    ],
+    requests: [],
+    index: 0,
+  }
+  let backend = export_backend(transport, profile)
+  let refused = try {
+    ignore(
+      backend.materialize_guest_changes("sbx-export", [
+        {
+          relative_path: entry.relative_path,
+          change: Modified,
+          before: Some({
+            ..entry,
+            fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          }),
+          after: Some(entry),
+        },
+      ]),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(refused)
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+}
+
+///|
+async test "oversized AEN export refuses before guest execution" {
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-large-export-"))
+  let profile = export_profile(scratch)
+  let transport : ExportTransport = { sequences: [], requests: [], index: 0 }
+  let backend = export_backend(transport, profile)
+  let refused = try {
+    ignore(
+      backend.materialize_guest_changes("sbx-export", [
+        {
+          relative_path: "large.bin",
+          change: Added,
+          before: None,
+          after: Some({
+            relative_path: "large.bin",
+            kind: RegularFile,
+            size_bytes: GuestExportFileBytes.to_int64() + 1L,
+            fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          }),
+        },
+      ]),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(refused)
+  assert_true(transport.requests.is_empty())
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+}
+
+///|
+async test "guest export cannot promote removals symlinks or directories" {
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-nonfile-export-"))
+  let profile = export_profile(scratch)
+  let transport : ExportTransport = { sequences: [], requests: [], index: 0 }
+  let backend = export_backend(transport, profile)
+  let paths = backend.materialize_guest_changes("sbx-export", [
+    {
+      relative_path: "removed.txt",
+      change: Removed,
+      before: Some({
+        relative_path: "removed.txt",
+        kind: RegularFile,
+        size_bytes: 1L,
+        fingerprint: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+      after: None,
+    },
+    {
+      relative_path: "escape",
+      change: Added,
+      before: None,
+      after: Some({
+        relative_path: "escape",
+        kind: SymbolicLink,
+        size_bytes: 0L,
+        fingerprint: "link:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      }),
+    },
+    {
+      relative_path: "empty",
+      change: Added,
+      before: None,
+      after: Some({
+        relative_path: "empty",
+        kind: DirectoryEntry,
+        size_bytes: 0L,
+        fingerprint: "directory",
+      }),
+    },
+  ])
+  assert_true(paths.is_empty())
+  assert_true(@fs.readdir(scratch).is_empty())
+  assert_true(transport.requests.is_empty())
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+}
+
+///|
 async test "one-shot AEN facade refuses invalid configuration without fallback" {
   let profile = test_profile()
   let config : AenExecutionConfig = {
@@ -706,6 +985,52 @@ async test "one-shot AEN facade refuses invalid configuration without fallback" 
   assert_true(
     receipt.denial_reason is Some(reason) && !reason.contains("secret"),
   )
+}
+
+///|
+test "verified VM deletion retains lease cleanup handle when release fails" {
+  let profile = test_profile()
+  let backend = AenBackend::new(
+    AenHttpTransport::new("http://127.0.0.1:65535"),
+    api_key="test-key",
+    snapshot_id="snapshot-1",
+    expected_vcpu_count=2,
+    guest_tools={ "moon": "/opt/moon/bin/moon" },
+    profile~,
+  )
+  let receipt = refused_with_lease_cleanup(
+    backend, "lease cleanup failed", true, false, "lease-1",
+  )
+  assert_false(receipt.cleanup_verified)
+  assert_eq(receipt.retention_id, Some("aen-lease:lease-1"))
+  assert_true(
+    receipt.denial_reason is Some(reason) && !reason.contains("test-key"),
+  )
+}
+
+///|
+test "cleanup handle preserves every unresolved VM and lease obligation" {
+  let profile = test_profile()
+  let backend = AenBackend::new(
+    AenHttpTransport::new("http://127.0.0.1:65535"),
+    api_key="test-key",
+    snapshot_id="snapshot-1",
+    expected_vcpu_count=2,
+    guest_tools={ "moon": "/opt/moon/bin/moon" },
+    profile~,
+  )
+  backend.sandbox_id = Some("sbx-1")
+  let both = refused_with_lease_cleanup(
+    backend, "cleanup failed", false, false, "lease-1",
+  )
+  assert_eq(
+    both.retention_id,
+    Some("aen-cleanup:aen-vms:sbx-1|aen-lease:lease-1"),
+  )
+  let vm_only = refused_with_lease_cleanup(
+    backend, "cleanup failed", false, true, "lease-1",
+  )
+  assert_eq(vm_only.retention_id, Some("aen-vms:sbx-1"))
 }
 
 ///|

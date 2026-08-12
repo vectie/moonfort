@@ -2,6 +2,11 @@
 const MaxExecutorConfigBytes : Int = 1_048_576
 
 ///|
+fn retention_window_is_valid(value : Int64) -> Bool {
+  value > 0L && value <= 31_536_000_000L
+}
+
+///|
 fn trusted_aen_config_is_valid(backend : TrustedAenConfig) -> Bool {
   canonical_https_origin(backend.base_url) &&
   backend.api_key.trim() != "" &&
@@ -119,7 +124,7 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
     config.limits.max_argument_bytes <= 1_048_576 &&
     config.limits.max_changed_paths > 0 &&
     config.limits.max_changed_paths <= 1_000_000 &&
-    config.limits.retention_ms > 0L else {
+    retention_window_is_valid(config.limits.retention_ms) else {
     fail("executor deployment limits are invalid")
   }
   for name, workspace in config.workspaces {
@@ -331,32 +336,95 @@ async fn allocate_scratch(
 }
 
 ///|
+fn retention_manifest_is_valid(
+  files : Array[@sandbox.ScratchEntry],
+  config : ExecutorConfig,
+) -> Bool {
+  if files.is_empty() || files.length() > config.limits.max_changed_paths {
+    return false
+  }
+  let sorted = files.copy()
+  sorted.sort_by_key(entry => entry.relative_path)
+  if sorted != files {
+    return false
+  }
+  let seen : Map[String, Unit] = Map([])
+  let mut total = 0L
+  let byte_limit = config.limits.max_disk_mib.to_int64() * 1_048_576L
+  for entry in files {
+    guard entry.kind is RegularFile &&
+      @sandbox.scratch_relative_path_is_safe(entry.relative_path) &&
+      !seen.contains(entry.relative_path) &&
+      entry.size_bytes >= 0L &&
+      sha256_digest(entry.fingerprint) &&
+      entry.size_bytes <= byte_limit - total else {
+      return false
+    }
+    seen[entry.relative_path] = ()
+    total += entry.size_bytes
+  }
+  true
+}
+
+///|
 async fn retain_scratch(
   scratch : String,
   retention_id : String,
   workspace_id : String,
+  profile_digest : String,
   approval_digest : String,
   command_digest : String,
+  reviewable_files : Array[@sandbox.ScratchEntry],
   config : ExecutorConfig,
 ) -> Bool {
   guard safe_identifier(retention_id) &&
+    retention_window_is_valid(config.limits.retention_ms) &&
+    sha256_digest(profile_digest) &&
+    sha256_digest(approval_digest) &&
+    sha256_digest(command_digest) &&
     scratch == "\{config.scratch_root}/\{retention_id}" else {
+    return false
+  }
+  let manifest = reviewable_files.copy()
+  manifest.sort_by_key(entry => entry.relative_path)
+  guard retention_manifest_is_valid(manifest, config) else { return false }
+  let inventory = match
+    @sandbox.inventory_scratch(
+      scratch,
+      config.limits.max_disk_mib.to_int64() * 1_048_576L,
+    ) {
+    Ok(value) => value
+    Err(_) => return false
+  }
+  guard manifest.all(expected => inventory.entries.contains(expected)) else {
     return false
   }
   let record : RetentionRecord = {
     retention_id,
     scratch_path: scratch,
-    expires_at_ms: @env.now().reinterpret_as_int64() +
-    config.limits.retention_ms,
+    expires_at_ms: {
+      let now = @env.now().reinterpret_as_int64()
+      guard now >= 0L &&
+        config.limits.retention_ms <= 9_223_372_036_854_775_807L - now else {
+        return false
+      }
+      now + config.limits.retention_ms
+    },
     workspace_id,
+    profile_digest,
     approval_digest,
     command_digest,
+    reviewable_files: manifest,
+  }
+  let encoded = record.to_json().stringify()
+  guard @utf8.encode(encoded).length() <= config.limits.max_protocol_bytes else {
+    return false
   }
   let path = "\{config.retention_root}/\{retention_id}.json"
   try {
     @fs.write_file(
       path,
-      record.to_json().stringify(),
+      encoded,
       create_mode=CreateNew,
       permission=0o600,
       sync=Full,
@@ -379,11 +447,15 @@ async fn load_retention_record(
     fail("retention record is unavailable")
   }
   let record : RetentionRecord = @json.from_json(
-    @json.parse(bounded_regular_file(path, 16_384)),
+    @json.parse(bounded_regular_file(path, config.limits.max_protocol_bytes)),
   )
   guard record.retention_id == retention_id &&
     record.scratch_path == "\{config.scratch_root}/\{retention_id}" &&
     safe_identifier(record.workspace_id) &&
+    sha256_digest(record.profile_digest) &&
+    sha256_digest(record.approval_digest) &&
+    sha256_digest(record.command_digest) &&
+    retention_manifest_is_valid(record.reviewable_files, config) &&
     record.expires_at_ms > @env.now().reinterpret_as_int64() &&
     @fs.realpath(record.scratch_path) == record.scratch_path &&
     @fs.kind(record.scratch_path, follow_symlink=false) is Directory else {
@@ -458,10 +530,21 @@ pub async fn promote_retention(
     return refused("promotion digests do not match the retained execution")
   }
   let disk_limit_bytes = config.limits.max_disk_mib.to_int64() * 1024L * 1024L
-  let inventory = match
+  let retained_inventory = match
     @sandbox.inventory_scratch(record.scratch_path, disk_limit_bytes) {
     Ok(value) => value
     Err(_) => return refused("retained scratch could not be safely inventoried")
+  }
+  guard record.reviewable_files.all(expected => {
+    retained_inventory.entries.contains(expected)
+  }) else {
+    return refused("retained review manifest no longer matches scratch")
+  }
+  let inventory : @sandbox.ScratchInventory = {
+    entries: record.reviewable_files.copy(),
+    total_bytes: record.reviewable_files.fold(init=0L, (sum, entry) => {
+      sum + entry.size_bytes
+    }),
   }
   let plan = match
     @sandbox.plan_sandbox_promotion(inventory, workspace.root, request.items) {
@@ -535,13 +618,17 @@ pub async fn sweep_expired_retentions(config : ExecutorConfig) -> Int {
     guard safe_identifier(id) else { continue }
     let path = "\{config.retention_root}/\{name}"
     let record : RetentionRecord = @json.from_json(
-      @json.parse(bounded_regular_file(path, 16_384)),
+      @json.parse(bounded_regular_file(path, config.limits.max_protocol_bytes)),
     ) catch {
       _ => continue
     }
     if record.retention_id != id ||
       record.scratch_path != "\{config.scratch_root}/\{id}" ||
       !safe_identifier(record.workspace_id) ||
+      !sha256_digest(record.profile_digest) ||
+      !sha256_digest(record.approval_digest) ||
+      !sha256_digest(record.command_digest) ||
+      !retention_manifest_is_valid(record.reviewable_files, config) ||
       record.expires_at_ms > now {
       continue
     }

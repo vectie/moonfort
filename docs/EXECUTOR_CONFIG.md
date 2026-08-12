@@ -96,3 +96,13 @@ The executor applies independent hard maxima even to trusted configuration.
 Local runs accept only deny-network profiles and always report `Degraded`.
 Production untrusted work should authorize only `MicroVm` and
 `RequireEnforced`.
+
+For a successful changed microVM run, `scratch_root/<opaque-id>` is also the
+host-side export destination. The fixed guest attester sends one bounded (at
+most 8 MiB) value per file under one profile-derived post-run deadline
+only for added/modified regular files named by the verified structured diff.
+MoonFort rehashes the complete export and writes a `0600` retention record
+whose reviewable manifest is bound to the workspace, profile, approval, and
+command digests. Promotion can select only entries in that manifest and still
+uses fd-relative source/destination revalidation. Symlinks, directories,
+special files, and removals are never materialized or promotable.

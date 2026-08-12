@@ -10,7 +10,7 @@ async fn[T : AenTransport] AenBackend::run_fixed_guest_json(
   cwd : String,
   max_bytes? : Int = 65_536,
 ) -> Json {
-  guard max_bytes > 0 && max_bytes <= 4_194_304 else {
+  guard max_bytes > 0 && max_bytes <= 16_777_216 else {
     raise InvalidConfiguration("fixed guest output limit is invalid")
   }
   let decoder = ConnectDecoder::new(max_frame_bytes=max_bytes + 65_536)

@@ -34,13 +34,17 @@ runs deletion in a cancellation-protected region. Fork cleanup covers every
 known child plus the parent.
 
 `cleanup_verified=true` means AEN acknowledged deletion (`204`) or confirmed
-the VM was already absent (`404`). A terminal `Enforced` receipt is returned
-only with either verified deletion or, for a changed successful run, a
-preserved snapshot artifact handed back before verified VM deletion. A live
+the VM was already absent (`404`). Before deleting a successfully changed
+one-shot VM, MoonFort exports only changed post-run regular files through the
+fixed digest-bound attester into the executor's already allocated private
+scratch. Every bounded file export is bound to the profile, helper digest, relative
+path, whole-file size, and SHA-256 from the independently verified structured
+diff. The executor rehashes the completed files and durably binds the exact
+reviewable manifest to approval, command, profile, and workspace digests before
+issuing its ordinary opaque retention ID. A live
 lifecycle operation stays in `Running` status even after its guest process
 exits (the exit code remains recorded) and carries an opaque `aen-vms:`
-retention ID; a changed one-shot
-receipt carries `aen-snapshot:`. If deletion cannot be verified, the receipt is
+retention ID. If export or deletion cannot be verified, the receipt is
 `Refused`, `cleanup_verified=false`, and includes the known VM IDs for explicit
 operator cleanup. If create fails before returning an ID, cleanup is reported
 unverified because the provider may have accepted the request without giving
@@ -140,9 +144,10 @@ policies:
   authenticated AEN control plane, provisioner receipt key, and digest-pinned
   guest image. Environments
   requiring cryptographic host/VM attestation need an additional verifier.
-- artifact IDs and snapshot IDs are returned, but AEN does not expose a
-  canonical MoonBook diff/promotion API. Promotion remains a separate explicit
-  review step.
+- artifact IDs and snapshot IDs are lifecycle primitives, not a canonical
+  MoonBook promotion API. MoonFort therefore exports diff-bound regular bytes
+  before cleanup and reuses its executor-owned race-safe, explicit per-file
+  promotion controller. It never promotes directly from a provider snapshot.
 
 For terminal execution receipts, the adapter establishes an envd
 `filesystem.Filesystem/CreateWatcher` on `guest_scratch` before process start,
@@ -154,8 +159,15 @@ under guest scratch and are normalized to safe scratch-relative receipt paths.
 Relative paths may not contain traversal, backslashes, NUL, or an empty/root
 entry. A successful
 or output-killed run is refused if this changed-path manifest cannot be read.
-The one-shot facade snapshots a successfully changed VM before deletion and
-records the snapshot ID as an artifact; if preservation fails, the run is
-refused. Output-killed VMs are deleted immediately and are not promotable.
+The one-shot facade exports each added or modified regular file through
+`guest_attester export-file` before deletion. Each regular file is capped at 8
+MiB, all exports share one profile-derived post-run deadline, and the guest helper uses
+`openat(O_NOFOLLOW)` traversal, hashes the pinned whole file, then reads and
+hashes the export once before returning base64 in a strictly checked JSON envelope. Host-side
+inventory must exactly match the structured diff's regular-file subset.
+Directories, symlinks, special files, and removals remain visible changes but
+are never reviewable artifacts or promotion sources. If export or host rehash
+fails, the run is refused. Output-killed VMs are deleted immediately and are
+not promotable.
 
 These are refusal conditions, not reasons to execute unsandboxed.
