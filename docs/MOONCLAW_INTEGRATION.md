@@ -84,11 +84,13 @@ retention model before verified VM deletion and workspace-lease release.
 MoonDesk receives only relative changed paths and
 declared artifacts; promotion uses MoonFort's reviewed per-file promotion API.
 The production `cmd/promote-retention` controller accepts a bounded request
-containing exactly one explicit file mapping, the opaque retention ID,
+using promotion protocol version `4` and containing exactly one explicit file
+mapping, the opaque retention ID,
 workspace registry ID, the exact
 approval/command digests from the receipt, and explicit per-file mappings.
 Destination roots and scratch paths remain executor-owned, and source hashes
 and destination chains are revalidated before atomic replacement.
+Execution grants and invocations remain protocol version `3`.
 
 ## Release gates
 

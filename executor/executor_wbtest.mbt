@@ -388,7 +388,7 @@ async test "promotion requires matching retained execution digests" {
     ),
   )
   let base : RetentionPromotionRequest = {
-    protocol_version: 3,
+    protocol_version: 4,
     retention_id,
     workspace_id: "book",
     approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -400,6 +400,11 @@ async test "promotion requires matching retained execution digests" {
       },
     ],
   }
+  let legacy = promote_retention({ ..base, protocol_version: 3 }, config)
+  assert_false(legacy.completed)
+  assert_eq(legacy.protocol_version, 4)
+  assert_eq(legacy.destination_outcome, "not-applied")
+  assert_true(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
   let mismatch = promote_retention(
     { ..base, command_digest: "substituted" },
     config,
@@ -491,7 +496,7 @@ async test "verified AEN export is retained promoted and replay refused" {
     ),
   )
   let request : RetentionPromotionRequest = {
-    protocol_version: 3,
+    protocol_version: 4,
     retention_id,
     workspace_id: "book",
     approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -788,12 +793,90 @@ async test "promotion claim durably binds the exact reviewed item" {
   assert_eq(sweep_expired_retentions(config), 0)
   assert_true(@fs.exists(claimed))
   assert_true(@fs.exists(claim_path))
+  assert_false(
+    rollback_pre_rename_claim(
+      "\{config.retention_root}/\{retention_id}.json",
+      claimed,
+      claim_path,
+      config,
+    ),
+  )
+  assert_true(@fs.exists(claimed))
+  assert_true(@fs.exists(claim_path))
   assert_true(restore_claimed_retention(claimed, record, config))
   assert_true(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
   assert_false(@fs.exists(claimed))
   assert_false(@fs.exists(claim_path))
   assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
   @fs.remove("\{config.retention_root}/\{retention_id}.json")
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "proven pre-rename claim rollback permits a clean retry" {
+  let (config, roots) = test_executor_config()
+  let (scratch, retention_id) = allocate_scratch(
+    "request-claim-rollback", config,
+  )
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "artifact",
+    kind: RegularFile,
+    size_bytes: 8L,
+    fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"reviewed")),
+  }
+  assert_true(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [entry],
+      config,
+    ),
+  )
+  let available = "\{config.retention_root}/\{retention_id}.json"
+  let claimed = "\{config.retention_root}/\{retention_id}.promoting"
+  let claim_path = "\{config.retention_root}/\{retention_id}.claim"
+  @fs.write_file(
+    claim_path,
+    "prepared",
+    create_mode=CreateNew,
+    permission=0o600,
+    sync=Full,
+  )
+  assert_true(rollback_pre_rename_claim(available, claimed, claim_path, config))
+  assert_true(@fs.exists(available))
+  assert_false(@fs.exists(claim_path))
+  assert_false(@fs.exists(claimed))
+  let record = load_retention_record(retention_id, config)
+  let inventory : @sandbox.ScratchInventory = {
+    entries: [entry],
+    total_bytes: 8L,
+  }
+  let plan = @sandbox.plan_sandbox_promotion(
+    inventory,
+    config.workspaces["book"].root,
+    [{ artifact_path: "artifact", destination_path: "result" }],
+  ).unwrap()
+  let retry_claimed = claim_retention_for_promotion(
+    record,
+    plan.items()[0],
+    config,
+  )
+  assert_true(@fs.exists(retry_claimed))
+  assert_true(@fs.exists(claim_path))
+  assert_eq(sweep_expired_retentions(config), 0)
+  assert_true(restore_claimed_retention(retry_claimed, record, config))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove(available)
   cleanup_test_roots(roots)
 }
 
@@ -826,7 +909,7 @@ async test "multi-item promotion refuses before claiming or writing" {
   )
   let response = promote_retention(
     {
-      protocol_version: 3,
+      protocol_version: 4,
       retention_id,
       workspace_id: "book",
       approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

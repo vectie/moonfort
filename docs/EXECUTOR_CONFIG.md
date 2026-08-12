@@ -117,3 +117,11 @@ operator inspection. Its response has `destination_outcome` set to
 `recovery-required` and names the exact reviewed path in `uncertain_paths`;
 an empty `promoted_paths` therefore never falsely claims that no write may
 have occurred. Expiration sweeping never deletes locked claims.
+
+The promotion request/response wire protocol is version `4`; execution grants
+and executor invocations remain version `3`. Promotion consumers must require
+version `4` so an older consumer cannot silently miss the three-state
+destination outcome. Pre-rename claim setup failures remove their sidecar only
+after proving the original `.json` record still exists and `.promoting` does
+not. Post-rename or otherwise uncertain claims remain locked. Exact operator
+reconciliation of native crash residue remains required and is not automated.

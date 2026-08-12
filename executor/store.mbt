@@ -487,18 +487,60 @@ async fn claim_retention_for_promotion(
   ) catch {
     _ => fail("retention is already being promoted or is unavailable")
   }
-  guard @fs.kind(claim_path, follow_symlink=false) is Regular &&
+  let claim_verified = try
+    @fs.kind(claim_path, follow_symlink=false) is Regular &&
     protected_regular_file(claim_path) &&
-    sync_private_directory(config.retention_root) else {
+    sync_private_directory(config.retention_root)
+  catch {
+    _ => false
+  }
+  guard claim_verified else {
+    ignore(rollback_pre_rename_claim(available, claimed, claim_path, config))
     fail("claimed retention record could not be verified")
   }
   @fs.rename(available, claimed, replace=false) catch {
-    _ => fail("retention could not be atomically claimed")
+    _ => {
+      ignore(rollback_pre_rename_claim(available, claimed, claim_path, config))
+      fail("retention could not be atomically claimed")
+    }
   }
   guard sync_private_directory(config.retention_root) else {
     fail("promotion claim could not be durably committed")
   }
   claimed
+}
+
+///|
+/// Remove a claim sidecar only when the original retention is still a
+/// protected regular file and no promoting record exists. Once the rename may
+/// have occurred, ambiguity is preserved for operator recovery.
+async fn rollback_pre_rename_claim(
+  available : String,
+  claimed : String,
+  claim_path : String,
+  config : ExecutorConfig,
+) -> Bool {
+  let proven_pre_rename = try
+    @fs.kind(available, follow_symlink=false) is Regular &&
+    protected_regular_file(available) &&
+    !@fs.exists(claimed)
+  catch {
+    _ => false
+  }
+  if !proven_pre_rename {
+    return false
+  }
+  try {
+    if @fs.exists(claim_path) {
+      guard @fs.kind(claim_path, follow_symlink=false) is Regular else {
+        return false
+      }
+      @fs.remove(claim_path)
+    }
+    sync_private_directory(config.retention_root)
+  } catch {
+    _ => false
+  }
 }
 
 ///|
@@ -538,7 +580,7 @@ pub async fn promote_retention(
 ) -> RetentionPromotionResponse {
   let refused = fn(message : String) -> RetentionPromotionResponse {
     {
-      protocol_version: 3,
+      protocol_version: 4,
       retention_id: request.retention_id,
       workspace_id: "",
       approval_digest: "",
@@ -550,7 +592,7 @@ pub async fn promote_retention(
       error: Some({ code: "promotion-refused", message }),
     }
   }
-  if request.protocol_version != 3 ||
+  if request.protocol_version != 4 ||
     !safe_identifier(request.workspace_id) ||
     request.items.is_empty() ||
     request.items.length() > config.limits.max_changed_paths {
@@ -629,7 +671,7 @@ pub async fn promote_retention(
           }
           if scratch_removed && records_removed {
             {
-              protocol_version: 3,
+              protocol_version: 4,
               retention_id: request.retention_id,
               workspace_id: record.workspace_id,
               approval_digest: record.approval_digest,
@@ -642,7 +684,7 @@ pub async fn promote_retention(
             }
           } else {
             {
-              protocol_version: 3,
+              protocol_version: 4,
               retention_id: request.retention_id,
               workspace_id: record.workspace_id,
               approval_digest: record.approval_digest,
@@ -665,7 +707,7 @@ pub async fn promote_retention(
             )
           } else {
             {
-              protocol_version: 3,
+              protocol_version: 4,
               retention_id: request.retention_id,
               workspace_id: record.workspace_id,
               approval_digest: record.approval_digest,
@@ -682,7 +724,7 @@ pub async fn promote_retention(
           }
         RecoveryRequired(destination_path~, native_status~) =>
           {
-            protocol_version: 3,
+            protocol_version: 4,
             retention_id: request.retention_id,
             workspace_id: record.workspace_id,
             approval_digest: record.approval_digest,

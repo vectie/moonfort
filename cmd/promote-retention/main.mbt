@@ -17,7 +17,7 @@ async fn main {
   let response = match @env.get_env_var("MOONFORT_EXECUTOR_CONFIG") {
     None =>
       @trusted_executor.RetentionPromotionResponse::{
-        protocol_version: 3,
+        protocol_version: 4,
         retention_id: "",
         workspace_id: "",
         approval_digest: "",
@@ -35,7 +35,7 @@ async fn main {
       let config = @trusted_executor.load_executor_config(config_path) catch {
         _ => {
           let rejected : @trusted_executor.RetentionPromotionResponse = {
-            protocol_version: 3,
+            protocol_version: 4,
             retention_id: "",
             workspace_id: "",
             approval_digest: "",
@@ -58,7 +58,7 @@ async fn main {
       ) catch {
         _ => {
           let rejected : @trusted_executor.RetentionPromotionResponse = {
-            protocol_version: 3,
+            protocol_version: 4,
             retention_id: "",
             workspace_id: "",
             approval_digest: "",
