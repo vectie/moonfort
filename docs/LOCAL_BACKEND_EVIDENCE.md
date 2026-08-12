@@ -33,6 +33,14 @@ and Linux GitHub-hosted runners. Linux installs the fixed `/usr/bin/bwrap`
 backend; absence of usable user/mount/network namespaces is a hard test failure.
 The job never changes policy to make a failing kernel probe appear successful.
 
+The Linux proof uses Ubuntu 22.04. GitHub's Ubuntu 24.04 runner currently
+applies an AppArmor unprivileged-user-namespace restriction that lets bwrap
+begin namespace setup but denies the route-netlink operation used to initialize
+its isolated loopback device (`RTM_NEWADDR`). MoonFort recognizes that as
+enforcement unavailable and refuses the run. Operators on 24.04 must provide a
+narrow policy for the fixed system `/usr/bin/bwrap` path, or select the AEN
+backend; disabling AppArmor globally is not part of the supported setup.
+
 The local backends intentionally remain `Degraded`, not `Enforced`: they share
 the host kernel and disclose every limit that cannot be authoritatively
 verified in `unverified_limits`. Production-grade untrusted execution still

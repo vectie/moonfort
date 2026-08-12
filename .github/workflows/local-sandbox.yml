@@ -15,7 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        # Ubuntu 24.04 hosted runners enable an AppArmor policy that denies
+        # unprivileged network-namespace initialization. Prove the backend on
+        # the supported 22.04 runner; 24.04 deployments must install a narrow
+        # bwrap userns profile or MoonFort refuses closed.
+        os: [macos-14, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
