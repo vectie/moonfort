@@ -201,7 +201,8 @@ static int valid_utf8(const unsigned char *value, size_t length) {
   while (index < length) {
     unsigned char first = value[index++];
     if (first < 0x80) {
-      if (first == 0 || first == '\n' || first == '\r' || first == '\t') return 0;
+      if (first == 0 || first == '\n' || first == '\r' || first == '\t' ||
+          first == '\\') return 0;
       continue;
     }
     int needed;

@@ -30,6 +30,9 @@ fn receipt_mac(key : String, lease : ProvisionerLease) -> String {
 fn request_from_json(
   value : Json,
 ) -> ProvisionWorkspaceRequest raise ProvisionerError {
+  guard value is Object(fields) && fields.length() == 7 else {
+    raise InvalidRequest("request JSON contains unknown or missing fields")
+  }
   guard value
     is {
       "protocolVersion": Number(protocol, repr=_),
@@ -237,6 +240,10 @@ async fn handle_http_request(
     }
     match (request.meth, request.path) {
       (Post, "/v1/workspaces") => {
+        guard header_value(request.headers, "content-type")
+          is Some("application/json") else {
+          return error_result(415, "Unsupported Media Type", "json-required")
+        }
         guard header_value(request.headers, "content-length")
           is Some(raw_length) else {
           return error_result(411, "Length Required", "content-length-required")

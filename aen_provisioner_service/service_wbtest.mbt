@@ -135,6 +135,10 @@ async test "authentication, registry identity, and mandatory policy fail closed"
   assert_eq(provision(config.api_key, unknown, config).status, 403)
   let permits_links = request_body(reject_symlinks=false)
   assert_eq(provision(config.api_key, permits_links, config).status, 400)
+  let original = request_body()
+  let with_host_path = original[:original.length() - 1].to_owned() +
+    ",\"workspaceRoot\":\"/tmp/attacker\"}"
+  assert_eq(provision(config.api_key, with_host_path, config).status, 400)
   assert_eq(release(config.api_key, "../escape", config).status, 400)
   assert_true(@fs.readdir(staging).is_empty())
   assert_true(@fs.readdir(leases).is_empty())
@@ -160,6 +164,12 @@ async test "symlinks and oversized files are refused without lease or staging re
   )
   @fs.remove(workspace + "/too-large")
   assert_true(test_make_fifo(workspace + "/pipe"))
+  assert_eq(
+    provision(config.api_key, request_body(max_bytes=4L), config).status,
+    422,
+  )
+  @fs.remove(workspace + "/pipe")
+  @fs.write_file(workspace + "/bad\\name", "x", create_mode=CreateNew)
   assert_eq(
     provision(config.api_key, request_body(max_bytes=4L), config).status,
     422,
@@ -223,12 +233,14 @@ async test "loopback HTTP service enforces authentication and bounded protocol" 
     let body = request_body()
     let unauthorized = client.post("/v1/workspaces", body, extra_headers={
       "Content-Length": body.length().to_string(),
+      "Content-Type": "application/json",
       "X-API-Key": "wrong",
     })
     assert_eq(unauthorized.code, 401)
     client.skip_response_body()
     let accepted = client.post("/v1/workspaces", body, extra_headers={
       "Content-Length": body.length().to_string(),
+      "Content-Type": "application/json",
       "X-API-Key": config.api_key,
     })
     assert_eq(accepted.code, 201)
