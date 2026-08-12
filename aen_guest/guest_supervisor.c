@@ -8,11 +8,13 @@
 #include <linux/mount.h>
 #include <limits.h>
 #include <poll.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/mount.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
@@ -33,7 +35,11 @@ static volatile sig_atomic_t cancelled;
 static void cancellation(int signal_number){(void)signal_number;cancelled=1;}
 
 static const char *argument(int argc,char **argv,const char *name,int end){
-  for(int i=2;i+1<end;++i)if(!strcmp(argv[i],name))return argv[i+1];return NULL;
+  (void)argc;
+  for(int i=2;i+1<end;++i) {
+    if(!strcmp(argv[i],name)) return argv[i+1];
+  }
+  return NULL;
 }
 
 static long long number_argument(int argc,char **argv,const char *name,long long maximum,int end){
@@ -59,7 +65,7 @@ static long long overlay_bytes(const char *profile,long long maximum){
 static int quota_is_enforced(const char *profile,long long disk_mib){
   char root[MF_PATH_MAX],name[80];int name_length=snprintf(name,sizeof(name),"overlay-%s",profile);
   if(name_length<=0||(size_t)name_length>=sizeof(name)||mf_join_path(root,sizeof(root),MF_RUNTIME_DIR,name))return 0;
-  struct statfs status;if(statfs(root,&status)||status.f_type!=TMPFS_MAGIC||status.f_bsize<=0||status.f_blocks<0||status.f_files<=0)return 0;
+  struct statfs status;if(statfs(root,&status)||status.f_type!=TMPFS_MAGIC||status.f_bsize<=0||status.f_blocks==0||status.f_files==0)return 0;
   unsigned long long maximum=(unsigned long long)disk_mib*1048576ULL;
   unsigned long long capacity=(unsigned long long)status.f_blocks*(unsigned long long)status.f_bsize;
   unsigned long long inode_limit=maximum/4096ULL+1024ULL;
@@ -73,6 +79,13 @@ static int write_control(const char *directory,const char *name,const char *valu
 
 static long long cpu_usage_usec(const char *directory){
   char path[MF_PATH_MAX],line[256];snprintf(path,sizeof(path),"%s/cpu.stat",directory);FILE *stream=fopen(path,"re");if(!stream)return -1;long long value=-1;while(fgets(line,sizeof(line),stream))if(sscanf(line,"usage_usec %lld",&value)==1)break;fclose(stream);return value;
+}
+
+static long long pids_limit_events(const char *directory){
+  char path[MF_PATH_MAX],line[128];if(mf_join_path(path,sizeof(path),directory,"pids.events"))return -1;
+  FILE *stream=fopen(path,"re");if(!stream)return -1;long long value=-1;
+  while(fgets(line,sizeof(line),stream))if(sscanf(line,"max %lld",&value)==1)break;
+  fclose(stream);return value;
 }
 
 static void kill_cgroup(const char *directory){
@@ -108,7 +121,8 @@ struct policy {char contract[64],profile[MF_SHA256_HEX],scratch[MF_PATH_MAX],sup
 static struct policy read_policy(const char *profile){
   char path[MF_PATH_MAX],body[MF_PATH_MAX*3];snprintf(path,sizeof(path),MF_RUNTIME_DIR "/policy-%s",profile);if(mf_read_text_file(path,body,sizeof(body))<0)mf_die("prepared profile policy unavailable");
   struct policy p={0};char extra;int read=sscanf(body,"%63[^\n]\n%64[a-f0-9]\n%lld\n%lld\n%lld\n%4095[^\n]\n%64[a-f0-9]\n%64[a-f0-9]\n%64[a-f0-9]\n%c",p.contract,p.profile,&p.cpu,&p.processes,&p.disk,p.scratch,p.supervisor_digest,p.registry_digest,p.root_digest,&extra);
-  if(read!=9||strcmp(p.contract,"moonfort-guest-v1")||strcmp(p.profile,profile)||!mf_canonical_absolute(p.scratch)||!mf_valid_digest(p.supervisor_digest)||!mf_valid_digest(p.registry_digest)||!mf_valid_digest(p.root_digest))mf_die("prepared profile policy malformed");return p;
+  if(read!=9||strcmp(p.contract,"moonfort-guest-v1")||strcmp(p.profile,profile)||!mf_canonical_absolute(p.scratch)||!mf_valid_digest(p.supervisor_digest)||!mf_valid_digest(p.registry_digest)||!mf_valid_digest(p.root_digest))mf_die("prepared profile policy malformed");
+  return p;
 }
 
 static int readonly_root_except_scratch(const char *scratch,const char *profile){
@@ -148,7 +162,8 @@ static int unprivileged_user_namespaces_disabled(void){
 static void child_exec(int output_fd,int ready_fd,char **command,long long cpu,long long processes,const char *scratch,const char *profile){
   char ready;while(read(ready_fd,&ready,1)<0&&errno==EINTR){}close(ready_fd);
   int null_fd=open("/dev/null",O_RDONLY|O_CLOEXEC);if(null_fd<0||dup2(null_fd,STDIN_FILENO)<0||dup2(output_fd,STDOUT_FILENO)<0||dup2(output_fd,STDERR_FILENO)<0)_exit(125);
-  if(null_fd>2)close(null_fd);if(output_fd>2)close(output_fd);
+  if(null_fd>2)close(null_fd);
+  if(output_fd>2)close(output_fd);
   struct rlimit limit={.rlim_cur=(rlim_t)cpu,.rlim_max=(rlim_t)cpu};if(setrlimit(RLIMIT_CPU,&limit))_exit(125);
   limit.rlim_cur=(rlim_t)processes;limit.rlim_max=(rlim_t)processes;if(setrlimit(RLIMIT_NPROC,&limit))_exit(125);
   limit.rlim_cur=0;limit.rlim_max=0;if(setrlimit(RLIMIT_CORE,&limit))_exit(125);
@@ -160,7 +175,10 @@ static void child_exec(int output_fd,int ready_fd,char **command,long long cpu,l
 }
 
 int main(int argc,char **argv){
-  if(argc<4||strcmp(argv[1],"run"))mf_die("only the fixed run operation is allowed");int separator=-1;for(int i=2;i<argc;++i)if(!strcmp(argv[i],"--")){separator=i;break;}if(separator<0||separator+1>=argc)mf_die("supervised command is missing");
+  if(argc<4||strcmp(argv[1],"run"))mf_die("only the fixed run operation is allowed");
+  int separator=-1;
+  for(int i=2;i<argc;++i)if(!strcmp(argv[i],"--")){separator=i;break;}
+  if(separator<0||separator+1>=argc)mf_die("supervised command is missing");
   const char *contract=argument(argc,argv,"--contract",separator),*profile=argument(argc,argv,"--profile-digest",separator),*scratch=argument(argc,argv,"--scratch",separator);
   const char *capability=argument(argc,argv,"--capability",separator);
   long long cpu=number_argument(argc,argv,"--cpu-seconds",86400,separator),processes=number_argument(argc,argv,"--process-limit",4096,separator),disk=number_argument(argc,argv,"--scratch-disk-mib",1048576,separator),wall=number_argument(argc,argv,"--wall-clock-ms",86400000,separator),output_limit=number_argument(argc,argv,"--output-bytes",67108864,separator);
@@ -171,15 +189,24 @@ int main(int argc,char **argv){
   pid_t child=fork();if(child<0)mf_die("target fork failed");if(!child){close(output_pipe[0]);close(ready_pipe[1]);child_exec(output_pipe[1],ready_pipe[0],&argv[separator+1],cpu,processes,scratch,profile);}
   close(output_pipe[1]);close(ready_pipe[0]);char cgroup[MF_PATH_MAX];if(setup_cgroup(cgroup,sizeof(cgroup),profile,processes,child)){kill(child,SIGKILL);close(ready_pipe[1]);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("private cgroup limits unavailable");}if(mf_write_all(ready_pipe[1],"1",1)){kill_cgroup(cgroup);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("target launch synchronization failed");}close(ready_pipe[1]);
   struct sigaction action={0};action.sa_handler=cancellation;sigemptyset(&action.sa_mask);sigaction(SIGTERM,&action,NULL);sigaction(SIGINT,&action,NULL);sigaction(SIGHUP,&action,NULL);
-  int64_t start=mf_monotonic_ms(),next_disk=start;long long emitted=0;int status=0,exited=0,limited=0;char buffer[16384];
+  int64_t start=mf_monotonic_ms(),next_disk=start;long long emitted=0;int status=0,exited=0,limit_code=0;char buffer[16384];
   while(!exited){
     struct pollfd descriptor={.fd=output_pipe[0],.events=POLLIN};(void)poll(&descriptor,1,20);
-    for(;;){ssize_t count=read(output_pipe[0],buffer,sizeof(buffer));if(count<0&&(errno==EAGAIN||errno==EWOULDBLOCK))break;if(count<0&&errno==EINTR)continue;if(count<=0)break;long long keep=count;if(keep>output_limit-emitted)keep=output_limit-emitted;if(keep>0&&mf_write_all(STDOUT_FILENO,buffer,(size_t)keep)){cancelled=1;keep=0;}emitted+=keep;if(keep<count){limited=1;break;}}
-    if(waitpid(child,&status,WNOHANG)==child)exited=1;int64_t now=mf_monotonic_ms();long long usage=cpu_usage_usec(cgroup);
-    if(cancelled||limited||now-start>=wall||usage<0||usage>cpu*1000000LL){limited=1;kill_cgroup(cgroup);}
-    if(now>=next_disk){long long used=overlay_bytes(profile,disk*1048576LL);if(used<0||used>disk*1048576LL){limited=1;kill_cgroup(cgroup);}next_disk=now+50;}
-    if(limited&&!exited){if(waitpid(child,&status,0)==child)exited=1;}
+    for(;;){ssize_t count=read(output_pipe[0],buffer,sizeof(buffer));if(count<0&&(errno==EAGAIN||errno==EWOULDBLOCK))break;if(count<0&&errno==EINTR)continue;if(count<=0)break;long long keep=count;if(keep>output_limit-emitted)keep=output_limit-emitted;if(keep>0&&mf_write_all(STDOUT_FILENO,buffer,(size_t)keep)){cancelled=1;keep=0;}emitted+=keep;if(keep<count){limit_code=201;break;}}
+    if(waitpid(child,&status,WNOHANG)==child)exited=1;
+    int64_t now=mf_monotonic_ms();long long usage=cpu_usage_usec(cgroup);
+    if(cancelled&&!limit_code)limit_code=202;
+    if(now-start>=wall&&!limit_code)limit_code=202;
+    if((usage<0||usage>cpu*1000000LL)&&!limit_code)limit_code=203;
+    long long pids_events=pids_limit_events(cgroup);if(pids_events!=0&&!limit_code)limit_code=205;
+    if(now>=next_disk){long long used=overlay_bytes(profile,disk*1048576LL);if((used<0||used>disk*1048576LL)&&!limit_code)limit_code=204;next_disk=now+50;}
+    if(limit_code)kill_cgroup(cgroup);
+    if(limit_code&&!exited){if(waitpid(child,&status,0)==child)exited=1;}
   }
   kill_cgroup(cgroup);for(;;){ssize_t count=read(output_pipe[0],buffer,sizeof(buffer));if(count<=0)break;long long keep=count;if(keep>output_limit-emitted)keep=output_limit-emitted;if(keep>0)mf_write_all(STDOUT_FILENO,buffer,(size_t)keep);emitted+=keep;}close(output_pipe[0]);
-  if(remove_cgroup(cgroup))mf_die("descendant cleanup could not be verified");if(limited)return 137;if(WIFEXITED(status))return WEXITSTATUS(status);if(WIFSIGNALED(status))return 128+WTERMSIG(status);return 125;
+  if(remove_cgroup(cgroup))mf_die("descendant cleanup could not be verified");
+  if(limit_code)return limit_code;
+  if(WIFEXITED(status)){int code=WEXITSTATUS(status);return code>=201&&code<=205?200:code;}
+  if(WIFSIGNALED(status))return 128+WTERMSIG(status);
+  return 125;
 }

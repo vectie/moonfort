@@ -284,6 +284,31 @@ pub async fn[T : AenTransport] AenBackend::exec(
     }
   }
   let rendered = @utf8.decode_lossy(output.to_bytes())
+  let trusted_limit = match code {
+    201 => Some("output_bytes")
+    202 => Some("wall_clock_ms")
+    203 => Some("cpu_seconds")
+    204 => Some("disk_mib")
+    205 => Some("processes")
+    _ => None
+  }
+  if trusted_limit is Some(reason) {
+    return {
+      ..@sandbox.killed_receipt(
+        self.profile.run_id,
+        MicroVm,
+        Enforced,
+        self.digest,
+        rendered,
+        reason == "output_bytes",
+        reason,
+      ),
+      changed_paths,
+      changes: diff.entries,
+      cleanup_verified: false,
+      retention_id: self.retained_vm_id(),
+    }
+  }
   {
     // The guest process exited, but the backing VM remains live so callers can
     // snapshot/reset/fork it. Keep the lifecycle status non-terminal; only the
