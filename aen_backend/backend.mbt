@@ -69,6 +69,7 @@ fn[T] AenBackend::new(
         entry_count: 0,
         total_bytes: 0L,
         staging_cleanup_verified: true,
+        receipt_key_id: "wbtest-key",
         receipt_mac: "wbtest",
       }
   }

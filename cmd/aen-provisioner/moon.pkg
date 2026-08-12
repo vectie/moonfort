@@ -1,0 +1,12 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/env",
+  "vectie/moonfort/aen_provisioner_service" @provisioner,
+}
+
+supported_targets = "+native"
+
+warnings = "+unnecessary_annotation"
+
+pkgtype(kind: "executable")

@@ -1,5 +1,5 @@
 ///|
-const ProvisionerProtocolVersion : Int = 1
+const ProvisionerProtocolVersion : Int = 2
 
 ///|
 const ProvisionerTimeoutMs : Int = 300_000
@@ -35,6 +35,7 @@ fn provisioner_receipt_payload(lease : AenWorkspaceLease) -> String {
     lease.entry_count.to_string(),
     lease.total_bytes.to_string(),
     lease.staging_cleanup_verified.to_string(),
+    lease.receipt_key_id,
   ].join("\n")
 }
 
@@ -68,6 +69,7 @@ fn equal_mac(left : String, right : String) -> Bool {
 fn validate_workspace_lease(
   lease : AenWorkspaceLease,
   receipt_key : String,
+  receipt_key_id : String,
   workspace_id : String,
   profile : @sandbox.SandboxProfile,
   max_workspace_bytes : Int64,
@@ -78,6 +80,10 @@ fn validate_workspace_lease(
     lease.workspace_id == workspace_id &&
     lease.profile_digest == @sandbox.profile_digest(profile) else {
     raise ProtocolFailure("workspace lease is not bound to this execution")
+  }
+  guard safe_provider_identifier(receipt_key_id) &&
+    lease.receipt_key_id == receipt_key_id else {
+    raise ProtocolFailure("workspace lease receipt key identity mismatch")
   }
   guard lease.workspace_digest.length() == 64 &&
     lease.workspace_digest.all(character => {
@@ -110,12 +116,14 @@ async fn[T : AenTransport] provision_workspace(
   transport : T,
   api_key~ : String,
   receipt_key~ : String,
+  receipt_key_id~ : String,
   workspace_id~ : String,
   max_workspace_bytes~ : Int64,
   profile~ : @sandbox.SandboxProfile,
 ) -> AenWorkspaceLease {
   guard api_key.trim() != "" &&
     receipt_key.length() >= 32 &&
+    safe_provider_identifier(receipt_key_id) &&
     safe_provider_identifier(workspace_id) &&
     max_workspace_bytes > 0L else {
     raise InvalidConfiguration("invalid workspace provisioner configuration")
@@ -151,7 +159,7 @@ async fn[T : AenTransport] provision_workspace(
     _ => raise ProtocolFailure("workspace provisioner receipt is malformed")
   }
   validate_workspace_lease(
-    lease, receipt_key, workspace_id, profile, max_workspace_bytes,
+    lease, receipt_key, receipt_key_id, workspace_id, profile, max_workspace_bytes,
   )
   lease
 }

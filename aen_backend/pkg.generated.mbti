@@ -61,6 +61,7 @@ pub(all) struct AenExecutionConfig {
   provisioner_url : String
   provisioner_api_key : String
   provisioner_receipt_key : String
+  provisioner_key_id : String
   workspace_id : String
   max_workspace_bytes : Int64
   guest_workspace : String
@@ -138,6 +139,7 @@ pub(all) struct AenWorkspaceLease {
   entry_count : Int
   total_bytes : Int64
   staging_cleanup_verified : Bool
+  receipt_key_id : String
   receipt_mac : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 

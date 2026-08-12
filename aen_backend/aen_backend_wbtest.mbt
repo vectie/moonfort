@@ -219,6 +219,7 @@ fn test_workspace_lease(
     entry_count: 3,
     total_bytes: 42L,
     staging_cleanup_verified: true,
+    receipt_key_id: "test-key-1",
     receipt_mac: "",
   }
   {
@@ -237,6 +238,7 @@ async test "trusted provisioner request uses workspace identity and verifies its
     transport,
     api_key="secret",
     receipt_key=key,
+    receipt_key_id="test-key-1",
     workspace_id="workspace-main",
     max_workspace_bytes=1024L,
     profile~,
@@ -271,6 +273,7 @@ test "workspace lease rejects tampering and mutable image references" {
     validate_workspace_lease(
       { ..lease, total_bytes: 43L },
       key,
+      "test-key-1",
       "workspace-main",
       profile,
       1024L,
@@ -285,6 +288,7 @@ test "workspace lease rejects tampering and mutable image references" {
     validate_workspace_lease(
       { ..lease, image_ref: "registry.test/workspace:latest" },
       key,
+      "test-key-1",
       "workspace-main",
       profile,
       1024L,
@@ -294,6 +298,16 @@ test "workspace lease rejects tampering and mutable image references" {
     error => fail("unexpected mutable-ref error: \{Repr(error)}")
   } noraise {
     _ => fail("mutable image reference unexpectedly verified")
+  }
+  try
+    validate_workspace_lease(
+      lease, key, "retired-key", "workspace-main", profile, 1024L,
+    )
+  catch {
+    ProtocolFailure(_) => ()
+    error => fail("unexpected key-ID error: \{Repr(error)}")
+  } noraise {
+    _ => fail("mismatched receipt key ID unexpectedly verified")
   }
 }
 
@@ -633,6 +647,7 @@ async test "one-shot AEN facade refuses invalid configuration without fallback" 
     provisioner_url: "file:///not-a-provisioner-origin",
     provisioner_api_key: "provisioner-secret",
     provisioner_receipt_key: "0123456789abcdef0123456789abcdef",
+    provisioner_key_id: "test-key-1",
     workspace_id: "workspace-test",
     max_workspace_bytes: 1_048_576L,
     guest_workspace: "/workspace",

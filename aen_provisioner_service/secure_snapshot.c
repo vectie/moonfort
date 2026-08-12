@@ -584,16 +584,41 @@ static int publish_blob(
   int stage,
   const char *temporary_name,
   int blob_root,
-  const char digest[65]
+  const char digest[65],
+  int64_t deadline_ms
 ) {
   if (fsync(temporary) != 0) return -1;
   if (linkat(stage, temporary_name, blob_root, digest, 0) == 0) return 0;
   if (errno != EEXIST) return -1;
-  struct stat existing, source;
-  if (fstatat(blob_root, digest, &existing, AT_SYMLINK_NOFOLLOW) != 0 ||
-      fstat(temporary, &source) != 0 || !S_ISREG(existing.st_mode) ||
-      existing.st_size != source.st_size) return -1;
-  return 0;
+  struct stat before, opened, after;
+  if (fstatat(blob_root, digest, &before, AT_SYMLINK_NOFOLLOW) != 0 ||
+      !S_ISREG(before.st_mode)) return -1;
+  int existing = openat(blob_root, digest, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (existing < 0 || fstat(existing, &opened) != 0 ||
+      !stat_same(&before, &opened)) {
+    if (existing >= 0) close(existing);
+    return -1;
+  }
+  struct sha256_state hash;
+  sha256_init(&hash);
+  unsigned char buffer[65536];
+  for (;;) {
+    if (monotonic_ms() > deadline_ms) { close(existing); return -1; }
+    ssize_t count = read(existing, buffer, sizeof(buffer));
+    if (count < 0) {
+      if (errno == EINTR) continue;
+      close(existing); return -1;
+    }
+    if (count == 0) break;
+    sha256_update(&hash, buffer, (size_t)count);
+  }
+  unsigned char raw[32]; char observed[65];
+  sha256_finish(&hash, raw); hex_digest(raw, observed);
+  int valid = fstat(existing, &after) == 0 && stat_same(&opened, &after) &&
+    fstatat(blob_root, digest, &after, AT_SYMLINK_NOFOLLOW) == 0 &&
+    stat_same(&opened, &after) && strcmp(observed, digest) == 0;
+  close(existing);
+  return valid ? 0 : -1;
 }
 
 static int ensure_blob_root(int artifact_root) {
@@ -731,9 +756,12 @@ moonbit_bytes_t moonfort_aen_provisioner_snapshot(
   }
   blob_root = ensure_blob_root(artifact_root);
   if (blob_root < 0 ||
-      publish_blob(layer, stage, "layer.tar", blob_root, layer_digest) != 0 ||
-      publish_blob(config_file, stage, "config.json", blob_root, config_digest) != 0 ||
-      publish_blob(image_file, stage, "image.manifest.json", blob_root, image_digest) != 0) {
+      publish_blob(layer, stage, "layer.tar", blob_root, layer_digest,
+        context.deadline_ms) != 0 ||
+      publish_blob(config_file, stage, "config.json", blob_root, config_digest,
+        context.deadline_ms) != 0 ||
+      publish_blob(image_file, stage, "image.manifest.json", blob_root, image_digest,
+        context.deadline_ms) != 0) {
     close(config_file); close(image_file);
     output = json_message(0, "content-addressed OCI blob publication failed"); goto done;
   }
@@ -768,7 +796,7 @@ done:
 static int trusted_owner_mode(const struct stat *status, int directory) {
   uid_t uid = geteuid();
   if (status->st_uid != uid && status->st_uid != 0) return 0;
-  if ((status->st_mode & (S_IWGRP | S_IWOTH)) != 0) return 0;
+  if ((status->st_mode & (S_IRWXG | S_IRWXO)) != 0) return 0;
   return directory ? S_ISDIR(status->st_mode) : S_ISREG(status->st_mode);
 }
 
@@ -859,4 +887,15 @@ moonbit_bytes_t moonfort_aen_provisioner_read_protected_config(
   if (file >= 0) close(file);
   if (parent >= 0) close(parent);
   free(name); free(path); return result;
+}
+
+MOONBIT_FFI_EXPORT
+int32_t moonfort_aen_provisioner_test_make_fifo(
+  moonbit_bytes_t path_bytes, int32_t path_len
+) {
+  char *path = copy_input(path_bytes, path_len, 1);
+  if (!path) return 0;
+  int result = mkfifo(path, 0600) == 0;
+  free(path);
+  return result;
 }

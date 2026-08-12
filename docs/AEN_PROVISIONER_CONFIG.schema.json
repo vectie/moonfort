@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vectie/moonfort/docs/AEN_PROVISIONER_CONFIG.schema.json",
+  "title": "MoonFort AEN workspace provisioner configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bind_address",
+    "api_key",
+    "receipt_key_id",
+    "receipt_key",
+    "staging_root",
+    "artifact_root",
+    "lease_root",
+    "registry_repository",
+    "workspaces",
+    "limits"
+  ],
+  "properties": {
+    "bind_address": {
+      "type": "string",
+      "pattern": "^127\\.0\\.0\\.1:([1-9][0-9]{0,4})$"
+    },
+    "api_key": { "type": "string", "minLength": 32, "maxLength": 4096 },
+    "receipt_key_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,128}$"
+    },
+    "receipt_key": { "type": "string", "minLength": 32, "maxLength": 4096 },
+    "staging_root": { "$ref": "#/$defs/absolutePath" },
+    "artifact_root": { "$ref": "#/$defs/absolutePath" },
+    "lease_root": { "$ref": "#/$defs/absolutePath" },
+    "registry_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]+(/[A-Za-z0-9._-]+)+$",
+      "maxLength": 1024
+    },
+    "workspaces": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["root", "max_bytes", "max_entries", "max_file_bytes"],
+        "properties": {
+          "root": { "$ref": "#/$defs/absolutePath" },
+          "max_bytes": { "$ref": "#/$defs/positiveInt64" },
+          "max_entries": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "max_file_bytes": { "$ref": "#/$defs/positiveInt64" }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_request_bytes",
+        "max_response_bytes",
+        "request_timeout_ms",
+        "snapshot_timeout_ms",
+        "max_connections"
+      ],
+      "properties": {
+        "max_request_bytes": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "max_response_bytes": { "type": "integer", "minimum": 1024, "maximum": 65536 },
+        "request_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 30000 },
+        "snapshot_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+        "max_connections": { "type": "integer", "minimum": 1, "maximum": 32 }
+      }
+    }
+  },
+  "$defs": {
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/([^/]+/)*[^/]+$",
+      "maxLength": 4096
+    },
+    "positiveInt64": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$"
+    }
+  }
+}

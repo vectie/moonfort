@@ -70,12 +70,16 @@ preserved through `PreparedSandboxCommand`: each allowed label must have an
 absolute, trusted in-guest executable binding. The sorted binding map digest is
 sent to the custom extension and must be independently attested on readback.
 
-The provisioner API is deliberately narrow: `POST /v1/workspaces` accepts a
+The protocol-v2 provisioner API is deliberately narrow: `POST /v1/workspaces` accepts a
 run ID, executor-owned workspace ID, profile digest, and maximum bytes—never a
 caller path or archive. It returns a versioned lease for a digest-pinned OCI
-image; `DELETE /v1/workspaces/{lease}` releases staging/registry lease state.
-Production deployment must supply that service and the two fixed guest binaries
-described below. These are deployment components, not optional fallbacks.
+image and binds an executor-owned receipt key ID into its MAC;
+`DELETE /v1/workspaces/{lease}` releases staging/registry lease state. MoonFort
+ships the loopback service and deterministic OCI spool in
+`aen_provisioner_service`; deployment must synchronously expose that spool
+through the configured registry and supply the two fixed guest binaries
+described below. See `docs/AEN_PROVISIONER_DEPLOYMENT.md`. These are deployment
+components, not optional fallbacks.
 `Exec` passes an already-tokenized argument vector. The explicit `shell-compat`
 capability uses its trusted shell binding with `-lc`; shell mode is never
 inferred.

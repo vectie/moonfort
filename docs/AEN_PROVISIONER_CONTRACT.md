@@ -16,7 +16,7 @@ archive, registry credentials, executable, or shell text.
 
 ```json
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "runID": "run-123",
   "workspaceID": "moonbook-main",
   "profileDigest": "...",
@@ -48,8 +48,11 @@ HMAC-SHA256 over these newline-separated values in exact order:
 8. entry count
 9. total bytes
 10. `staging_cleanup_verified`
+11. receipt key ID
 
-MoonFort rejects a bad MAC, mutable image reference, mismatched identity,
+The response includes `receipt_key_id`; callers compare it with the
+executor-owned key ID before checking the MAC. MoonFort rejects a bad MAC,
+mutable image reference, mismatched identity or key ID,
 oversized lease, or unverified staging cleanup before contacting AEN.
 
 `DELETE /v1/workspaces/{leaseID}` releases per-run registry/lease state. `204`
@@ -91,9 +94,12 @@ either source refuses the run.
 
 ## External deployment requirements
 
-MoonFort contains the client, validation, request mapping, receipt verification,
-cleanup protocol, and adversarial tests. A production installation must still
-operate the provisioner service, registry, and AEN cluster, and build/publish
-the two fixed guest helpers in the immutable executor image. Until those
-artifacts are configured, the backend intentionally refuses; it never executes
-on the host as a fallback.
+MoonFort contains the client, the loopback provisioner service, fd-relative
+snapshot and deterministic OCI staging implementation, validation, request
+mapping, receipt verification, cleanup protocol, and adversarial tests. A
+production installation must run that service under a dedicated account,
+synchronously expose its OCI spool through the configured immutable repository,
+operate the AEN cluster, and build/publish the two fixed guest helpers in the
+immutable executor image. Until those artifacts and the registry publication
+gate are configured, the backend intentionally refuses; it never executes on
+the host as a fallback. See `AEN_PROVISIONER_DEPLOYMENT.md`.

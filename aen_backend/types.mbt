@@ -99,6 +99,7 @@ pub(all) struct AenWorkspaceLease {
   entry_count : Int
   total_bytes : Int64
   staging_cleanup_verified : Bool
+  receipt_key_id : String
   receipt_mac : String
 } derive(Debug, Eq, ToJson, FromJson)
 
