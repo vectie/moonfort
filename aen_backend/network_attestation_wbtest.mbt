@@ -114,7 +114,10 @@ fn network_evidence_backend(
 ///|
 async test "denied network requires independent guest IPv6-disable proof" {
   let transport : NetworkEvidenceTransport = {
-    chunks: exec_stream(b"{\"ipv6Disabled\":true}", 0),
+    chunks: exec_stream(
+      b"{\"contract\":\"moonfort-guest-v1\",\"guestAttesterDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"ipv6Disabled\":true}",
+      0,
+    ),
     requests: [],
   }
   let backend = network_evidence_backend(transport)
@@ -125,7 +128,10 @@ async test "denied network requires independent guest IPv6-disable proof" {
 ///|
 async test "denied network rejects a guest with IPv6 enabled" {
   let transport : NetworkEvidenceTransport = {
-    chunks: exec_stream(b"{\"ipv6Disabled\":false}", 0),
+    chunks: exec_stream(
+      b"{\"contract\":\"moonfort-guest-v1\",\"guestAttesterDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"ipv6Disabled\":false}",
+      0,
+    ),
     requests: [],
   }
   let backend = network_evidence_backend(transport)

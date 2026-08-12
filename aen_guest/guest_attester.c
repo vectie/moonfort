@@ -219,10 +219,31 @@ static void inventory_command(int argc,char **argv){
   dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"}}\n",current.bytes);
 }
 
+static int sysctl_is_one(int directory,const char *name){
+  int child=openat(directory,name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(child<0)return 0;
+  int file=openat(child,"disable_ipv6",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);close(child);if(file<0)return 0;
+  char value[4]={0};ssize_t used=read(file,value,sizeof(value));int saved=errno;close(file);errno=saved;
+  return used==2&&value[0]=='1'&&value[1]=='\n';
+}
+
+static void network_attest(int argc,char **argv){
+  const char *contract=argument(argc,argv,"--contract"),*expected=argument(argc,argv,"--attester-digest");
+  if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_valid_digest(expected))mf_die("network attestation request is malformed");
+  char self[MF_SHA256_HEX];if(mf_hash_self(self)||strcmp(self,expected))mf_die("guest attester digest mismatch");
+  int root=open("/proc/sys/net/ipv6/conf",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);
+  if(root>=0){
+    size_t count=0;char **names=names_at(root,&count);if(count==SIZE_MAX||!count)mf_die("IPv6 kernel state inventory failed");
+    for(size_t index=0;index<count;++index)if(!sysctl_is_one(root,names[index]))mf_die("IPv6 is not disabled for every interface");
+    free_names(names,count);close(root);
+  }else if(errno!=ENOENT)mf_die("IPv6 kernel state is unavailable");
+  dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"guestAttesterDigest\":\"%s\",\"ipv6Disabled\":true}\n",self);
+}
+
 int main(int argc,char **argv){
   if(argc<2)mf_die("a fixed operation is required");
   if(!strcmp(argv[1],"prepare-and-attest"))prepare(argc,argv);
   else if(!strcmp(argv[1],"inventory"))inventory_command(argc,argv);
+  else if(!strcmp(argv[1],"network-attest"))network_attest(argc,argv);
   else mf_die("operation is not allowed");
   return 0;
 }

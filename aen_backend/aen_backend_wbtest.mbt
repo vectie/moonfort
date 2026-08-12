@@ -30,7 +30,10 @@ impl AenTransport for FakeTransport with fn request(self, request) {
 impl AenTransport for FakeTransport with fn stream(self, request, consume~) {
   self.requests.push(request)
   let chunks = if self.stream_index == 1 {
-    exec_stream(b"{\"ipv6Disabled\":true}", 0)
+    exec_stream(
+      b"{\"contract\":\"moonfort-guest-v1\",\"guestAttesterDigest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"ipv6Disabled\":true}",
+      0,
+    )
   } else {
     self.stream_chunks
   }

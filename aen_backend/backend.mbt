@@ -506,9 +506,9 @@ fn verify_network_attestation(
 
 ///|
 /// Stock AEN's egress chain is implemented with IPv4 iptables. Before a
-/// denied-network profile can become Enforced, independently verify from the
-/// immutable guest image that every present IPv6 interface has IPv6 disabled.
-/// This fixed command runs before any caller-controlled process.
+/// denied-network profile can become Enforced, independently verify through
+/// the digest-pinned guest attester that every present IPv6 interface has IPv6
+/// disabled. This fixed operation runs before any caller-controlled process.
 async fn[T : AenTransport] AenBackend::verify_guest_ipv6_disabled(
   self : AenBackend[T],
   sandbox_id : String,
@@ -516,28 +516,23 @@ async fn[T : AenTransport] AenBackend::verify_guest_ipv6_disabled(
   if self.profile.network is Unrestricted {
     return
   }
-  let probe_script =
-    #|if [ -d /proc/sys/net/ipv6/conf ]; then
-    #|  found=false
-    #|  for path in /proc/sys/net/ipv6/conf/*/disable_ipv6; do
-    #|    [ -f "$path" ] || exit 91
-    #|    found=true
-    #|    IFS= read -r value < "$path"
-    #|    [ "$value" = 1 ] || exit 92
-    #|  done
-    #|  [ "$found" = true ] || exit 93
-    #|fi
-    #|printf '%s\n' '{"ipv6Disabled":true}'
-    #|
   let detail = self.run_fixed_guest_json(
     sandbox_id,
-    "/bin/sh",
-    ["-eu", "-c", probe_script],
+    self.guest_attester,
+    [
+      "network-attest",
+      "--contract",
+      GuestAttestationContract,
+      "--attester-digest",
+      self.guest_attester_digest,
+    ],
     "/",
     max_bytes=1_024,
   )
   let object = json_object(detail, "guest IPv6 attestation")
-  guard required_bool(object, "ipv6Disabled") else {
+  guard required_string(object, "contract") == GuestAttestationContract &&
+    required_string(object, "guestAttesterDigest") == self.guest_attester_digest &&
+    required_bool(object, "ipv6Disabled") else {
     raise ProtocolFailure("AEN guest IPv6 is not confirmed disabled")
   }
 }
