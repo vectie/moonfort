@@ -213,7 +213,7 @@ publish the digest-pinned executor image, operate the provisioner endpoint, and
 install its receipt key; the repository does not claim those external services
 are running merely because their fail-closed protocol is implemented.
 
-### Phase 4 — promotion complete; operator UX pending
+### Phase 4 — promotion and recovery-aware operator UX complete in the integrated checkout
 
 - Show `Sandboxed`, `Degraded`, or `Refused` in MoonDesk before execution.
 - Show network policy, resource limits, scratch location label, and profile
@@ -224,10 +224,14 @@ are running merely because their fail-closed protocol is implemented.
 Exit gate: users can tell exactly where code ran, what it changed, and why a
 run was refused or degraded.
 
-Implemented here: explicit artifact declarations, reviewable per-file
-promotion plans, source fingerprint and destination-chain revalidation,
-temporary sibling writes, and atomic rename. MoonDesk presentation remains an
-external UI task.
+Implemented here: explicit artifact declarations, exactly-one-file promotion
+plans, source fingerprint and reviewed-destination CAS revalidation, temporary
+sibling writes, atomic rename/exchange, truthful post-mutation outcomes, and a
+bounded read-only recovery inspector. The integrated MoonDesk UI displays the
+receipt and structured diff, selects one reviewed file, consumes promotion-v4
+outcomes through MoonClaw, and locks retries after any durable or uncertain
+destination result. Those neighboring-repository changes must still be landed
+as reviewable upstream commits; they are not part of MoonFort's Git history.
 
 ## Security invariants
 
