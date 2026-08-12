@@ -1,0 +1,43 @@
+name: AEN immutable guest image proof
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-guest-runtime:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fixed static guest binaries
+        run: make -C aen_guest
+      - name: Refuse arbitrary helper operations and missing policy
+        run: |
+          set -eu
+          ! _build/aen-guest/bin/guest_attester arbitrary
+          ! _build/aen-guest/bin/guest_supervisor arbitrary
+      - name: Package locked runtime without executing tool inputs
+        run: |
+          set -eu
+          mkdir -p _build/aen-guest/fixture
+          cp /bin/true _build/aen-guest/fixture/moon
+          digest=$(sha256sum _build/aen-guest/fixture/moon | awk '{print $1}')
+          printf 'moon\t%s\t/opt/moonfort/tools/moon\t%s\n' "$PWD/_build/aen-guest/fixture/moon" "$digest" > _build/aen-guest/tool.lock
+          scripts/package-aen-guest-rootfs.sh "$PWD/_build/aen-guest/rootfs" "$PWD/_build/aen-guest/bin/guest_attester" "$PWD/_build/aen-guest/bin/guest_supervisor" "$PWD/_build/aen-guest/tool.lock" | tee _build/aen-guest/digests.json
+          grep -Eq '^\{"executorRootDigest":"[a-f0-9]{64}","guestAttesterDigest":"[a-f0-9]{64}","guestSupervisorDigest":"[a-f0-9]{64}","toolRegistryDigest":"[a-f0-9]{64}"\}$' _build/aen-guest/digests.json
+          test "$(stat -c %a _build/aen-guest/rootfs/opt/moonfort/bin/attester)" = 555
+          test "$(stat -c %a _build/aen-guest/rootfs/opt/moonfort/etc/tool-registry.tsv)" = 444
+      - uses: hustcer/setup-moonbit@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: moon update
+      - name: Check and test guest wire contract
+        run: |
+          moon check --target native --warn-list +73 --deny-warn
+          moon test aen_backend executor --target native -v
