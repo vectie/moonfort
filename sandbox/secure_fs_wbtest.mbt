@@ -85,6 +85,21 @@ test "native pre-mutation statuses never claim durable apply" {
 }
 
 ///|
+test "unknown native promotion status requires recovery" {
+  let item : SandboxPromotionItem = {
+    source_relative_path: "artifact",
+    destination_relative_path: "result",
+    expected_source_fingerprint: "digest",
+    size_bytes: 1L,
+    expected_destination_state: ReviewedDestinationAbsent,
+  }
+  assert_eq(
+    promotion_outcome_from_native_status(item, 99),
+    RecoveryRequired(destination_path="result", native_status=99),
+  )
+}
+
+///|
 async test "apply refuses a forged multi-item plan before side effects" {
   let item : SandboxPromotionItem = {
     source_relative_path: "artifact",

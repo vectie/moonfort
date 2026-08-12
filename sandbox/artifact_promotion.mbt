@@ -167,7 +167,12 @@ fn promotion_outcome_from_native_status(
         destination_path=item.destination_relative_path,
         native_status=status,
       )
-    other => NotApplied(DestinationIo(secure_fs_status_code(other)))
+    5 => NotApplied(DestinationIo(secure_fs_status_code(status)))
+    unknown =>
+      RecoveryRequired(
+        destination_path=item.destination_relative_path,
+        native_status=unknown,
+      )
   }
 }
 
