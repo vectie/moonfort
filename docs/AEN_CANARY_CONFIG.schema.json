@@ -23,7 +23,13 @@
     "real_aen_acknowledgement": {
       "const": "I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN"
     },
-    "executor_config_path": { "$ref": "#/$defs/absolutePath" },
+    "executor_config_path": {
+      "description": "Canonical runtime path, or the exact protected-workflow template placeholder before injection.",
+      "oneOf": [
+        { "$ref": "#/$defs/absolutePath" },
+        { "const": "__INJECTED_BY_REAL_AEN_CANARY_WORKFLOW__" }
+      ]
+    },
     "workspace_id": { "$ref": "#/$defs/identifier" },
     "backend_config_id": { "$ref": "#/$defs/identifier" },
     "expected_aen_origin": { "$ref": "#/$defs/httpsOrigin" },

@@ -36,10 +36,11 @@ network helper must avoid
 DNS, TLS trust discovery, redirects, and proxy environment variables.
 
 The client contract is exact. A reachable endpoint prints only
-`MOONFORT_NETWORK_REACHABLE_V1\n` and exits `0`. A confirmed AEN firewall
-blocked connection prints only `MOONFORT_NETWORK_BLOCKED_V1\n` and exits `90`.
-DNS, TLS, timeout, route, connection-refused, unexpected HTTP status/body, and
-all other failures must use distinct codes and output. MoonFort first runs the
+`MOONFORT_NETWORK_REACHABLE_V1\n` and exits `0`. A connection that is blocked
+or times out during `connect(2)` prints only
+`MOONFORT_NETWORK_BLOCKED_V1\n` and exits `90`. DNS, TLS, route,
+connection-refused, response timeout, unexpected response, and all other
+failures use distinct codes and output. MoonFort first runs the
 same capability in a fresh `Unrestricted` VM; only an exact positive result
 allows the immediately following `Deny` VM to count as corroborating behavioral
 evidence. An arbitrary nonzero exit is a failed canary. A blocked connection
@@ -97,6 +98,50 @@ one bounded JSON report. Any missing pin, registry/image mismatch, publication
 failure, incomplete response, uncertain cleanup, or failed assertion exits
 nonzero. The report never contains raw guest output, diff contents, host paths,
 or credentials.
+
+## Protected GitHub workflow
+
+[`real-aen-canary.yml`](../.github/workflows/real-aen-canary.yml) is the only
+repository workflow that runs this proof. It is manual-dispatch only and binds
+the job to the `moonfort-real-aen-canary` GitHub environment on a dedicated
+`[self-hosted, linux, x64, moonfort-aen-canary-ephemeral]` runner. The runner
+must be a clean one-job instance that is destroyed after the job; a persistent
+host is not an approved secret boundary. Configure the environment with
+required reviewers, restrict which branches may deploy, and store these
+environment secrets:
+
+- `REAL_AEN_CANARY_CONFIG_JSON`: the canary JSON above, except
+  `executor_config_path` must be the exact placeholder
+  `__INJECTED_BY_REAL_AEN_CANARY_WORKFLOW__`;
+- `REAL_AEN_EXECUTOR_CONFIG_JSON`: the complete protected production executor
+  configuration, including AEN/provisioner credentials and receipt key.
+
+Do not define these as repository-wide secrets. The workflow does not inject
+either value into checkout, dependency resolution, or compilation. Its runner
+creates a random mode-`0700` directory under `RUNNER_TEMP`, writes mode-`0600`
+configuration files, injects the canonical executor path, unsets both secret
+environment variables, redirects canary stderr to a bounded private file that
+is never logged or archived, and removes every config file through an exit trap.
+Missing secrets, an inexact acknowledgement, malformed revision evidence, or
+an unsafe temporary/evidence directory refuses before the canary executes.
+The JSON schema accepts the workflow placeholder so the protected template can
+be validated before dispatch; `cmd/aen-canary` itself still requires the
+injected canonical absolute path and never accepts the placeholder at runtime.
+
+Dispatch requires the exact hostile-run acknowledgement plus audited
+deployment and provisioner revisions and an independently resolved registry
+manifest digest. Revisions are lowercase 40- or 64-hex digests; the registry
+value is `sha256:` plus 64 lowercase hex characters. The workflow uploads only
+two mode-`0600`, bounded, reconstructed JSON documents: the sanitized canary
+report and revision evidence. It never archives configurations, raw guest
+output, logs, workspaces, or temporary directories. Local evidence copies are
+removed after upload as defense in depth before the ephemeral runner is
+destroyed. GitHub retains the evidence artifact for 14 days.
+Artifact names and metadata contain only GitHub's numeric run identity; they
+never include secret-derived configuration values. The hermetic
+[`test-real-aen-canary-workflow.sh`](../scripts/test-real-aen-canary-workflow.sh)
+contract test verifies trigger, environment, runner, secret, immutable-action,
+artifact, fail-closed, and cleanup properties without contacting AEN.
 
 ## Required proof cases
 

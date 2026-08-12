@@ -1,0 +1,122 @@
+name: Real AEN hostile canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      hostile_run_acknowledgement:
+        description: Type I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN exactly
+        required: true
+        type: string
+      deployment_revision:
+        description: Audited deployment revision (lowercase 40/64-hex digest)
+        required: true
+        type: string
+      provisioner_revision:
+        description: Running provisioner revision (lowercase 40/64-hex digest)
+        required: true
+        type: string
+      registry_manifest_digest:
+        description: Independently resolved workspace manifest digest (sha256:...)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  real-aen-hostile-canary:
+    name: Protected real-AEN enforcement proof
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, moonfort-aen-canary-ephemeral]
+    environment: moonfort-real-aen-canary
+    timeout-minutes: 60
+    steps:
+      - name: Refuse an inexact hostile-run acknowledgement
+        env:
+          HOSTILE_RUN_ACKNOWLEDGEMENT: ${{ inputs.hostile_run_acknowledgement }}
+        run: |
+          set -euo pipefail
+          test "$HOSTILE_RUN_ACKNOWLEDGEMENT" = \
+            'I_UNDERSTAND_THIS_RUNS_HOSTILE_CODE_ON_REAL_AEN'
+
+      - name: Check out the audited MoonFort revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install MoonBit without deployment secrets
+        uses: hustcer/setup-moonbit@1522f9aef02a8ca0187dfc00a41f5dd6b16750f7 # v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve and strictly build the native canary
+        run: |
+          set -euo pipefail
+          moon update
+          moon check cmd/aen-canary --target native --warn-list +73 --deny-warn
+          moon build cmd/aen-canary --target native --release
+
+      - name: Create private config and evidence directories
+        run: |
+          set -euo pipefail
+          umask 077
+          config_directory=$(mktemp -d \
+            "${RUNNER_TEMP%/}/moonfort-real-aen-config.XXXXXXXX")
+          evidence_directory=$(mktemp -d \
+            "${RUNNER_TEMP%/}/moonfort-real-aen-evidence.XXXXXXXX")
+          chmod 700 "$config_directory"
+          chmod 700 "$evidence_directory"
+          printf 'MOONFORT_CANARY_CONFIG_DIR=%s\n' "$config_directory" \
+            >>"$GITHUB_ENV"
+          printf 'MOONFORT_CANARY_EVIDENCE_DIR=%s\n' "$evidence_directory" \
+            >>"$GITHUB_ENV"
+
+      - name: Run the production executor against real AEN
+        env:
+          REAL_AEN_HOSTILE_RUN_ACKNOWLEDGEMENT: ${{ inputs.hostile_run_acknowledgement }}
+          REAL_AEN_DEPLOYMENT_REVISION: ${{ inputs.deployment_revision }}
+          REAL_AEN_PROVISIONER_REVISION: ${{ inputs.provisioner_revision }}
+          REAL_AEN_REGISTRY_MANIFEST_DIGEST: ${{ inputs.registry_manifest_digest }}
+          REAL_AEN_CANARY_CONFIG_JSON: ${{ secrets.REAL_AEN_CANARY_CONFIG_JSON }}
+          REAL_AEN_EXECUTOR_CONFIG_JSON: ${{ secrets.REAL_AEN_EXECUTOR_CONFIG_JSON }}
+        run: |
+          set -euo pipefail
+          scripts/run-real-aen-canary.sh \
+            "$GITHUB_WORKSPACE/_build/native/release/build/cmd/aen-canary/aen-canary.exe" \
+            "$MOONFORT_CANARY_CONFIG_DIR" \
+            "$MOONFORT_CANARY_EVIDENCE_DIR"
+
+      - name: Archive only sanitized bounded proof evidence
+        if: always() && env.MOONFORT_CANARY_EVIDENCE_DIR != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: real-aen-canary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.MOONFORT_CANARY_EVIDENCE_DIR }}/canary-report.json
+            ${{ env.MOONFORT_CANARY_EVIDENCE_DIR }}/revision-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove local evidence copies
+        if: always()
+        run: |
+          set -euo pipefail
+          if test -n "${MOONFORT_CANARY_CONFIG_DIR:-}" && \
+            test -d "$MOONFORT_CANARY_CONFIG_DIR" && \
+            test ! -L "$MOONFORT_CANARY_CONFIG_DIR"; then
+            rm -f -- \
+              "$MOONFORT_CANARY_CONFIG_DIR/canary-template.json" \
+              "$MOONFORT_CANARY_CONFIG_DIR/canary.json" \
+              "$MOONFORT_CANARY_CONFIG_DIR/executor.json" \
+              "$MOONFORT_CANARY_CONFIG_DIR/raw-report.json" \
+              "$MOONFORT_CANARY_CONFIG_DIR/canary-stderr.log"
+            rmdir -- "$MOONFORT_CANARY_CONFIG_DIR"
+          fi
+          if test -n "${MOONFORT_CANARY_EVIDENCE_DIR:-}" && \
+            test -d "$MOONFORT_CANARY_EVIDENCE_DIR" && \
+            test ! -L "$MOONFORT_CANARY_EVIDENCE_DIR"; then
+            rm -f -- \
+              "$MOONFORT_CANARY_EVIDENCE_DIR/canary-report.json" \
+              "$MOONFORT_CANARY_EVIDENCE_DIR/revision-evidence.json"
+            rmdir -- "$MOONFORT_CANARY_EVIDENCE_DIR"
+          fi
