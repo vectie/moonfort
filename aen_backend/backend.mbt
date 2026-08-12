@@ -475,6 +475,74 @@ fn same_strings(left : Array[String], right : Array[String]) -> Bool {
 }
 
 ///|
+fn verify_network_attestation(
+  profile : @sandbox.SandboxProfile,
+  detail : Map[String, Json],
+) -> Unit raise AenBackendError {
+  let expected_internet_access = profile.network is Unrestricted
+  guard required_bool(detail, "allowInternetAccess") == expected_internet_access else {
+    raise ProtocolFailure(
+      "AgentENV top-level internet policy does not match the profile",
+    )
+  }
+  let network = required_object(detail, "network")
+  guard !required_bool(network, "allowPublicTraffic") else {
+    raise ProtocolFailure("AgentENV sandbox traffic is not confirmed private")
+  }
+  let expected = json_object(network_json(profile), "expected network")
+  guard same_strings(
+      string_array(network, "allowOut"),
+      string_array(expected, "allowOut"),
+    ) &&
+    same_strings(
+      string_array(network, "denyOut"),
+      string_array(expected, "denyOut"),
+    ) else {
+    raise ProtocolFailure(
+      "AgentENV network attestation does not match the profile",
+    )
+  }
+}
+
+///|
+/// Stock AEN's egress chain is implemented with IPv4 iptables. Before a
+/// denied-network profile can become Enforced, independently verify from the
+/// immutable guest image that every present IPv6 interface has IPv6 disabled.
+/// This fixed command runs before any caller-controlled process.
+async fn[T : AenTransport] AenBackend::verify_guest_ipv6_disabled(
+  self : AenBackend[T],
+  sandbox_id : String,
+) -> Unit {
+  if self.profile.network is Unrestricted {
+    return
+  }
+  let probe_script =
+    #|if [ -d /proc/sys/net/ipv6/conf ]; then
+    #|  found=false
+    #|  for path in /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+    #|    [ -f "$path" ] || exit 91
+    #|    found=true
+    #|    IFS= read -r value < "$path"
+    #|    [ "$value" = 1 ] || exit 92
+    #|  done
+    #|  [ "$found" = true ] || exit 93
+    #|fi
+    #|printf '%s\n' '{"ipv6Disabled":true}'
+    #|
+  let detail = self.run_fixed_guest_json(
+    sandbox_id,
+    "/bin/sh",
+    ["-eu", "-c", probe_script],
+    "/",
+    max_bytes=1_024,
+  )
+  let object = json_object(detail, "guest IPv6 attestation")
+  guard required_bool(object, "ipv6Disabled") else {
+    raise ProtocolFailure("AEN guest IPv6 is not confirmed disabled")
+  }
+}
+
+///|
 fn[T] AenBackend::verify_attestation(
   self : AenBackend[T],
   detail : Json,
@@ -511,20 +579,7 @@ fn[T] AenBackend::verify_attestation(
       }
     }
   }
-  let network = required_object(object, "network")
-  let expected = json_object(network_json(self.profile), "expected network")
-  guard same_strings(
-      string_array(network, "allowOut"),
-      string_array(expected, "allowOut"),
-    ) &&
-    same_strings(
-      string_array(network, "denyOut"),
-      string_array(expected, "denyOut"),
-    ) else {
-    raise ProtocolFailure(
-      "AgentENV network attestation does not match the profile",
-    )
-  }
+  verify_network_attestation(self.profile, object)
   let lifecycle = required_object(object, "lifecycle")
   guard lifecycle.get("onTimeout") is Some(String("kill")) else {
     raise ProtocolFailure("AgentENV TTL must kill, not pause")
@@ -623,6 +678,9 @@ async fn[T : AenTransport] AenBackend::start_checked(
   if self.require_guest_attestation {
     self.verify_guest_attestation(id) catch {
       _ => raise self.refuse("AEN guest attestation mismatch")
+    }
+    self.verify_guest_ipv6_disabled(id) catch {
+      _ => raise self.refuse("AEN guest IPv6 attestation mismatch")
     }
   }
   self.state = Running
@@ -816,6 +874,9 @@ async fn[T : AenTransport] AenBackend::resume_checked(
     self.verify_guest_attestation(id) catch {
       _ => raise self.refuse("AEN resume guest attestation mismatch")
     }
+    self.verify_guest_ipv6_disabled(id) catch {
+      _ => raise self.refuse("AEN resume guest IPv6 attestation mismatch")
+    }
   }
   self.state = Running
   self.base_receipt(Running)
@@ -954,6 +1015,9 @@ async fn[T : AenTransport] AenBackend::fork_checked(
     if self.require_guest_attestation {
       self.verify_guest_attestation(child_id) catch {
         _ => raise self.refuse("AEN fork child guest attestation mismatch")
+      }
+      self.verify_guest_ipv6_disabled(child_id) catch {
+        _ => raise self.refuse("AEN fork child guest IPv6 attestation mismatch")
       }
     }
   }

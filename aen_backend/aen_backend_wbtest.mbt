@@ -4,6 +4,7 @@ struct FakeTransport {
   stream_chunks : Array[Bytes]
   requests : Array[AenRequest]
   mut response_index : Int
+  mut stream_index : Int
 }
 
 ///|
@@ -11,7 +12,7 @@ fn FakeTransport::new(
   responses : Array[AenResponse],
   stream_chunks? : Array[Bytes] = [],
 ) -> FakeTransport {
-  { responses, stream_chunks, requests: [], response_index: 0 }
+  { responses, stream_chunks, requests: [], response_index: 0, stream_index: 0 }
 }
 
 ///|
@@ -28,7 +29,13 @@ impl AenTransport for FakeTransport with fn request(self, request) {
 ///|
 impl AenTransport for FakeTransport with fn stream(self, request, consume~) {
   self.requests.push(request)
-  for chunk in self.stream_chunks {
+  let chunks = if self.stream_index == 1 {
+    exec_stream(b"{\"ipv6Disabled\":true}", 0)
+  } else {
+    self.stream_chunks
+  }
+  self.stream_index += 1
+  for chunk in chunks {
     if consume(chunk) is StopStream {
       return
     }
@@ -105,6 +112,7 @@ fn attested_detail(profile : @sandbox.SandboxProfile) -> Json {
     "cpuCount": 2,
     "memoryMB": profile.limits.memory_mib,
     "diskSizeMB": profile.limits.disk_mib,
+    "allowInternetAccess": false,
     "metadata": {
       "moonfort.enforced_profile_digest": digest,
       "moonfort.enforcement_contract": "moonfort-aen-v1",
@@ -339,6 +347,7 @@ async test "stock AEN cold start attaches the provisioned workspace read-only an
     "cpuCount": 2,
     "memoryMB": profile.limits.memory_mib,
     "diskSizeMB": 1024,
+    "allowInternetAccess": false,
     "metadata": {},
     "network": {
       "allowPublicTraffic": false,
@@ -419,9 +428,10 @@ async test "guest attestation mismatch deletes the cold-start VM" {
     "cpuCount": 2,
     "memoryMB": profile.limits.memory_mib,
     "diskSizeMB": 1024,
+    "allowInternetAccess": false,
     "metadata": {},
     "network": {
-      "allowPublicTraffic": true,
+      "allowPublicTraffic": false,
       "allowOut": [],
       "denyOut": ["0.0.0.0/0"],
     },
