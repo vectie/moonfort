@@ -1,0 +1,135 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/aen_backend"
+
+import {
+  "moonbitlang/core/debug",
+  "vectie/moonfort/sandbox",
+}
+
+// Values
+pub fn connect_envelope(Int, Bytes) -> Bytes
+
+pub fn decode_start_response(Bytes) -> AenExecEvent? raise AenBackendError
+
+pub fn encode_start_request(String, Array[String], String) -> Bytes
+
+pub async fn execute_aen_sandbox(@sandbox.SandboxProfile, @sandbox.SandboxCommand, AenExecutionConfig, working_directory? : String) -> @sandbox.SandboxReceipt
+
+// Errors
+pub(all) suberror AenBackendError {
+  InvalidConfiguration(String)
+  TransportFailure(String)
+  ProtocolFailure(String)
+} derive(ToJson, @debug.Debug)
+
+// Types and methods
+pub(all) struct AenArtifactResult {
+  artifact_id : String?
+  receipt : @sandbox.SandboxReceipt
+} derive(@debug.Debug)
+
+pub struct AenBackend[T] {
+  // private fields
+}
+pub async fn[T : AenTransport] AenBackend::discard(Self[T]) -> Bool
+pub async fn[T : AenTransport] AenBackend::exec(Self[T], @sandbox.PreparedSandboxCommand, working_directory? : String) -> @sandbox.SandboxReceipt
+pub async fn[T : AenTransport] AenBackend::fork(Self[T], Int) -> AenForkResult
+pub fn[T] AenBackend::new(T, api_key~ : String, snapshot_id~ : String, expected_vcpu_count~ : Int, guest_workspace? : String, guest_scratch? : String, guest_tools~ : Map[String, String], profile~ : @sandbox.SandboxProfile) -> Self[T] raise AenBackendError
+pub async fn[T : AenTransport] AenBackend::pause(Self[T]) -> @sandbox.SandboxReceipt
+pub async fn[T : AenTransport] AenBackend::reset(Self[T]) -> @sandbox.SandboxReceipt
+pub async fn[T : AenTransport] AenBackend::resume_sandbox(Self[T]) -> @sandbox.SandboxReceipt
+pub fn[T] AenBackend::sandbox_id(Self[T]) -> String?
+pub async fn[T : AenTransport] AenBackend::snapshot(Self[T], name? : String) -> AenArtifactResult
+pub async fn[T : AenTransport] AenBackend::start(Self[T]) -> @sandbox.SandboxReceipt
+pub fn[T] AenBackend::state(Self[T]) -> AenLifecycleState
+pub async fn[T : AenTransport] AenBackend::stop(Self[T]) -> @sandbox.SandboxReceipt
+
+pub(all) enum AenExecEvent {
+  ProcessStarted(Int)
+  Stdout(Bytes)
+  Stderr(Bytes)
+  ProcessExited(Int, String)
+  ConnectEnded(String?)
+} derive(Eq, @debug.Debug)
+
+pub(all) struct AenExecutionConfig {
+  base_url : String
+  api_key : String
+  snapshot_id : String
+  expected_vcpu_count : Int
+  guest_workspace : String
+  guest_scratch : String
+  guest_tools : Map[String, String]
+} derive(Eq)
+
+pub(all) struct AenForkResult {
+  sandbox_ids : Array[String]
+  receipt : @sandbox.SandboxReceipt
+} derive(@debug.Debug)
+
+pub(all) struct AenHeader {
+  name : String
+  value : String
+} derive(Eq)
+
+pub(all) enum AenHttpMethod {
+  Get
+  Post
+  Put
+  Delete
+} derive(Eq, @debug.Debug)
+
+pub struct AenHttpTransport {
+  base_url : String
+}
+pub fn AenHttpTransport::new(String) -> Self raise AenBackendError
+pub impl AenTransport for AenHttpTransport
+
+pub(all) enum AenLifecycleState {
+  Created
+  Running
+  Paused
+  Stopped
+  Refused
+} derive(Eq, @debug.Debug)
+
+pub(all) struct AenRequest {
+  verb : AenHttpMethod
+  path : String
+  headers : Array[AenHeader]
+  body : AenRequestBody
+  timeout_ms : Int
+  response_bytes : Int
+}
+
+pub(all) enum AenRequestBody {
+  EmptyBody
+  JsonBody(Json)
+  ProtobufBody(Bytes)
+  ConnectBody(Bytes)
+}
+
+pub(all) struct AenResponse {
+  status : Int
+  body : Bytes
+}
+
+pub(all) enum AenStreamControl {
+  ContinueStream
+  StopStream
+} derive(Eq, @debug.Debug)
+
+pub struct ConnectDecoder {
+  // private fields
+}
+pub fn ConnectDecoder::ended(Self) -> Bool
+pub fn ConnectDecoder::feed(Self, Bytes) -> Array[AenExecEvent] raise AenBackendError
+pub fn ConnectDecoder::new(max_frame_bytes? : Int) -> Self
+
+// Type aliases
+
+// Traits
+pub(open) trait AenTransport {
+  async fn request(Self, AenRequest) -> AenResponse
+  async fn stream(Self, AenRequest, consume~ : (Bytes) -> AenStreamControl) -> Unit
+}
