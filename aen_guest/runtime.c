@@ -131,7 +131,8 @@ int mf_hash_regular_path(const char *path, char output[MF_SHA256_HEX], off_t *si
   int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
   if (fd < 0 || fstat(fd, &opened) || !S_ISREG(opened.st_mode) ||
       before.st_dev != opened.st_dev || before.st_ino != opened.st_ino || before.st_size != opened.st_size) {
-    if (fd >= 0) close(fd); return -1;
+    if (fd >= 0) close(fd);
+    return -1;
   }
   int result = mf_hash_fd(fd, output, opened.st_size);
   if (fstat(fd, &after) || after.st_dev != opened.st_dev || after.st_ino != opened.st_ino ||
@@ -169,6 +170,16 @@ int mf_canonical_absolute(const char *value) {
     cursor=slash?slash+1:cursor+n;
   }
   return 1;
+}
+
+int mf_join_path(char *output, size_t capacity, const char *left, const char *right) {
+  if (!output || !capacity || !left || !right || !*left || !*right || strchr(right, '/')) return -1;
+  size_t left_length = strlen(left), right_length = strlen(right);
+  if (left_length > capacity - 1 || right_length > capacity - left_length - 2) return -1;
+  memcpy(output, left, left_length);
+  output[left_length] = '/';
+  memcpy(output + left_length + 1, right, right_length + 1);
+  return 0;
 }
 
 int mf_write_text_file(const char *path, const char *text, mode_t mode, int exclusive) {

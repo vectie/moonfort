@@ -105,6 +105,7 @@ pub(all) struct TrustedAenConfig {
   provisioner_api_key : String
   provisioner_receipt_key : String
   provisioner_key_id : String
+  workspace_registry_repository : String
   max_workspace_bytes : Int64
   guest_workspace : String
   guest_scratch : String

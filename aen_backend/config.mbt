@@ -13,6 +13,7 @@ pub(all) struct AenExecutionConfig {
   provisioner_api_key : String
   provisioner_receipt_key : String
   provisioner_key_id : String
+  workspace_registry_repository : String
   workspace_id : String
   max_workspace_bytes : Int64
   guest_workspace : String
@@ -51,6 +52,7 @@ pub async fn execute_aen_sandbox(
     api_key=config.provisioner_api_key,
     receipt_key=config.provisioner_receipt_key,
     receipt_key_id=config.provisioner_key_id,
+    registry_repository=config.workspace_registry_repository,
     workspace_id=config.workspace_id,
     max_workspace_bytes=config.max_workspace_bytes,
     profile~,

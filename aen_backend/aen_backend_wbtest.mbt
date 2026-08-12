@@ -239,6 +239,7 @@ async test "trusted provisioner request uses workspace identity and verifies its
     api_key="secret",
     receipt_key=key,
     receipt_key_id="test-key-1",
+    registry_repository="registry.test/workspace",
     workspace_id="workspace-main",
     max_workspace_bytes=1024L,
     profile~,
@@ -274,6 +275,7 @@ test "workspace lease rejects tampering and mutable image references" {
       { ..lease, total_bytes: 43L },
       key,
       "test-key-1",
+      "registry.test/workspace",
       "workspace-main",
       profile,
       1024L,
@@ -289,6 +291,7 @@ test "workspace lease rejects tampering and mutable image references" {
       { ..lease, image_ref: "registry.test/workspace:latest" },
       key,
       "test-key-1",
+      "registry.test/workspace",
       "workspace-main",
       profile,
       1024L,
@@ -301,7 +304,19 @@ test "workspace lease rejects tampering and mutable image references" {
   }
   try
     validate_workspace_lease(
-      lease, key, "retired-key", "workspace-main", profile, 1024L,
+      lease, key, "test-key-1", "registry.test/other-workspace", "workspace-main",
+      profile, 1024L,
+    )
+  catch {
+    ProtocolFailure(_) => ()
+    error => fail("unexpected repository-pin error: \{Repr(error)}")
+  } noraise {
+    _ => fail("lease from substituted repository unexpectedly verified")
+  }
+  try
+    validate_workspace_lease(
+      lease, key, "retired-key", "registry.test/workspace", "workspace-main", profile,
+      1024L,
     )
   catch {
     ProtocolFailure(_) => ()
@@ -652,6 +667,7 @@ async test "one-shot AEN facade refuses invalid configuration without fallback" 
     provisioner_api_key: "provisioner-secret",
     provisioner_receipt_key: "0123456789abcdef0123456789abcdef",
     provisioner_key_id: "test-key-1",
+    workspace_registry_repository: "registry.test/workspace",
     workspace_id: "workspace-test",
     max_workspace_bytes: 1_048_576L,
     guest_workspace: "/workspace",

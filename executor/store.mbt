@@ -2,6 +2,30 @@
 const MaxExecutorConfigBytes : Int = 1_048_576
 
 ///|
+fn trusted_aen_config_is_valid(backend : TrustedAenConfig) -> Bool {
+  canonical_https_origin(backend.base_url) &&
+  backend.api_key.trim() != "" &&
+  immutable_oci_reference(backend.executor_image_ref) &&
+  backend.expected_vcpu_count > 0 &&
+  backend.expected_root_disk_mib >= 1_024 &&
+  backend.expected_root_disk_mib % 1_024 == 0 &&
+  canonical_https_origin(backend.provisioner_url) &&
+  backend.provisioner_api_key.trim() != "" &&
+  backend.provisioner_receipt_key.length() >= 32 &&
+  safe_identifier(backend.provisioner_key_id) &&
+  immutable_oci_repository(backend.workspace_registry_repository) &&
+  backend.max_workspace_bytes > 0L &&
+  backend.guest_workspace.has_prefix("/") &&
+  backend.guest_scratch.has_prefix("/") &&
+  backend.guest_attester.has_prefix("/") &&
+  backend.guest_supervisor.has_prefix("/") &&
+  sha256_digest(backend.executor_root_digest) &&
+  sha256_digest(backend.guest_attester_digest) &&
+  sha256_digest(backend.guest_supervisor_digest) &&
+  sha256_digest(backend.tool_registry_digest)
+}
+
+///|
 async fn bounded_regular_file(path : String, limit : Int) -> String {
   guard canonical_absolute_path(path) && limit > 0 else {
     fail("invalid bounded file request")
@@ -137,22 +161,7 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
     }
   }
   for id, backend in config.aen_backends {
-    guard safe_identifier(id) &&
-      canonical_https_origin(backend.base_url) &&
-      backend.api_key.trim() != "" &&
-      immutable_oci_reference(backend.executor_image_ref) &&
-      backend.expected_vcpu_count > 0 &&
-      backend.expected_root_disk_mib >= 1_024 &&
-      backend.expected_root_disk_mib % 1_024 == 0 &&
-      canonical_https_origin(backend.provisioner_url) &&
-      backend.provisioner_api_key.trim() != "" &&
-      backend.provisioner_receipt_key.length() >= 32 &&
-      safe_identifier(backend.provisioner_key_id) &&
-      backend.max_workspace_bytes > 0L &&
-      backend.guest_workspace.has_prefix("/") &&
-      backend.guest_scratch.has_prefix("/") &&
-      backend.guest_attester.has_prefix("/") &&
-      backend.guest_supervisor.has_prefix("/") else {
+    guard safe_identifier(id) && trusted_aen_config_is_valid(backend) else {
       fail("AEN registry contains an invalid trusted deployment")
     }
   }

@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build fixed static guest binaries
         run: make -C aen_guest
+      - name: Build hostile filesystem fixture
+        run: cc -O2 -static -Wall -Wextra -Werror -Wpedantic aen_guest/hostile_fixture.c -o _build/aen-guest/bin/hostile_fixture
       - name: Refuse arbitrary helper operations and missing policy
         run: |
           set -eu
@@ -33,6 +35,35 @@ jobs:
           grep -Eq '^\{"executorRootDigest":"[a-f0-9]{64}","guestAttesterDigest":"[a-f0-9]{64}","guestSupervisorDigest":"[a-f0-9]{64}","toolRegistryDigest":"[a-f0-9]{64}"\}$' _build/aen-guest/digests.json
           test "$(stat -c %a _build/aen-guest/rootfs/opt/moonfort/bin/attester)" = 555
           test "$(stat -c %a _build/aen-guest/rootfs/opt/moonfort/etc/tool-registry.tsv)" = 444
+      - name: Prove default-deny writes and hard scratch quota
+        run: |
+          set -eu
+          digest=$(sha256sum _build/aen-guest/bin/hostile_fixture | awk '{print $1}')
+          printf 'hostile\t%s\t/opt/moonfort/tools/hostile\t%s\n' "$PWD/_build/aen-guest/bin/hostile_fixture" "$digest" > _build/aen-guest/hostile.lock
+          rm -rf _build/aen-guest/integration-rootfs
+          digests=$(scripts/package-aen-guest-rootfs.sh "$PWD/_build/aen-guest/integration-rootfs" "$PWD/_build/aen-guest/bin/guest_attester" "$PWD/_build/aen-guest/bin/guest_supervisor" "$PWD/_build/aen-guest/hostile.lock")
+          root_digest=$(printf '%s' "$digests" | sed -n 's/.*"executorRootDigest":"\([a-f0-9]*\)".*/\1/p')
+          attester_digest=$(printf '%s' "$digests" | sed -n 's/.*"guestAttesterDigest":"\([a-f0-9]*\)".*/\1/p')
+          supervisor_digest=$(printf '%s' "$digests" | sed -n 's/.*"guestSupervisorDigest":"\([a-f0-9]*\)".*/\1/p')
+          registry_digest=$(printf '%s' "$digests" | sed -n 's/.*"toolRegistryDigest":"\([a-f0-9]*\)".*/\1/p')
+          sudo install -d -m 0755 /opt/moonfort /workspace
+          sudo sysctl -w kernel.unprivileged_userns_clone=0
+          sudo sysctl -w user.max_user_namespaces=0
+          sudo cp -a _build/aen-guest/integration-rootfs/opt/moonfort/. /opt/moonfort/
+          sudo mount --bind /workspace /workspace
+          sudo mount -o remount,bind,ro /workspace
+          run_case() {
+            profile=$1 scratch=$2 operation=$3
+            sudo mkdir -m 0700 "$scratch"
+            sudo /opt/moonfort/bin/attester prepare-and-attest --contract moonfort-guest-v1 --workspace /workspace --workspace-digest e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 --scratch "$scratch" --profile-digest "$profile" --supervisor /opt/moonfort/bin/supervisor --executor-root-digest "$root_digest" --attester-digest "$attester_digest" --supervisor-digest "$supervisor_digest" --tool-registry-digest "$registry_digest" --cpu-seconds 10 --process-limit 32 --scratch-disk-mib 1 >/dev/null
+            sudo /opt/moonfort/bin/supervisor run --contract moonfort-guest-v1 --profile-digest "$profile" --cpu-seconds 10 --process-limit 32 --scratch-disk-mib 1 --scratch "$scratch" --wall-clock-ms 20000 --output-bytes 4096 --capability hostile -- /opt/moonfort/tools/hostile "$operation"
+            test ! -e /tmp/moonfort-escape
+            test ! -e /run/moonfort-escape
+            test ! -e /root/moonfort-escape
+          }
+          run_case aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa /scratch-outside outside
+          run_case bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb /scratch-inodes inode-storm
+          run_case cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc /scratch-deleted deleted-open
       - uses: hustcer/setup-moonbit@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

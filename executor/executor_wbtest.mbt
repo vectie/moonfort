@@ -70,6 +70,90 @@ fn test_grant(approval_id : String) -> ExecutionGrant {
 }
 
 ///|
+fn test_aen_config() -> TrustedAenConfig {
+  {
+    base_url: "https://aen.internal.example",
+    api_key: "aen-secret",
+    executor_image_ref: "registry.internal/executor@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    expected_vcpu_count: 2,
+    expected_root_disk_mib: 4096,
+    provisioner_url: "https://provisioner.internal.example",
+    provisioner_api_key: "provisioner-secret",
+    provisioner_receipt_key: "0123456789abcdef0123456789abcdef",
+    provisioner_key_id: "key-1",
+    workspace_registry_repository: "registry.internal/workspaces",
+    max_workspace_bytes: 1_048_576L,
+    guest_workspace: "/workspace",
+    guest_scratch: "/scratch",
+    guest_attester: "/opt/moonfort/bin/attester",
+    guest_supervisor: "/opt/moonfort/bin/supervisor",
+    executor_root_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    guest_attester_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    guest_supervisor_digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    tool_registry_digest: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    guest_tools: { "moon": "/opt/moonfort/tools/moon" },
+  }
+}
+
+///|
+test "trusted AEN binding digest rejects runtime and repository substitution" {
+  let config = test_aen_config()
+  let expected = trusted_aen_binding_digest(config)
+  let substitutions = [
+    { ..config, workspace_registry_repository: "registry.evil/workspaces" },
+    {
+      ..config,
+      executor_root_digest: "0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    },
+    {
+      ..config,
+      guest_attester_digest: "0ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    },
+    {
+      ..config,
+      guest_supervisor_digest: "0ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    },
+    {
+      ..config,
+      tool_registry_digest: "0eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    },
+  ]
+  assert_true(
+    substitutions.all(value => trusted_aen_binding_digest(value) != expected),
+  )
+}
+
+///|
+test "trusted AEN config requires exact runtime digests and repository" {
+  let config = test_aen_config()
+  assert_true(trusted_aen_config_is_valid(config))
+  assert_false(
+    trusted_aen_config_is_valid({ ..config, executor_root_digest: "ABC" }),
+  )
+  assert_false(
+    trusted_aen_config_is_valid({ ..config, guest_attester_digest: "" }),
+  )
+  assert_false(
+    trusted_aen_config_is_valid({
+      ..config,
+      guest_supervisor_digest: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    }),
+  )
+  assert_false(
+    trusted_aen_config_is_valid({
+      ..config,
+      tool_registry_digest: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    }),
+  )
+  assert_false(
+    trusted_aen_config_is_valid({
+      ..config,
+      workspace_registry_repository: "https://registry.internal/workspaces",
+    }),
+  )
+}
+
+///|
 async fn install_grant(config : ExecutorConfig, grant : ExecutionGrant) -> Unit {
   @fs.write_file(
     "\{config.approval_root}/pending/\{grant.approval_id}.json",

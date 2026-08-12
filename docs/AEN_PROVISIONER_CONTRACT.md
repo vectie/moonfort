@@ -81,9 +81,12 @@ The executor image contains two distinct fixed binaries:
   an overlay whose lower layer is that drive, verifies its baseline digest and
   byte/entry counts, and reports tool/supervisor identity and installed limits.
 - `guest_supervisor run` owns the target process tree, enforces CPU seconds,
-  descendant process count, and aggregate writable-overlay bytes, closes stdin,
-  bounds descriptors, kills all descendants on completion/limit/cancellation,
-  and returns the target exit status through envd.
+  descendant process count, and a tmpfs-backed writable-overlay quota covering
+  allocated blocks, inodes, and deleted-open files. It makes the target root
+  recursively read-only except scratch, drops to nobody with
+  no-new-privileges, closes stdin, bounds descriptors, kills all cgroup
+  descendants, and returns the target exit status through envd. Missing kernel
+  enforcement refuses launch.
 
 Both are addressed only by paths from executor-owned configuration inside the
 digest-pinned root image. The adapter checks a versioned JSON attestation before

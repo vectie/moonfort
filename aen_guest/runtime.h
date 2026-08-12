@@ -25,6 +25,7 @@ int mf_hash_self(char output[MF_SHA256_HEX]);
 int mf_valid_digest(const char *value);
 int mf_valid_token(const char *value, size_t maximum);
 int mf_canonical_absolute(const char *value);
+int mf_join_path(char *output, size_t capacity, const char *left, const char *right);
 int mf_write_all(int descriptor, const void *data, size_t length);
 int mf_write_text_file(const char *path, const char *text, mode_t mode, int exclusive);
 int mf_read_text_file(const char *path, char *output, size_t capacity);

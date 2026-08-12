@@ -3,6 +3,10 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
+#include <linux/magic.h>
+#include <linux/mount.h>
+#include <limits.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -11,6 +15,9 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
+#include <sys/statvfs.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -49,6 +56,17 @@ static long long overlay_bytes(const char *profile,long long maximum){
   char path[MF_PATH_MAX];snprintf(path,sizeof(path),MF_RUNTIME_DIR "/overlay-%s/upper",profile);int fd=open(path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return -1;int entries=0;long long result=directory_bytes_at(fd,maximum,&entries);close(fd);return result;
 }
 
+static int quota_is_enforced(const char *profile,long long disk_mib){
+  char root[MF_PATH_MAX],name[80];int name_length=snprintf(name,sizeof(name),"overlay-%s",profile);
+  if(name_length<=0||(size_t)name_length>=sizeof(name)||mf_join_path(root,sizeof(root),MF_RUNTIME_DIR,name))return 0;
+  struct statfs status;if(statfs(root,&status)||status.f_type!=TMPFS_MAGIC||status.f_bsize<=0||status.f_blocks<0||status.f_files<=0)return 0;
+  unsigned long long maximum=(unsigned long long)disk_mib*1048576ULL;
+  unsigned long long capacity=(unsigned long long)status.f_blocks*(unsigned long long)status.f_bsize;
+  unsigned long long inode_limit=maximum/4096ULL+1024ULL;
+  return capacity<=maximum+(unsigned long long)status.f_bsize&&
+    (unsigned long long)status.f_files<=inode_limit;
+}
+
 static int write_control(const char *directory,const char *name,const char *value){
   char path[MF_PATH_MAX];snprintf(path,sizeof(path),"%s/%s",directory,name);int fd=open(path,O_WRONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return -1;int result=mf_write_all(fd,value,strlen(value));close(fd);return result;
 }
@@ -74,13 +92,13 @@ static int setup_cgroup(char *directory,size_t capacity,const char *profile,long
   return 0;
 }
 
-static int registry_allows(const char *executable,const char *expected_registry_digest){
+static int registry_allows(const char *capability,const char *executable,const char *expected_registry_digest){
   char digest[MF_SHA256_HEX];if(mf_hash_regular_path(MF_TOOL_REGISTRY,digest,NULL)||strcmp(digest,expected_registry_digest))return 0;
   FILE *stream=fopen(MF_TOOL_REGISTRY,"re");if(!stream)return 0;char *line=NULL;size_t capacity=0;int allowed=0;
   while(getline(&line,&capacity,stream)>0){char label[129],path[MF_PATH_MAX],expected[MF_SHA256_HEX],extra;
     int fields=sscanf(line,"%128[^\t]\t%4095[^\t]\t%64[a-f0-9]%c",label,path,expected,&extra);
     if(fields!=4||extra!='\n'||!mf_valid_token(label,128)||!mf_canonical_absolute(path)||!mf_valid_digest(expected)){allowed=0;break;}
-    if(!strcmp(path,executable)){char actual[MF_SHA256_HEX];allowed=!mf_hash_regular_path(path,actual,NULL)&&!strcmp(actual,expected);break;}
+    if(!strcmp(label,capability)&&!strcmp(path,executable)){char actual[MF_SHA256_HEX];allowed=!mf_hash_regular_path(path,actual,NULL)&&!strcmp(actual,expected);break;}
   }
   free(line);fclose(stream);return allowed;
 }
@@ -93,15 +111,49 @@ static struct policy read_policy(const char *profile){
   if(read!=9||strcmp(p.contract,"moonfort-guest-v1")||strcmp(p.profile,profile)||!mf_canonical_absolute(p.scratch)||!mf_valid_digest(p.supervisor_digest)||!mf_valid_digest(p.registry_digest)||!mf_valid_digest(p.root_digest))mf_die("prepared profile policy malformed");return p;
 }
 
-static void child_exec(int output_fd,int ready_fd,char **command,long long cpu,long long processes,const char *scratch){
+static int readonly_root_except_scratch(const char *scratch,const char *profile){
+  if(unshare(CLONE_NEWNS)||mount(NULL,"/",NULL,MS_REC|MS_PRIVATE,NULL))return -1;
+  struct mount_attr readonly={.attr_set=MOUNT_ATTR_RDONLY};
+  if(syscall(SYS_mount_setattr,AT_FDCWD,"/",AT_RECURSIVE,&readonly,sizeof(readonly)))return -1;
+  struct mount_attr writable={.attr_clr=MOUNT_ATTR_RDONLY};
+  char quota_root[MF_PATH_MAX],name[80];int name_length=snprintf(name,sizeof(name),"overlay-%s",profile);
+  if(name_length<=0||(size_t)name_length>=sizeof(name)||mf_join_path(quota_root,sizeof(quota_root),MF_RUNTIME_DIR,name)||syscall(SYS_mount_setattr,AT_FDCWD,quota_root,AT_RECURSIVE,&writable,sizeof(writable))||syscall(SYS_mount_setattr,AT_FDCWD,scratch,AT_RECURSIVE,&writable,sizeof(writable)))return -1;
+  struct statvfs root_status,scratch_status,quota_status;
+  if(statvfs("/",&root_status)||statvfs(scratch,&scratch_status)||statvfs(quota_root,&quota_status)||!(root_status.f_flag&ST_RDONLY)||(scratch_status.f_flag&ST_RDONLY)||(quota_status.f_flag&ST_RDONLY))return -1;
+  return 0;
+}
+
+static int close_untrusted_descriptors(void){
+#ifdef SYS_close_range
+  if(syscall(SYS_close_range,3U,UINT_MAX,0)==0)return 0;
+  if(errno!=ENOSYS&&errno!=EINVAL)return -1;
+#endif
+  struct rlimit limit;if(getrlimit(RLIMIT_NOFILE,&limit))return -1;
+  unsigned long maximum=limit.rlim_cur==RLIM_INFINITY?1048576UL:(unsigned long)limit.rlim_cur;
+  if(maximum>1048576UL)maximum=1048576UL;
+  for(unsigned long descriptor=3;descriptor<maximum;++descriptor)close((int)descriptor);
+  return 0;
+}
+
+static int unprivileged_user_namespaces_disabled(void){
+  char value[64];
+  int descriptor=open("/proc/sys/kernel/unprivileged_userns_clone",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+  ssize_t first=descriptor<0?-1:read(descriptor,value,sizeof(value)-1);if(descriptor>=0)close(descriptor);if(first>=0)value[first]=0;
+  if(first>=0&&strcmp(value,"0\n")&&strcmp(value,"0"))return 0;
+  descriptor=open("/proc/sys/user/max_user_namespaces",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+  ssize_t second=descriptor<0?-1:read(descriptor,value,sizeof(value)-1);if(descriptor>=0)close(descriptor);if(second>=0)value[second]=0;
+  return second>=0&&(!strcmp(value,"0\n")||!strcmp(value,"0"));
+}
+
+static void child_exec(int output_fd,int ready_fd,char **command,long long cpu,long long processes,const char *scratch,const char *profile){
   char ready;while(read(ready_fd,&ready,1)<0&&errno==EINTR){}close(ready_fd);
   int null_fd=open("/dev/null",O_RDONLY|O_CLOEXEC);if(null_fd<0||dup2(null_fd,STDIN_FILENO)<0||dup2(output_fd,STDOUT_FILENO)<0||dup2(output_fd,STDERR_FILENO)<0)_exit(125);
   if(null_fd>2)close(null_fd);if(output_fd>2)close(output_fd);
   struct rlimit limit={.rlim_cur=(rlim_t)cpu,.rlim_max=(rlim_t)cpu};if(setrlimit(RLIMIT_CPU,&limit))_exit(125);
   limit.rlim_cur=(rlim_t)processes;limit.rlim_max=(rlim_t)processes;if(setrlimit(RLIMIT_NPROC,&limit))_exit(125);
   limit.rlim_cur=0;limit.rlim_max=0;if(setrlimit(RLIMIT_CORE,&limit))_exit(125);
-  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))_exit(125);
-  for(int fd=3;fd<1024;++fd)close(fd);
+  if(readonly_root_except_scratch(scratch,profile)||setgroups(0,NULL)||setgid(65534)||setuid(65534)||prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))_exit(125);
+  if(close_untrusted_descriptors())_exit(125);
   char home[MF_PATH_MAX+16],tmp[MF_PATH_MAX+16];snprintf(home,sizeof(home),"HOME=%s",scratch);snprintf(tmp,sizeof(tmp),"TMPDIR=%s/.tmp",scratch);
   char *environment[]={"LANG=C.UTF-8","LC_ALL=C.UTF-8","PATH=/opt/moonfort/tools",home,tmp,NULL};
   execve(command[0],command,environment);_exit(126);
@@ -110,12 +162,13 @@ static void child_exec(int output_fd,int ready_fd,char **command,long long cpu,l
 int main(int argc,char **argv){
   if(argc<4||strcmp(argv[1],"run"))mf_die("only the fixed run operation is allowed");int separator=-1;for(int i=2;i<argc;++i)if(!strcmp(argv[i],"--")){separator=i;break;}if(separator<0||separator+1>=argc)mf_die("supervised command is missing");
   const char *contract=argument(argc,argv,"--contract",separator),*profile=argument(argc,argv,"--profile-digest",separator),*scratch=argument(argc,argv,"--scratch",separator);
+  const char *capability=argument(argc,argv,"--capability",separator);
   long long cpu=number_argument(argc,argv,"--cpu-seconds",86400,separator),processes=number_argument(argc,argv,"--process-limit",4096,separator),disk=number_argument(argc,argv,"--scratch-disk-mib",1048576,separator),wall=number_argument(argc,argv,"--wall-clock-ms",86400000,separator),output_limit=number_argument(argc,argv,"--output-bytes",67108864,separator);
-  if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_valid_digest(profile)||!mf_canonical_absolute(scratch)||!mf_canonical_absolute(argv[separator+1]))mf_die("supervisor request malformed");
-  struct policy policy=read_policy(profile);char self[MF_SHA256_HEX];if(mf_hash_self(self)||strcmp(self,policy.supervisor_digest)||strcmp(policy.scratch,scratch)||policy.cpu!=cpu||policy.processes!=processes||policy.disk!=disk||!registry_allows(argv[separator+1],policy.registry_digest))mf_die("supervisor request is not bound to attested policy and tool registry");
-  char temporary[MF_PATH_MAX];snprintf(temporary,sizeof(temporary),"%s/.tmp",scratch);if(mkdir(temporary,0700)&&errno!=EEXIST)mf_die("private temporary directory unavailable");
+  if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_valid_digest(profile)||!mf_valid_token(capability,128)||!mf_canonical_absolute(scratch)||!mf_canonical_absolute(argv[separator+1]))mf_die("supervisor request malformed");
+  struct policy policy=read_policy(profile);char self[MF_SHA256_HEX];if(mf_hash_self(self)||strcmp(self,policy.supervisor_digest)||strcmp(policy.scratch,scratch)||policy.cpu!=cpu||policy.processes!=processes||policy.disk!=disk||!registry_allows(capability,argv[separator+1],policy.registry_digest)||!quota_is_enforced(profile,disk)||!unprivileged_user_namespaces_disabled())mf_die("supervisor request is not bound to enforced filesystem and runtime policy");
+  char temporary[MF_PATH_MAX];if(mf_join_path(temporary,sizeof(temporary),scratch,".tmp")||(mkdir(temporary,0700)&&errno!=EEXIST)||chown(temporary,65534,65534)||chmod(temporary,0700))mf_die("private temporary directory unavailable");
   int output_pipe[2],ready_pipe[2];if(pipe2(output_pipe,O_CLOEXEC|O_NONBLOCK)||pipe2(ready_pipe,O_CLOEXEC))mf_die("bounded process pipes unavailable");
-  pid_t child=fork();if(child<0)mf_die("target fork failed");if(!child){close(output_pipe[0]);close(ready_pipe[1]);child_exec(output_pipe[1],ready_pipe[0],&argv[separator+1],cpu,processes,scratch);}
+  pid_t child=fork();if(child<0)mf_die("target fork failed");if(!child){close(output_pipe[0]);close(ready_pipe[1]);child_exec(output_pipe[1],ready_pipe[0],&argv[separator+1],cpu,processes,scratch,profile);}
   close(output_pipe[1]);close(ready_pipe[0]);char cgroup[MF_PATH_MAX];if(setup_cgroup(cgroup,sizeof(cgroup),profile,processes,child)){kill(child,SIGKILL);close(ready_pipe[1]);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("private cgroup limits unavailable");}if(mf_write_all(ready_pipe[1],"1",1)){kill_cgroup(cgroup);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("target launch synchronization failed");}close(ready_pipe[1]);
   struct sigaction action={0};action.sa_handler=cancellation;sigemptyset(&action.sa_mask);sigaction(SIGTERM,&action,NULL);sigaction(SIGINT,&action,NULL);sigaction(SIGHUP,&action,NULL);
   int64_t start=mf_monotonic_ms(),next_disk=start;long long emitted=0;int status=0,exited=0,limited=0;char buffer[16384];

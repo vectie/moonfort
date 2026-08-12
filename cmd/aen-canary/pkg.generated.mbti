@@ -1,0 +1,28 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/cmd/aen-canary"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type CanaryCase derive(Eq, @debug.Debug)
+
+type CanaryCaseResult derive(ToJson)
+
+type CanaryConfig derive(Eq, @debug.Debug, @json.FromJson)
+
+type CanaryLimits derive(Eq, @debug.Debug, @json.FromJson)
+
+type CanaryPlan derive(Eq, @debug.Debug)
+
+type CanaryReport derive(ToJson)
+
+// Type aliases
+
+// Traits

@@ -41,6 +41,7 @@ fn test_backend() -> @trusted_executor.TrustedAenConfig {
     provisioner_api_key: "provisioner-api-key-that-must-never-leak",
     provisioner_receipt_key: "receipt-key-that-is-at-least-32-bytes-long",
     provisioner_key_id: "production-2026",
+    workspace_registry_repository: "registry.internal/workspaces",
     max_workspace_bytes: 1_073_741_824L,
     guest_workspace: "/workspace",
     guest_scratch: "/scratch",

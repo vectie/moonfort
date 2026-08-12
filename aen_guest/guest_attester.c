@@ -84,7 +84,8 @@ static void hash_manifest_line(struct inventory *scan, char kind, const char *pa
 
 static void emit_entry(struct inventory *scan, const char *path, const char *kind, long long size, const char *fingerprint) {
   if(!scan->emit_json)return;
-  if(!scan->first)mf_write_all(STDOUT_FILENO,",",1);scan->first=0;
+  if(!scan->first)mf_write_all(STDOUT_FILENO,",",1);
+  scan->first=0;
   mf_write_all(STDOUT_FILENO,"{\"relative_path\":",17);mf_json_string(STDOUT_FILENO,path);
   mf_write_all(STDOUT_FILENO,",\"kind\":",8);mf_json_string(STDOUT_FILENO,kind);
   dprintf(STDOUT_FILENO,",\"size_bytes\":\"%lld\",\"fingerprint\":",size);mf_json_string(STDOUT_FILENO,fingerprint);
@@ -150,21 +151,27 @@ static void ensure_directory(const char *path, mode_t mode) {
   struct stat status;if(lstat(path,&status)||!S_ISDIR(status.st_mode)||S_ISLNK(status.st_mode)||(status.st_mode&0022))mf_die("runtime directory is not private");
 }
 
-static void prepare_overlay(const char *workspace,const char *scratch,const char *profile) {
+static void prepare_overlay(const char *workspace,const char *scratch,const char *profile,long long disk_mib) {
   ensure_directory(MF_RUNTIME_DIR,0700);
   char root[MF_PATH_MAX],upper[MF_PATH_MAX],work[MF_PATH_MAX];
-  snprintf(root,sizeof(root),MF_RUNTIME_DIR "/overlay-%s",profile);snprintf(upper,sizeof(upper),"%s/upper",root);snprintf(work,sizeof(work),"%s/work",root);
-  ensure_directory(root,0700);ensure_directory(upper,0700);ensure_directory(work,0700);
+  char root_name[80];int root_name_length=snprintf(root_name,sizeof(root_name),"overlay-%s",profile);
+  if(root_name_length<=0||(size_t)root_name_length>=sizeof(root_name)||mf_join_path(root,sizeof(root),MF_RUNTIME_DIR,root_name))mf_die("overlay path exceeds bound");
+  ensure_directory(root,0700);
+  char quota[128];long long inodes=(disk_mib*1024*1024)/4096+1024;int quota_length=snprintf(quota,sizeof(quota),"size=%lldm,nr_inodes=%lld,mode=0700",disk_mib,inodes);
+  if(quota_length<=0||(size_t)quota_length>=sizeof(quota)||mount("tmpfs",root,"tmpfs",MS_NODEV|MS_NOSUID|MS_NOEXEC,quota))mf_die("quota-bounded scratch filesystem unavailable");
+  if(mf_join_path(upper,sizeof(upper),root,"upper")||mf_join_path(work,sizeof(work),root,"work"))mf_die("overlay child path exceeds bound");
+  ensure_directory(upper,0700);ensure_directory(work,0700);
   if(mkdir(scratch,0700)&&errno!=EEXIST)mf_die("scratch mountpoint creation failed");
   int scratch_fd=open(scratch,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(scratch_fd<0)mf_die("scratch mountpoint unsafe");
   size_t count=0;char **names=names_at(scratch_fd,&count);close(scratch_fd);if(count==SIZE_MAX)mf_die("scratch mountpoint inventory failed");if(names)free_names(names,count);if(count)mf_die("scratch mountpoint must be empty");
   char options[MF_PATH_MAX*3];int length=snprintf(options,sizeof(options),"lowerdir=%s,upperdir=%s,workdir=%s",workspace,upper,work);
-  if(length<=0||(size_t)length>=sizeof(options)||mount("overlay",scratch,"overlay",MS_NODEV|MS_NOSUID,options))mf_die("writable overlay mount failed");
+  if(length<=0||(size_t)length>=sizeof(options)||mount("overlay",scratch,"overlay",MS_NODEV|MS_NOSUID,options)||chown(scratch,65534,65534)||chmod(scratch,0700))mf_die("writable overlay mount failed");
 }
 
 static void write_policy(const struct options *o) {
   char path[MF_PATH_MAX],temporary[MF_PATH_MAX],body[MF_PATH_MAX*3];
-  snprintf(path,sizeof(path),MF_RUNTIME_DIR "/policy-%s",o->profile_digest);snprintf(temporary,sizeof(temporary),"%s.tmp-%ld",path,(long)getpid());
+  char policy_name[80],temporary_name[128];int policy_length=snprintf(policy_name,sizeof(policy_name),"policy-%s",o->profile_digest);int temporary_length=snprintf(temporary_name,sizeof(temporary_name),"policy-%s.tmp-%ld",o->profile_digest,(long)getpid());
+  if(policy_length<=0||(size_t)policy_length>=sizeof(policy_name)||temporary_length<=0||(size_t)temporary_length>=sizeof(temporary_name)||mf_join_path(path,sizeof(path),MF_RUNTIME_DIR,policy_name)||mf_join_path(temporary,sizeof(temporary),MF_RUNTIME_DIR,temporary_name))mf_die("profile policy path exceeds bound");
   int length=snprintf(body,sizeof(body),"%s\n%s\n%lld\n%lld\n%lld\n%s\n%s\n%s\n%s\n",o->contract,o->profile_digest,o->cpu_seconds,o->process_limit,o->scratch_disk_mib,o->scratch,o->supervisor_digest,o->tool_registry_digest,o->executor_root_digest);
   if(length<=0||(size_t)length>=sizeof(body)||mf_write_text_file(temporary,body,0600,1)||rename(temporary,path))mf_die("profile policy persistence failed");
 }
@@ -184,7 +191,7 @@ static void prepare(int argc,char **argv){
   int root=open(o.workspace,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(root<0)mf_die("workspace root is unsafe");
   struct inventory scan={.entries=0,.bytes=0,.maximum_entries=1000000,.maximum_bytes=LLONG_MAX,.emit_json=0,.first=1};mf_sha256_init(&scan.workspace_hash);walk_tree(&scan,root,"",1);close(root);
   unsigned char raw[32];char digest[MF_SHA256_HEX];mf_sha256_finish(&scan.workspace_hash,raw);mf_hex(raw,32,digest);if(strcmp(digest,o.workspace_digest))mf_die("workspace digest does not match provisioner lease");
-  prepare_overlay(o.workspace,o.scratch,o.profile_digest);write_policy(&o);
+  prepare_overlay(o.workspace,o.scratch,o.profile_digest,o.scratch_disk_mib);write_policy(&o);
   dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"profileDigest\":\"%s\",\"executorRootDigest\":\"%s\",\"guestAttesterDigest\":\"%s\",\"guestSupervisorDigest\":\"%s\",\"workspaceDigest\":\"%s\",\"workspacePath\":",o.profile_digest,o.executor_root_digest,self,supervisor,o.workspace_digest);mf_json_string(STDOUT_FILENO,o.workspace);
   dprintf(STDOUT_FILENO,",\"workspaceReadOnly\":true,\"scratchPath\":");mf_json_string(STDOUT_FILENO,o.scratch);
   dprintf(STDOUT_FILENO,",\"scratchWritable\":true,\"scratchIsolated\":true,\"scratchOverlay\":true,\"scratchLowerDigest\":\"%s\",\"scratchBaselineDigest\":\"%s\",\"scratchBaselineEntries\":%lld,\"scratchBaselineBytes\":\"%lld\",\"toolRegistryDigest\":\"%s\",\"supervisorPath\":",digest,digest,scan.entries,scan.bytes,registry);mf_json_string(STDOUT_FILENO,o.supervisor);

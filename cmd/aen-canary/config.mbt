@@ -230,7 +230,9 @@ fn validate_deployment(
   }
   guard backend.base_url == canary.expected_aen_origin &&
     backend.provisioner_url == canary.expected_provisioner_origin &&
-    backend.executor_image_ref == canary.expected_executor_image_ref else {
+    backend.executor_image_ref == canary.expected_executor_image_ref &&
+    backend.workspace_registry_repository ==
+    canary.expected_workspace_registry_repository else {
     fail(
       "trusted AEN endpoint or immutable image does not match the canary pins",
     )

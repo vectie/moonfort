@@ -9,9 +9,11 @@ directly:
 - `guest_attester inventory` hashes only the overlay upper directory and emits
   the bounded `ScratchInventory` wire shape.
 - `guest_supervisor run` refuses executables outside the digest-pinned tool
-  registry, uses a fixed environment and closed stdin, installs CPU/process/
-  output/wall/scratch limits, and owns a cgroup-v2 subtree whose descendants are
-  killed and verified gone before exit.
+  registry, makes the target root recursively read-only except scratch, drops
+  to nobody with no-new-privileges, uses a fixed environment and closed stdin,
+  and owns a cgroup-v2 subtree whose descendants are killed and verified gone.
+  Scratch upper/work storage is a size- and inode-bounded tmpfs, including
+  deleted-open allocation and metadata.
 
 The production image must run helpers as root with overlayfs and a writable
 cgroup-v2 hierarchy. Missing kernel controls are refusal conditions. The

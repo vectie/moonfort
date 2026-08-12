@@ -59,6 +59,7 @@ fn trusted_aen_execution_config(
     provisioner_api_key: trusted.provisioner_api_key,
     provisioner_receipt_key: trusted.provisioner_receipt_key,
     provisioner_key_id: trusted.provisioner_key_id,
+    workspace_registry_repository: trusted.workspace_registry_repository,
     workspace_id,
     max_workspace_bytes: trusted.max_workspace_bytes,
     guest_workspace: trusted.guest_workspace,

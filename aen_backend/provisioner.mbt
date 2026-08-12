@@ -23,6 +23,31 @@ fn immutable_oci_reference(value : String) -> Bool {
 }
 
 ///|
+fn immutable_oci_repository(value : String) -> Bool {
+  value.length() >= 3 &&
+  value.length() <= 1024 &&
+  !value.has_prefix("/") &&
+  !value.has_suffix("/") &&
+  !value.contains("//") &&
+  !value.contains("@") &&
+  !value.contains("://") &&
+  !value.contains(" ") &&
+  !value.contains("\n") &&
+  !value.contains("\r") &&
+  !value.contains("\t") &&
+  !value.split("/").any(component => component == "." || component == "..") &&
+  value.all(character => {
+    character.is_ascii_alphabetic() ||
+    character.is_ascii_digit() ||
+    character == '.' ||
+    character == '_' ||
+    character == '-' ||
+    character == '/' ||
+    character == ':'
+  })
+}
+
+///|
 fn provisioner_receipt_payload(lease : AenWorkspaceLease) -> String {
   [
     lease.protocol_version.to_string(),
@@ -70,6 +95,7 @@ fn validate_workspace_lease(
   lease : AenWorkspaceLease,
   receipt_key : String,
   receipt_key_id : String,
+  registry_repository : String,
   workspace_id : String,
   profile : @sandbox.SandboxProfile,
   max_workspace_bytes : Int64,
@@ -90,7 +116,9 @@ fn validate_workspace_lease(
       (character >= '0' && character <= '9') ||
       (character >= 'a' && character <= 'f')
     }) &&
-    immutable_oci_reference(lease.image_ref) else {
+    immutable_oci_reference(lease.image_ref) &&
+    lease.image_ref.has_prefix(registry_repository + "@sha256:") &&
+    lease.image_ref.length() == registry_repository.length() + 72 else {
     raise ProtocolFailure("workspace lease is not content addressed")
   }
   guard lease.entry_count >= 0 &&
@@ -117,6 +145,7 @@ async fn[T : AenTransport] provision_workspace(
   api_key~ : String,
   receipt_key~ : String,
   receipt_key_id~ : String,
+  registry_repository~ : String,
   workspace_id~ : String,
   max_workspace_bytes~ : Int64,
   profile~ : @sandbox.SandboxProfile,
@@ -124,6 +153,7 @@ async fn[T : AenTransport] provision_workspace(
   guard api_key.trim() != "" &&
     receipt_key.length() >= 32 &&
     safe_provider_identifier(receipt_key_id) &&
+    immutable_oci_repository(registry_repository) &&
     safe_provider_identifier(workspace_id) &&
     max_workspace_bytes > 0L else {
     raise InvalidConfiguration("invalid workspace provisioner configuration")
@@ -159,7 +189,8 @@ async fn[T : AenTransport] provision_workspace(
     _ => raise ProtocolFailure("workspace provisioner receipt is malformed")
   }
   validate_workspace_lease(
-    lease, receipt_key, receipt_key_id, workspace_id, profile, max_workspace_bytes,
+    lease, receipt_key, receipt_key_id, registry_repository, workspace_id, profile,
+    max_workspace_bytes,
   )
   lease
 }

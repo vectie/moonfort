@@ -41,6 +41,8 @@ fn[T] AenBackend::guest_argv(
       self.profile.limits.wall_clock_ms.to_string(),
       "--output-bytes",
       self.profile.limits.output_bytes.to_string(),
+      "--capability",
+      label,
       "--",
       executable,
       ..command_args,
@@ -267,6 +269,17 @@ pub async fn[T : AenTransport] AenBackend::exec(
       let cleanup_verified = self.discard_protected()
       return self.refused_after_cleanup(
         "AEN terminal run has no trusted structured diff", cleanup_verified,
+      )
+    }
+  }
+  if self.require_guest_attestation {
+    let inventory_paths = diff.entries.map(entry => entry.relative_path)
+    inventory_paths.sort()
+    inventory_paths.dedup()
+    guard changed_paths == inventory_paths else {
+      let cleanup_verified = self.discard_protected()
+      return self.refused_after_cleanup(
+        "AEN watcher and structured inventory disagree", cleanup_verified,
       )
     }
   }

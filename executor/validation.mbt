@@ -38,6 +38,40 @@ fn immutable_oci_reference(value : String) -> Bool {
 }
 
 ///|
+fn sha256_digest(value : String) -> Bool {
+  value.length() == 64 &&
+  value.all(character => {
+    (character >= '0' && character <= '9') ||
+    (character >= 'a' && character <= 'f')
+  })
+}
+
+///|
+fn immutable_oci_repository(value : String) -> Bool {
+  value.length() >= 3 &&
+  value.length() <= 1024 &&
+  !value.has_prefix("/") &&
+  !value.has_suffix("/") &&
+  !value.contains("//") &&
+  !value.contains("@") &&
+  !value.contains("://") &&
+  !value.contains(" ") &&
+  !value.contains("\n") &&
+  !value.contains("\r") &&
+  !value.contains("\t") &&
+  !value.split("/").any(component => component == "." || component == "..") &&
+  value.all(character => {
+    character.is_ascii_alphabetic() ||
+    character.is_ascii_digit() ||
+    character == '.' ||
+    character == '_' ||
+    character == '-' ||
+    character == '/' ||
+    character == ':'
+  })
+}
+
+///|
 fn canonical_https_origin(value : String) -> Bool {
   guard value.has_prefix("https://") else { return false }
   let authority = value[8:]

@@ -51,11 +51,16 @@ fn trusted_aen_binding_digest(config : TrustedAenConfig) -> String {
     "expected_root_disk_mib": config.expected_root_disk_mib,
     "provisioner_url": config.provisioner_url,
     "provisioner_key_id": config.provisioner_key_id,
+    "workspace_registry_repository": config.workspace_registry_repository,
     "max_workspace_bytes": config.max_workspace_bytes,
     "guest_workspace": config.guest_workspace,
     "guest_scratch": config.guest_scratch,
     "guest_attester": config.guest_attester,
     "guest_supervisor": config.guest_supervisor,
+    "executor_root_digest": config.executor_root_digest,
+    "guest_attester_digest": config.guest_attester_digest,
+    "guest_supervisor_digest": config.guest_supervisor_digest,
+    "tool_registry_digest": config.tool_registry_digest,
     "guest_tools": sorted_map_entries(config.guest_tools),
   }
   @crypto.bytes_to_hex_string(

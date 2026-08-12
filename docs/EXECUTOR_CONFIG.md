@@ -46,6 +46,7 @@ approval root.
       "provisioner_api_key": "injected-provisioner-secret",
       "provisioner_receipt_key": "injected-at-least-32-byte-hmac-key",
       "provisioner_key_id": "production-2026-08",
+      "workspace_registry_repository": "registry.internal/moonfort/workspaces",
       "max_workspace_bytes": "2147483648",
       "guest_workspace": "/workspace",
       "guest_scratch": "/scratch",
@@ -80,6 +81,12 @@ materialization at service start, with the resulting config file mode
 0600 and never included in logs, crash reports, grants, or receipts. Executor
 and provisioned workspace images must use immutable `@sha256:` references;
 mutable tags are rejected.
+
+`workspace_registry_repository` is the exact repository name without a tag or
+digest. A lease is accepted only when its image is precisely this repository
+plus `@sha256:<digest>`. The four guest runtime fields are exact lowercase
+SHA-256 values emitted by the rootfs packager and are included in the trusted
+backend/command binding digest.
 
 MoonBit's JSON encoding represents `Int64` fields such as `retention_ms` and a
 grant's `expires_at_ms` and `max_workspace_bytes` as decimal strings; other integer fields above are
