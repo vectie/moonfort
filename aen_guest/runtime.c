@@ -141,7 +141,14 @@ int mf_hash_regular_path(const char *path, char output[MF_SHA256_HEX], off_t *si
 }
 
 int mf_hash_self(char output[MF_SHA256_HEX]) {
-  return mf_hash_regular_path("/proc/self/exe", output, NULL);
+  int descriptor = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+  if (descriptor < 0) return -1;
+  struct stat status;
+  int result = fstat(descriptor, &status) || !S_ISREG(status.st_mode)
+    ? -1
+    : mf_hash_fd(descriptor, output, status.st_size);
+  close(descriptor);
+  return result;
 }
 
 int mf_valid_digest(const char *value) {
