@@ -20,4 +20,4 @@ jobs:
       - name: Prove production canary workflow fails closed hermetically
         run: scripts/test-real-aen-canary-workflow.sh
       - name: Prove MoonClaw execution-boundary guard rejects new authority
-        run: tests/execution-boundary-guard-test.sh
+        run: bash tests/execution-boundary-guard-test.sh
