@@ -137,7 +137,8 @@ static void verify_root_manifest(const char *expected) {
   char *line=NULL;size_t capacity=0;size_t rows=0;
   while(getline(&line,&capacity,stream)>0){
     char kind=0,path[MF_PATH_MAX],digest[MF_SHA256_HEX],extra;long long declared=-1;
-    if(sscanf(line,"%c\t%4095[^\t]\t%lld\t%64[a-f0-9]%c",&kind,path,&declared,digest,&extra)!=4||kind!='F'||!mf_canonical_absolute(path)||!mf_valid_digest(digest)||declared<0)mf_die("executor root manifest malformed");
+    int fields=sscanf(line,"%c\t%4095[^\t]\t%lld\t%64[a-f0-9]%c",&kind,path,&declared,digest,&extra);
+    if(fields!=5||extra!='\n'||kind!='F'||!mf_canonical_absolute(path)||!mf_valid_digest(digest)||declared<0)mf_die("executor root manifest malformed");
     char actual[MF_SHA256_HEX];off_t size_actual;if(mf_hash_regular_path(path,actual,&size_actual)||size_actual!=declared||strcmp(actual,digest))mf_die("executor root file digest mismatch");
     if(++rows>4096)mf_die("executor root manifest entry limit exceeded");
   }

@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$#" -ne 4 ]; then
-  echo "usage: $0 ROOTFS ATTTESTER SUPERVISOR TOOL_LOCK" >&2
+  echo "usage: $0 ROOTFS ATTESTER SUPERVISOR TOOL_LOCK" >&2
   exit 64
 fi
 

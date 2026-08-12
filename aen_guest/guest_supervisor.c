@@ -65,19 +65,21 @@ static int remove_cgroup(const char *directory){
   for(int attempt=0;attempt<100;++attempt){if(!rmdir(directory))return 0;if(errno!=EBUSY&&errno!=ENOTEMPTY)return -1;usleep(10000);}return -1;
 }
 
-static void setup_cgroup(char *directory,size_t capacity,const char *profile,long long process_limit,pid_t child){
+static int setup_cgroup(char *directory,size_t capacity,const char *profile,long long process_limit,pid_t child){
   snprintf(directory,capacity,"/sys/fs/cgroup/moonfort-%.16s-%ld",profile,(long)child);
-  if(mkdir(directory,0700))mf_die("private cgroup creation failed");
-  char value[64];snprintf(value,sizeof(value),"%lld",process_limit);if(write_control(directory,"pids.max",value))mf_die("cgroup process limit unavailable");
-  snprintf(value,sizeof(value),"%ld",(long)child);if(write_control(directory,"cgroup.procs",value))mf_die("target could not be attached to private cgroup");
-  if(cpu_usage_usec(directory)<0)mf_die("cgroup aggregate CPU accounting unavailable");
+  if(mkdir(directory,0700))return -1;
+  char value[64];snprintf(value,sizeof(value),"%lld",process_limit);if(write_control(directory,"pids.max",value))return -1;
+  snprintf(value,sizeof(value),"%ld",(long)child);if(write_control(directory,"cgroup.procs",value))return -1;
+  if(cpu_usage_usec(directory)<0)return -1;
+  return 0;
 }
 
 static int registry_allows(const char *executable,const char *expected_registry_digest){
   char digest[MF_SHA256_HEX];if(mf_hash_regular_path(MF_TOOL_REGISTRY,digest,NULL)||strcmp(digest,expected_registry_digest))return 0;
   FILE *stream=fopen(MF_TOOL_REGISTRY,"re");if(!stream)return 0;char *line=NULL;size_t capacity=0;int allowed=0;
   while(getline(&line,&capacity,stream)>0){char label[129],path[MF_PATH_MAX],expected[MF_SHA256_HEX],extra;
-    if(sscanf(line,"%128[^\t]\t%4095[^\t]\t%64[a-f0-9]%c",label,path,expected,&extra)!=3||!mf_valid_token(label,128)||!mf_canonical_absolute(path)||!mf_valid_digest(expected)){allowed=0;break;}
+    int fields=sscanf(line,"%128[^\t]\t%4095[^\t]\t%64[a-f0-9]%c",label,path,expected,&extra);
+    if(fields!=4||extra!='\n'||!mf_valid_token(label,128)||!mf_canonical_absolute(path)||!mf_valid_digest(expected)){allowed=0;break;}
     if(!strcmp(path,executable)){char actual[MF_SHA256_HEX];allowed=!mf_hash_regular_path(path,actual,NULL)&&!strcmp(actual,expected);break;}
   }
   free(line);fclose(stream);return allowed;
@@ -114,7 +116,7 @@ int main(int argc,char **argv){
   char temporary[MF_PATH_MAX];snprintf(temporary,sizeof(temporary),"%s/.tmp",scratch);if(mkdir(temporary,0700)&&errno!=EEXIST)mf_die("private temporary directory unavailable");
   int output_pipe[2],ready_pipe[2];if(pipe2(output_pipe,O_CLOEXEC|O_NONBLOCK)||pipe2(ready_pipe,O_CLOEXEC))mf_die("bounded process pipes unavailable");
   pid_t child=fork();if(child<0)mf_die("target fork failed");if(!child){close(output_pipe[0]);close(ready_pipe[1]);child_exec(output_pipe[1],ready_pipe[0],&argv[separator+1],cpu,processes,scratch);}
-  close(output_pipe[1]);close(ready_pipe[0]);char cgroup[MF_PATH_MAX];setup_cgroup(cgroup,sizeof(cgroup),profile,processes,child);if(mf_write_all(ready_pipe[1],"1",1)){kill_cgroup(cgroup);mf_die("target launch synchronization failed");}close(ready_pipe[1]);
+  close(output_pipe[1]);close(ready_pipe[0]);char cgroup[MF_PATH_MAX];if(setup_cgroup(cgroup,sizeof(cgroup),profile,processes,child)){kill(child,SIGKILL);close(ready_pipe[1]);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("private cgroup limits unavailable");}if(mf_write_all(ready_pipe[1],"1",1)){kill_cgroup(cgroup);waitpid(child,NULL,0);remove_cgroup(cgroup);mf_die("target launch synchronization failed");}close(ready_pipe[1]);
   struct sigaction action={0};action.sa_handler=cancellation;sigemptyset(&action.sa_mask);sigaction(SIGTERM,&action,NULL);sigaction(SIGINT,&action,NULL);sigaction(SIGHUP,&action,NULL);
   int64_t start=mf_monotonic_ms(),next_disk=start;long long emitted=0;int status=0,exited=0,limited=0;char buffer[16384];
   while(!exited){
