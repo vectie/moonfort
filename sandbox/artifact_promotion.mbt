@@ -81,6 +81,15 @@ pub(all) enum SandboxPromotionDestinationState {
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
+/// Read-only fd-relative observation of one confined destination. Native
+/// status codes and host paths deliberately remain private.
+pub(all) enum SandboxDestinationObservation {
+  DestinationAbsent
+  DestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
+  DestinationUnavailable
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
 pub(all) struct SandboxPromotionItem {
   source_relative_path : String
   destination_relative_path : String
@@ -255,6 +264,33 @@ async fn validate_destination_confinement(
     }
   }
   None
+}
+
+///|
+/// Inspect one safe relative destination beneath a canonical root without
+/// following any path component or final symlink.
+pub async fn inspect_sandbox_destination(
+  destination_root : String,
+  destination_path : String,
+) -> SandboxDestinationObservation {
+  if !path_is_canonical_absolute(destination_root) ||
+    !scratch_relative_path_is_safe(destination_path) {
+    return DestinationUnavailable
+  }
+  try {
+    if @fs.realpath(destination_root) != destination_root ||
+      !(@fs.kind(destination_root, follow_symlink=false) is Directory) {
+      return DestinationUnavailable
+    }
+    match secure_destination_state(destination_root, destination_path) {
+      SecureDestinationAbsent => DestinationAbsent
+      SecureDestinationRegular(size_bytes~, fingerprint~) =>
+        DestinationRegular(size_bytes~, fingerprint~)
+      SecureDestinationError(_) => DestinationUnavailable
+    }
+  } catch {
+    _ => DestinationUnavailable
+  }
 }
 
 ///|

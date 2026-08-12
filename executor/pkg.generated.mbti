@@ -12,6 +12,8 @@ pub fn completed_response(String, @sandbox.SandboxReceipt) -> ExecutorResponse
 
 pub async fn execute_invocation(SandboxInvocation, ExecutorConfig) -> ExecutorResponse
 
+pub async fn inspect_retention_recovery(RetentionRecoveryInspectionRequest, ExecutorConfig) -> RetentionRecoveryInspectionResponse
+
 pub async fn load_executor_config(String) -> ExecutorConfig
 
 pub async fn promote_retention(RetentionPromotionRequest, ExecutorConfig) -> RetentionPromotionResponse
@@ -118,6 +120,26 @@ pub(all) struct RetentionPromotionResponse {
 } derive(Eq, ToJson, @debug.Debug)
 
 type RetentionRecord derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionRecoveryInspectionRequest {
+  protocol_version : Int
+  retention_id : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionRecoveryInspectionResponse {
+  protocol_version : Int
+  retention_id : String
+  workspace_id : String
+  profile_digest : String
+  approval_digest : String
+  command_digest : String
+  destination_path : String
+  reviewed_state_digest : String
+  desired_state_digest : String
+  observed_state_digest : String
+  outcome : String
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
 
 pub(all) struct SandboxInvocation {
   protocol_version : Int

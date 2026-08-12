@@ -76,3 +76,24 @@ fn trusted_local_binding_digest(bindings : Map[String, String]) -> String {
     ),
   )
 }
+
+///|
+fn workspace_root_binding_digest(
+  workspace_id : String,
+  workspace_root : String,
+) -> String? {
+  guard directory_identity(workspace_root) is Some(native_identity) else {
+    return None
+  }
+  let binding : Json = {
+    "schema": "moonfort-workspace-root-binding-v1",
+    "workspace_id": workspace_id,
+    "canonical_root": workspace_root,
+    "native_identity": native_identity,
+  }
+  Some(
+    @crypto.bytes_to_hex_string(
+      @crypto.sha256(@utf8.encode(binding.stringify())),
+    ),
+  )
+}

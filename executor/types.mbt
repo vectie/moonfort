@@ -152,7 +152,35 @@ struct PromotionClaim {
   record : RetentionRecord
   item : @sandbox.SandboxPromotionItem
   phase : String
+  workspace_root_binding : String?
 } derive(ToJson, FromJson)
+
+///|
+/// Read-only operator request for one locked promotion. The retention ID is
+/// opaque; all paths and execution bindings come from executor-owned state.
+pub(all) struct RetentionRecoveryInspectionRequest {
+  protocol_version : Int
+  retention_id : String
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
+/// Bounded recovery evidence. State values are domain-separated SHA-256
+/// digests, so canonical host paths and filesystem diagnostics never cross the
+/// operator protocol boundary.
+pub(all) struct RetentionRecoveryInspectionResponse {
+  protocol_version : Int
+  retention_id : String
+  workspace_id : String
+  profile_digest : String
+  approval_digest : String
+  command_digest : String
+  destination_path : String
+  reviewed_state_digest : String
+  desired_state_digest : String
+  observed_state_digest : String
+  outcome : String
+  error : ExecutorProtocolError?
+} derive(Debug, Eq, ToJson)
 
 ///|
 pub(all) struct ExecutorProtocolError {

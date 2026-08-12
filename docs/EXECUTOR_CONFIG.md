@@ -125,3 +125,13 @@ destination outcome. Pre-rename claim setup failures remove their sidecar only
 after proving the original `.json` record still exists and `.promoting` does
 not. Post-rename or otherwise uncertain claims remain locked. Exact operator
 reconciliation of native crash residue remains required and is not automated.
+
+New claims also bind the registered workspace root's canonical mapping and
+no-follow directory identity. Operators can run the bounded, read-only
+`cmd/inspect-promotion-recovery` controller with only promotion protocol `4`
+and an opaque retention ID. It validates the exact protected
+`.claim`/`.promoting` pair and classifies the confined destination as desired
+content, reviewed prestate, diverged, unavailable, or manual recovery without
+returning host paths or mutating any state. Legacy claims without a root
+binding always require manual recovery. See
+`PROMOTION_RECOVERY_INSPECTION.md` for the complete contract.

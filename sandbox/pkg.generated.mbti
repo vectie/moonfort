@@ -27,6 +27,8 @@ pub fn exited_receipt(String, SandboxBackendKind, SandboxEnforcement, String, In
 
 pub fn failed_receipt(String, SandboxBackendKind, SandboxEnforcement, String, String) -> SandboxReceipt
 
+pub async fn inspect_sandbox_destination(String, String) -> SandboxDestinationObservation
+
 pub async fn inventory_scratch(String, Int64) -> Result[ScratchInventory, SandboxStorageRefusal]
 
 pub fn killed_receipt(String, SandboxBackendKind, SandboxEnforcement, String, String, Bool, String) -> SandboxReceipt
@@ -120,6 +122,12 @@ pub(all) enum SandboxCommandKind {
   ShellCompatibilityCommand
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxCommandKind::label(Self) -> String
+
+pub(all) enum SandboxDestinationObservation {
+  DestinationAbsent
+  DestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
+  DestinationUnavailable
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) enum SandboxEnforcement {
   Enforced

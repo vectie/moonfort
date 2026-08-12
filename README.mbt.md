@@ -71,6 +71,8 @@ from executor-owned configuration. Neither backend has an unsandboxed fallback.
   A package test or fake transport does not close a row unless it proves the
   named adversarial behavior; real local-host and AEN deployment exercises are
   mandatory before a production-complete claim.
+- `docs/PROMOTION_RECOVERY_INSPECTION.md` specifies the bounded, read-only
+  operator evidence contract for locked promotion claims.
 - `scripts/audit-moonclaw-execution-boundary.sh` is the CI enforcement gate
   that rejects raw process authority in every first-party MoonClaw production
   package. The integrated checkout currently passes; see

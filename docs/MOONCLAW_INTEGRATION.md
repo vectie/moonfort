@@ -92,6 +92,14 @@ Destination roots and scratch paths remain executor-owned, and source hashes
 and destination chains are revalidated before atomic replacement.
 Execution grants and invocations remain protocol version `3`.
 
+Promotion recovery is an operator-only path. MoonClaw may display the bounded
+result from `cmd/inspect-promotion-recovery`, but it must not infer, retry,
+unlock, restore, clean up, or promote from that result. The inspector accepts
+only protocol version `4` plus the opaque retention ID, proves the locked claim
+and historical workspace-root binding, and returns no canonical host path.
+Legacy claims or changed registry mappings are `manual-recovery`, never an
+automatic fallback. See `PROMOTION_RECOVERY_INSPECTION.md`.
+
 ## Release gates
 
 - Unknown, expired, malformed, and replayed approvals fail before filesystem

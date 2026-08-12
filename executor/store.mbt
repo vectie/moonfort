@@ -468,12 +468,22 @@ async fn load_retention_record(
 async fn claim_retention_for_promotion(
   record : RetentionRecord,
   item : @sandbox.SandboxPromotionItem,
+  workspace_root : String,
   config : ExecutorConfig,
 ) -> String {
   let available = "\{config.retention_root}/\{record.retention_id}.json"
   let claimed = "\{config.retention_root}/\{record.retention_id}.promoting"
   let claim_path = "\{config.retention_root}/\{record.retention_id}.claim"
-  let claim : PromotionClaim = { record, item, phase: "prepared" }
+  guard workspace_root_binding_digest(record.workspace_id, workspace_root)
+    is Some(root_binding) else {
+    fail("workspace root identity is unavailable")
+  }
+  let claim : PromotionClaim = {
+    record,
+    item,
+    phase: "prepared",
+    workspace_root_binding: Some(root_binding),
+  }
   let encoded = claim.to_json().stringify()
   guard @utf8.encode(encoded).length() <= config.limits.max_protocol_bytes else {
     fail("promotion claim exceeds the protocol bound")
@@ -640,6 +650,7 @@ pub async fn promote_retention(
       let claimed = claim_retention_for_promotion(
         record,
         planned_items[0],
+        workspace.root,
         config,
       ) catch {
         _ =>

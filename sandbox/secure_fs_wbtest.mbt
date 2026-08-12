@@ -53,6 +53,42 @@ async test "native promotion never creates destination parents" {
 }
 
 ///|
+async test "read-only destination inspection refuses symlink traversal" {
+  let destination = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-inspect-destination-"),
+  )
+  let outside = @fs.realpath(@fs.tmpdir(prefix="moonfort-inspect-outside-"))
+  assert_eq(
+    inspect_sandbox_destination(destination, "result"),
+    DestinationAbsent,
+  )
+  @fs.write_file(
+    "\{destination}/result",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  assert_true(
+    inspect_sandbox_destination(destination, "result")
+    is DestinationRegular(size_bytes=8L, fingerprint=_),
+  )
+  @fs.remove("\{destination}/result")
+  @fs.symlink("\{destination}/result", target="\{outside}/missing")
+  assert_eq(
+    inspect_sandbox_destination(destination, "result"),
+    DestinationUnavailable,
+  )
+  @fs.remove("\{destination}/result")
+  @fs.symlink("\{destination}/parent", target=outside)
+  assert_eq(
+    inspect_sandbox_destination(destination, "parent/result"),
+    DestinationUnavailable,
+  )
+  ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
+  ignore(@fs.rmdir(outside, recursive=true) catch { _ => () })
+}
+
+///|
 test "native I/O status requires recovery" {
   let item : SandboxPromotionItem = {
     source_relative_path: "artifact",

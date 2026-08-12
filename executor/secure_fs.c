@@ -109,3 +109,40 @@ int32_t moonfort_sync_directory(moonbit_bytes_t bytes, int32_t length) {
   errno = saved;
   return result;
 }
+
+static void encode_u64_be(unsigned char *output, uint64_t value) {
+  for (int index = 0; index < 8; ++index) {
+    output[7 - index] = (unsigned char)(value >> (index * 8));
+  }
+}
+
+/* Return a stable identity for the exact no-follow directory opened at path.
+ * The MoonBit layer hashes this identity with the workspace ID and canonical
+ * registered path; the raw device/inode pair never enters protocol output. */
+MOONBIT_FFI_EXPORT
+int32_t moonfort_directory_identity(
+  moonbit_bytes_t bytes,
+  int32_t length,
+  moonbit_bytes_t identity,
+  int32_t identity_length
+) {
+  if (identity_length != 16) return -1;
+  char *path = copy_path(bytes, length);
+  if (path == NULL) return -1;
+  int descriptor = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  if (descriptor < 0) {
+    free(path);
+    return -1;
+  }
+  struct stat opened;
+  struct stat named;
+  int ok = fstat(descriptor, &opened) == 0 && lstat(path, &named) == 0 &&
+    S_ISDIR(opened.st_mode) && S_ISDIR(named.st_mode) &&
+    opened.st_dev == named.st_dev && opened.st_ino == named.st_ino;
+  close(descriptor);
+  free(path);
+  if (!ok) return -1;
+  encode_u64_be(identity, (uint64_t)opened.st_dev);
+  encode_u64_be(identity + 8, (uint64_t)opened.st_ino);
+  return 0;
+}

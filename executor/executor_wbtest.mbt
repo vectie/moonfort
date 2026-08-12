@@ -779,7 +779,12 @@ async test "promotion claim durably binds the exact reviewed item" {
   ).unwrap()
   let record = load_retention_record(retention_id, config)
   let item = plan.items()[0]
-  let claimed = claim_retention_for_promotion(record, item, config)
+  let claimed = claim_retention_for_promotion(
+    record,
+    item,
+    config.workspaces["book"].root,
+    config,
+  )
   assert_false(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
   let claim_path = "\{config.retention_root}/\{retention_id}.claim"
   let claim : PromotionClaim = @json.from_json(
@@ -790,6 +795,9 @@ async test "promotion claim durably binds the exact reviewed item" {
   assert_eq(claim.record, record)
   assert_eq(claim.item, item)
   assert_eq(claim.phase, "prepared")
+  assert_true(
+    claim.workspace_root_binding is Some(binding) && sha256_digest(binding),
+  )
   assert_eq(sweep_expired_retentions(config), 0)
   assert_true(@fs.exists(claimed))
   assert_true(@fs.exists(claim_path))
@@ -809,6 +817,270 @@ async test "promotion claim durably binds the exact reviewed item" {
   assert_false(@fs.exists(claim_path))
   assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
   @fs.remove("\{config.retention_root}/\{retention_id}.json")
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "recovery inspection is read-only and classifies confined content" {
+  let (config, roots) = test_executor_config()
+  let workspace = config.workspaces["book"].root
+  let (scratch, retention_id) = allocate_scratch("request-inspect", config)
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let fingerprint = @crypto.bytes_to_hex_string(@crypto.sha256(b"reviewed"))
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "artifact",
+    kind: RegularFile,
+    size_bytes: 8L,
+    fingerprint,
+  }
+  assert_true(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [entry],
+      config,
+    ),
+  )
+  @fs.mkdir("\{workspace}/reviewed", permission=0o700)
+  let plan = @sandbox.plan_sandbox_promotion(
+    { entries: [entry], total_bytes: 8L },
+    workspace,
+    [{ artifact_path: "artifact", destination_path: "reviewed/result" }],
+  ).unwrap()
+  let record = load_retention_record(retention_id, config)
+  let claimed = claim_retention_for_promotion(
+    record,
+    plan.items()[0],
+    workspace,
+    config,
+  )
+  let claim_path = "\{config.retention_root}/\{retention_id}.claim"
+  let before_claim = bounded_regular_file(
+    claim_path,
+    config.limits.max_protocol_bytes,
+  )
+  let before_promoting = bounded_regular_file(
+    claimed,
+    config.limits.max_protocol_bytes,
+  )
+  let request : RetentionRecoveryInspectionRequest = {
+    protocol_version: 4,
+    retention_id,
+  }
+  let prestate = inspect_retention_recovery(request, config)
+  assert_eq(prestate.outcome, "reviewed-prestate")
+  assert_true(prestate.error is None)
+  assert_eq(prestate.destination_path, "reviewed/result")
+  assert_true(sha256_digest(prestate.reviewed_state_digest))
+  assert_true(sha256_digest(prestate.desired_state_digest))
+  assert_true(sha256_digest(prestate.observed_state_digest))
+  @fs.write_file(
+    "\{workspace}/reviewed/result",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let desired = inspect_retention_recovery(request, config)
+  assert_eq(desired.outcome, "desired-applied")
+  assert_eq(desired.observed_state_digest, desired.desired_state_digest)
+  @fs.write_file(
+    "\{workspace}/reviewed/result",
+    "diverged",
+    create_mode=CreateOrTruncate,
+    permission=0o600,
+  )
+  let diverged = inspect_retention_recovery(request, config)
+  assert_eq(diverged.outcome, "diverged")
+  assert_true(diverged.error is None)
+  @fs.remove("\{workspace}/reviewed/result")
+  @fs.symlink("\{workspace}/reviewed/result", target="/etc/passwd")
+  let unavailable = inspect_retention_recovery(request, config)
+  assert_eq(unavailable.outcome, "unavailable")
+  assert_true(
+    unavailable.error is Some(error) && error.code == "destination-unavailable",
+  )
+  let encoded = unavailable.to_json().stringify()
+  assert_false(encoded.contains(workspace))
+  assert_false(encoded.contains("/etc/passwd"))
+  assert_eq(
+    bounded_regular_file(claim_path, config.limits.max_protocol_bytes),
+    before_claim,
+  )
+  assert_eq(
+    bounded_regular_file(claimed, config.limits.max_protocol_bytes),
+    before_promoting,
+  )
+  @fs.remove("\{workspace}/reviewed/result")
+  assert_true(restore_claimed_retention(claimed, record, config))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove("\{config.retention_root}/\{retention_id}.json")
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "recovery inspection refuses legacy and remapped workspace roots" {
+  let (config, roots) = test_executor_config()
+  let workspace = config.workspaces["book"].root
+  let (scratch, retention_id) = allocate_scratch(
+    "request-inspect-binding", config,
+  )
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "artifact",
+    kind: RegularFile,
+    size_bytes: 8L,
+    fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"reviewed")),
+  }
+  assert_true(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [entry],
+      config,
+    ),
+  )
+  let plan = @sandbox.plan_sandbox_promotion(
+    { entries: [entry], total_bytes: 8L },
+    workspace,
+    [{ artifact_path: "artifact", destination_path: "result" }],
+  ).unwrap()
+  let record = load_retention_record(retention_id, config)
+  let claimed = claim_retention_for_promotion(
+    record,
+    plan.items()[0],
+    workspace,
+    config,
+  )
+  let request : RetentionRecoveryInspectionRequest = {
+    protocol_version: 4,
+    retention_id,
+  }
+  let alternate = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-remapped-workspace-"),
+  )
+  let remapped_policy : WorkspacePolicy = {
+    ..config.workspaces["book"],
+    root: alternate,
+    read_only_roots: [alternate],
+  }
+  let remapped : ExecutorConfig = {
+    ..config,
+    workspaces: { "book": remapped_policy },
+  }
+  let root_refused = inspect_retention_recovery(request, remapped)
+  assert_eq(root_refused.outcome, "manual-recovery")
+  assert_true(
+    root_refused.error is Some(error) && error.code == "root-mapping-unproven",
+  )
+  assert_false(root_refused.to_json().stringify().contains(alternate))
+  let claim_path = "\{config.retention_root}/\{retention_id}.claim"
+  let claim : PromotionClaim = @json.from_json(
+    @json.parse(
+      bounded_regular_file(claim_path, config.limits.max_protocol_bytes),
+    ),
+  )
+  @fs.write_file(
+    claim_path,
+    { ..claim, workspace_root_binding: None }.to_json().stringify(),
+    create_mode=CreateOrTruncate,
+    permission=0o600,
+    sync=Full,
+  )
+  let legacy = inspect_retention_recovery(request, config)
+  assert_eq(legacy.outcome, "manual-recovery")
+  assert_true(
+    legacy.error is Some(error) && error.code == "root-mapping-unproven",
+  )
+  assert_true(restore_claimed_retention(claimed, record, config))
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
+  @fs.remove("\{config.retention_root}/\{retention_id}.json")
+  ignore(@fs.rmdir(alternate, recursive=true) catch { _ => () })
+  cleanup_test_roots(roots)
+}
+
+///|
+async test "recovery inspection rejects a mismatched claim pair" {
+  let (config, roots) = test_executor_config()
+  let workspace = config.workspaces["book"].root
+  let (scratch, retention_id) = allocate_scratch("request-inspect-pair", config)
+  @fs.write_file(
+    "\{scratch}/artifact",
+    "reviewed",
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let entry : @sandbox.ScratchEntry = {
+    relative_path: "artifact",
+    kind: RegularFile,
+    size_bytes: 8L,
+    fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"reviewed")),
+  }
+  assert_true(
+    retain_scratch(
+      scratch,
+      retention_id,
+      "book",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      [entry],
+      config,
+    ),
+  )
+  let plan = @sandbox.plan_sandbox_promotion(
+    { entries: [entry], total_bytes: 8L },
+    workspace,
+    [{ artifact_path: "artifact", destination_path: "result" }],
+  ).unwrap()
+  let record = load_retention_record(retention_id, config)
+  let claimed = claim_retention_for_promotion(
+    record,
+    plan.items()[0],
+    workspace,
+    config,
+  )
+  @fs.write_file(
+    claimed,
+    {
+      ..record,
+      command_digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    }
+    .to_json()
+    .stringify(),
+    create_mode=CreateOrTruncate,
+    permission=0o600,
+    sync=Full,
+  )
+  let response = inspect_retention_recovery(
+    { protocol_version: 4, retention_id },
+    config,
+  )
+  assert_eq(response.outcome, "unavailable")
+  assert_eq(response.destination_path, "")
+  assert_true(
+    response.error is Some(error) && error.code == "inspection-unavailable",
+  )
+  @fs.remove(claimed)
+  @fs.remove("\{config.retention_root}/\{retention_id}.claim")
+  assert_true(@sandbox.discard_scratch_tree(scratch) is Ok(_))
   cleanup_test_roots(roots)
 }
 
@@ -869,6 +1141,7 @@ async test "proven pre-rename claim rollback permits a clean retry" {
   let retry_claimed = claim_retention_for_promotion(
     record,
     plan.items()[0],
+    config.workspaces["book"].root,
     config,
   )
   assert_true(@fs.exists(retry_claimed))
