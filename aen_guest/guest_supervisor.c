@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <linux/magic.h>
-#include <linux/mount.h>
 #include <limits.h>
 #include <poll.h>
 #include <sched.h>
@@ -15,6 +14,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/mount.h>
+#include <linux/mount.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
