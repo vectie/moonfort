@@ -14,7 +14,6 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/mount.h>
-#include <linux/mount.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
@@ -30,6 +29,15 @@
 #ifndef MF_TOOL_REGISTRY
 #define MF_TOOL_REGISTRY "/opt/moonfort/etc/tool-registry.tsv"
 #endif
+
+#define MF_MOUNT_ATTR_RDONLY 0x00000001ULL
+#define MF_AT_RECURSIVE 0x8000
+struct mf_mount_attr {
+  unsigned long long attr_set;
+  unsigned long long attr_clr;
+  unsigned long long propagation;
+  unsigned long long userns_fd;
+};
 
 static volatile sig_atomic_t cancelled;
 static void cancellation(int signal_number){(void)signal_number;cancelled=1;}
@@ -127,11 +135,11 @@ static struct policy read_policy(const char *profile){
 
 static int readonly_root_except_scratch(const char *scratch,const char *profile){
   if(unshare(CLONE_NEWNS)||mount(NULL,"/",NULL,MS_REC|MS_PRIVATE,NULL))return -1;
-  struct mount_attr readonly={.attr_set=MOUNT_ATTR_RDONLY};
-  if(syscall(SYS_mount_setattr,AT_FDCWD,"/",AT_RECURSIVE,&readonly,sizeof(readonly)))return -1;
-  struct mount_attr writable={.attr_clr=MOUNT_ATTR_RDONLY};
+  struct mf_mount_attr readonly={.attr_set=MF_MOUNT_ATTR_RDONLY};
+  if(syscall(SYS_mount_setattr,AT_FDCWD,"/",MF_AT_RECURSIVE,&readonly,sizeof(readonly)))return -1;
+  struct mf_mount_attr writable={.attr_clr=MF_MOUNT_ATTR_RDONLY};
   char quota_root[MF_PATH_MAX],name[80];int name_length=snprintf(name,sizeof(name),"overlay-%s",profile);
-  if(name_length<=0||(size_t)name_length>=sizeof(name)||mf_join_path(quota_root,sizeof(quota_root),MF_RUNTIME_DIR,name)||syscall(SYS_mount_setattr,AT_FDCWD,quota_root,AT_RECURSIVE,&writable,sizeof(writable))||syscall(SYS_mount_setattr,AT_FDCWD,scratch,AT_RECURSIVE,&writable,sizeof(writable)))return -1;
+  if(name_length<=0||(size_t)name_length>=sizeof(name)||mf_join_path(quota_root,sizeof(quota_root),MF_RUNTIME_DIR,name)||syscall(SYS_mount_setattr,AT_FDCWD,quota_root,MF_AT_RECURSIVE,&writable,sizeof(writable))||syscall(SYS_mount_setattr,AT_FDCWD,scratch,MF_AT_RECURSIVE,&writable,sizeof(writable)))return -1;
   struct statvfs root_status,scratch_status,quota_status;
   if(statvfs("/",&root_status)||statvfs(scratch,&scratch_status)||statvfs(quota_root,&quota_status)||!(root_status.f_flag&ST_RDONLY)||(scratch_status.f_flag&ST_RDONLY)||(quota_status.f_flag&ST_RDONLY))return -1;
   return 0;

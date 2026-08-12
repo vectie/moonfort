@@ -8,6 +8,18 @@ async fn[T : AenTransport] AenBackend::refused_exec_receipt(
 }
 
 ///|
+fn trusted_guest_limit_reason(code : Int) -> String? {
+  match code {
+    201 => Some("output_bytes")
+    202 => Some("wall_clock_ms")
+    203 => Some("cpu_seconds")
+    204 => Some("disk_mib")
+    205 => Some("processes")
+    _ => None
+  }
+}
+
+///|
 fn[T] AenBackend::guest_argv(
   self : AenBackend[T],
   prepared : @sandbox.PreparedSandboxCommand,
@@ -284,14 +296,7 @@ pub async fn[T : AenTransport] AenBackend::exec(
     }
   }
   let rendered = @utf8.decode_lossy(output.to_bytes())
-  let trusted_limit = match code {
-    201 => Some("output_bytes")
-    202 => Some("wall_clock_ms")
-    203 => Some("cpu_seconds")
-    204 => Some("disk_mib")
-    205 => Some("processes")
-    _ => None
-  }
+  let trusted_limit = trusted_guest_limit_reason(code)
   if trusted_limit is Some(reason) {
     return {
       ..@sandbox.killed_receipt(

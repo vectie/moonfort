@@ -984,3 +984,15 @@ test "changed paths are backend-neutral and reject unsafe watcher paths" {
     )
   }
 }
+
+///|
+test "reserved fixed-supervisor exits map only to trusted limit reasons" {
+  assert_eq(trusted_guest_limit_reason(201), Some("output_bytes"))
+  assert_eq(trusted_guest_limit_reason(202), Some("wall_clock_ms"))
+  assert_eq(trusted_guest_limit_reason(203), Some("cpu_seconds"))
+  assert_eq(trusted_guest_limit_reason(204), Some("disk_mib"))
+  assert_eq(trusted_guest_limit_reason(205), Some("processes"))
+  assert_eq(trusted_guest_limit_reason(137), None)
+  assert_eq(trusted_guest_limit_reason(200), None)
+  assert_eq(trusted_guest_limit_reason(206), None)
+}
