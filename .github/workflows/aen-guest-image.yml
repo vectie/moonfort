@@ -65,8 +65,8 @@ jobs:
           run_case bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb /scratch-inodes inode-storm
           run_case cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc /scratch-deleted deleted-open
           sudo umount /workspace
-          printf before > /workspace/modify.txt
-          printf removed > /workspace/delete.txt
+          printf before | sudo tee /workspace/modify.txt >/dev/null
+          printf removed | sudo tee /workspace/delete.txt >/dev/null
           modify_digest=$(sha256sum /workspace/modify.txt | awk '{print $1}')
           delete_digest=$(sha256sum /workspace/delete.txt | awk '{print $1}')
           workspace_digest=$(printf 'F\tdelete.txt\t7\t%s\nF\tmodify.txt\t6\t%s\n' "$delete_digest" "$modify_digest" | sha256sum | awk '{print $1}')
