@@ -19,6 +19,9 @@ async fn main {
       @trusted_executor.RetentionPromotionResponse::{
         protocol_version: 3,
         retention_id: "",
+        workspace_id: "",
+        approval_digest: "",
+        command_digest: "",
         promoted_paths: [],
         completed: false,
         error: Some({
@@ -32,6 +35,9 @@ async fn main {
           let rejected : @trusted_executor.RetentionPromotionResponse = {
             protocol_version: 3,
             retention_id: "",
+            workspace_id: "",
+            approval_digest: "",
+            command_digest: "",
             promoted_paths: [],
             completed: false,
             error: Some({
@@ -50,6 +56,9 @@ async fn main {
           let rejected : @trusted_executor.RetentionPromotionResponse = {
             protocol_version: 3,
             retention_id: "",
+            workspace_id: "",
+            approval_digest: "",
+            command_digest: "",
             promoted_paths: [],
             completed: false,
             error: Some({

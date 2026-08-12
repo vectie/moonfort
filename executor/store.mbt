@@ -325,6 +325,7 @@ async fn allocate_scratch(
 async fn retain_scratch(
   scratch : String,
   retention_id : String,
+  workspace_id : String,
   approval_digest : String,
   command_digest : String,
   config : ExecutorConfig,
@@ -338,6 +339,7 @@ async fn retain_scratch(
     scratch_path: scratch,
     expires_at_ms: @env.now().reinterpret_as_int64() +
     config.limits.retention_ms,
+    workspace_id,
     approval_digest,
     command_digest,
   }
@@ -372,6 +374,7 @@ async fn load_retention_record(
   )
   guard record.retention_id == retention_id &&
     record.scratch_path == "\{config.scratch_root}/\{retention_id}" &&
+    safe_identifier(record.workspace_id) &&
     record.expires_at_ms > @env.now().reinterpret_as_int64() &&
     @fs.realpath(record.scratch_path) == record.scratch_path &&
     @fs.kind(record.scratch_path, follow_symlink=false) is Directory else {
@@ -420,6 +423,9 @@ pub async fn promote_retention(
     {
       protocol_version: 3,
       retention_id: request.retention_id,
+      workspace_id: "",
+      approval_digest: "",
+      command_digest: "",
       promoted_paths: [],
       completed: false,
       error: Some({ code: "promotion-refused", message }),
@@ -438,7 +444,8 @@ pub async fn promote_retention(
     _ => return refused("retention is unavailable, expired, or invalid")
   }
   if record.approval_digest != request.approval_digest ||
-    record.command_digest != request.command_digest {
+    record.command_digest != request.command_digest ||
+    record.workspace_id != request.workspace_id {
     return refused("promotion digests do not match the retained execution")
   }
   let disk_limit_bytes = config.limits.max_disk_mib.to_int64() * 1024L * 1024L
@@ -478,6 +485,9 @@ pub async fn promote_retention(
         {
           protocol_version: 3,
           retention_id: request.retention_id,
+          workspace_id: record.workspace_id,
+          approval_digest: record.approval_digest,
+          command_digest: record.command_digest,
           promoted_paths: result.promoted_paths,
           completed: true,
           error: None,
@@ -486,6 +496,9 @@ pub async fn promote_retention(
         {
           protocol_version: 3,
           retention_id: request.retention_id,
+          workspace_id: record.workspace_id,
+          approval_digest: record.approval_digest,
+          command_digest: record.command_digest,
           promoted_paths: result.promoted_paths,
           completed: false,
           error: Some({
@@ -519,6 +532,7 @@ pub async fn sweep_expired_retentions(config : ExecutorConfig) -> Int {
     }
     if record.retention_id != id ||
       record.scratch_path != "\{config.scratch_root}/\{id}" ||
+      !safe_identifier(record.workspace_id) ||
       record.expires_at_ms > now {
       continue
     }

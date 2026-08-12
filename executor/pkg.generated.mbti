@@ -105,6 +105,9 @@ pub(all) struct RetentionPromotionRequest {
 pub(all) struct RetentionPromotionResponse {
   protocol_version : Int
   retention_id : String
+  workspace_id : String
+  approval_digest : String
+  command_digest : String
   promoted_paths : Array[String]
   completed : Bool
   error : ExecutorProtocolError?

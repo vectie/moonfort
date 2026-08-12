@@ -237,7 +237,7 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
   )
   assert_true(
     retain_scratch(
-      scratch, retention_id, "approval-digest", "command-digest", config,
+      scratch, retention_id, "book", "approval-digest", "command-digest", config,
     ),
   )
   let scratch = "\{config.scratch_root}/\{retention_id}"
@@ -270,7 +270,7 @@ async test "promotion requires matching retained execution digests" {
   )
   assert_true(
     retain_scratch(
-      scratch, retention_id, "approval-digest", "command-digest", config,
+      scratch, retention_id, "book", "approval-digest", "command-digest", config,
     ),
   )
   let base : RetentionPromotionRequest = {
@@ -294,6 +294,9 @@ async test "promotion requires matching retained execution digests" {
   assert_false(@fs.exists("\{config.workspaces["book"].root}/promoted"))
   let promoted = promote_retention(base, config)
   assert_true(promoted.completed)
+  assert_eq(promoted.workspace_id, "book")
+  assert_eq(promoted.approval_digest, "approval-digest")
+  assert_eq(promoted.command_digest, "command-digest")
   assert_eq(promoted.promoted_paths, ["promoted/generated.txt"])
   let promoted_bytes = @fs.read_file(
     "\{config.workspaces["book"].root}/promoted/generated.txt",

@@ -39,6 +39,9 @@ pub(all) struct RetentionPromotionRequest {
 pub(all) struct RetentionPromotionResponse {
   protocol_version : Int
   retention_id : String
+  workspace_id : String
+  approval_digest : String
+  command_digest : String
   promoted_paths : Array[String]
   completed : Bool
   error : ExecutorProtocolError?
@@ -129,6 +132,7 @@ struct RetentionRecord {
   retention_id : String
   scratch_path : String
   expires_at_ms : Int64
+  workspace_id : String
   approval_digest : String
   command_digest : String
 } derive(ToJson, FromJson)

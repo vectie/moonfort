@@ -166,7 +166,12 @@ pub async fn execute_invocation(
     raw_receipt.changed_paths.length() <= config.limits.max_changed_paths
   let retained = if retain_local {
     retain_scratch(
-      scratch, retention_id, approval_digest, command_digest, config,
+      scratch,
+      retention_id,
+      grant.workspace_id,
+      approval_digest,
+      command_digest,
+      config,
     )
   } else {
     false
