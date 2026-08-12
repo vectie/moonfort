@@ -75,11 +75,18 @@ pub(all) struct SandboxPromotionRequest {
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
+pub(all) enum SandboxPromotionDestinationState {
+  ReviewedDestinationAbsent
+  ReviewedDestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
 pub(all) struct SandboxPromotionItem {
   source_relative_path : String
   destination_relative_path : String
   expected_source_fingerprint : String
   size_bytes : Int64
+  expected_destination_state : SandboxPromotionDestinationState
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
@@ -102,6 +109,7 @@ pub(all) enum SandboxPromotionRefusal {
   DestinationParentNotDirectory(String)
   DestinationIsDirectory(String)
   DestinationUnsupported(path~ : String, kind~ : String)
+  DestinationStateChanged(String)
   SourceFingerprintMismatch(String)
   DestinationIo(String)
 } derive(Debug, Eq, ToJson, FromJson)
@@ -121,6 +129,7 @@ pub fn SandboxPromotionRefusal::code(self : SandboxPromotionRefusal) -> String {
     DestinationParentNotDirectory(_) => "destination-parent-not-directory"
     DestinationIsDirectory(_) => "destination-is-directory"
     DestinationUnsupported(..) => "destination-unsupported"
+    DestinationStateChanged(_) => "destination-state-changed"
     SourceFingerprintMismatch(_) => "source-fingerprint-mismatch"
     DestinationIo(_) => "destination-io"
   }
@@ -264,11 +273,22 @@ pub async fn plan_sandbox_promotion(
         is Some(reason) {
         return Err(reason)
       }
+      let destination_state = match
+        secure_destination_state(destination_root, request.destination_path) {
+        SecureDestinationAbsent => ReviewedDestinationAbsent
+        SecureDestinationRegular(size_bytes~, fingerprint~) =>
+          ReviewedDestinationRegular(size_bytes~, fingerprint~)
+        SecureDestinationError(status) =>
+          return Err(
+            DestinationIo("destination-review-\{secure_fs_status_code(status)}"),
+          )
+      }
       items.push({
         source_relative_path: request.artifact_path,
         destination_relative_path: request.destination_path,
         expected_source_fingerprint: source.fingerprint,
         size_bytes: source.size_bytes,
+        expected_destination_state: destination_state,
       })
     }
     Ok({ destination_root, items })
@@ -281,7 +301,10 @@ pub async fn plan_sandbox_promotion(
 ///|
 /// Apply a reviewed plan one regular file at a time. Native fd-relative
 /// traversal pins every source/destination directory without following
-/// symlinks; writes use a sibling temporary file followed by `renameat`.
+/// symlinks. Each item also binds the reviewed destination state. Absent files
+/// are installed with an atomic no-replace rename; existing regular files are
+/// installed with an atomic exchange and the displaced bytes are verified
+/// before deletion. Unsupported atomic primitives are refusal conditions.
 pub async fn apply_sandbox_promotion(
   scratch_root : String,
   plan : SandboxPromotionPlan,
@@ -321,12 +344,24 @@ pub async fn apply_sandbox_promotion(
         item.destination_relative_path,
         item.size_bytes,
         item.expected_source_fingerprint,
+        match item.expected_destination_state {
+          ReviewedDestinationAbsent => 0
+          ReviewedDestinationRegular(..) => 1
+        },
+        match item.expected_destination_state {
+          ReviewedDestinationAbsent => 0L
+          ReviewedDestinationRegular(size_bytes~, ..) => size_bytes
+        },
+        match item.expected_destination_state {
+          ReviewedDestinationAbsent => ""
+          ReviewedDestinationRegular(fingerprint~, ..) => fingerprint
+        },
       )
       if status == 2 {
         return Err(SourceFingerprintMismatch(item.source_relative_path))
       }
       if status == 3 || status == 1 {
-        return Err(DestinationSymlink(item.destination_relative_path))
+        return Err(DestinationStateChanged(item.destination_relative_path))
       }
       if status != 0 {
         return Err(DestinationIo(secure_fs_status_code(status)))

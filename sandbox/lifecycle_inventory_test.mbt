@@ -271,6 +271,95 @@ async test "promotion pins destination ancestry after reviewed plan" {
 }
 
 ///|
+async test "promotion refuses destination created after absent review" {
+  let scratch = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-created-source-"),
+  )
+  let destination = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-created-dest-"),
+  )
+  @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
+  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let plan = plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result" },
+  ]).unwrap()
+  assert_true(
+    plan.items()[0].expected_destination_state is ReviewedDestinationAbsent,
+  )
+  @fs.write_file("\{destination}/result", "attacker", create_mode=CreateNew)
+  let applied = apply_sandbox_promotion(scratch, plan)
+  guard applied is Err(reason) else {
+    fail("expected created destination refusal")
+  }
+  assert_eq(reason.code(), "destination-state-changed")
+  assert_eq(@fs.read_file("\{destination}/result").text(), "attacker")
+  assert_eq(@fs.read_file("\{scratch}/artifact").text(), "reviewed")
+  ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
+}
+
+///|
+async test "promotion refuses same-size destination replacement after review" {
+  let scratch = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-replaced-source-"),
+  )
+  let destination = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-replaced-dest-"),
+  )
+  @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
+  @fs.write_file("\{destination}/result", "before!", create_mode=CreateNew)
+  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let plan = plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result" },
+  ]).unwrap()
+  guard plan.items()[0].expected_destination_state
+    is ReviewedDestinationRegular(
+      size_bytes=7L,
+      fingerprint=reviewed_fingerprint
+    ) else {
+    fail("expected reviewed regular destination state")
+  }
+  assert_eq(
+    reviewed_fingerprint,
+    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode("before!"))),
+  )
+  @fs.write_file("\{destination}/replacement", "after!!", create_mode=CreateNew)
+  @fs.rename("\{destination}/replacement", "\{destination}/result")
+  let applied = apply_sandbox_promotion(scratch, plan)
+  guard applied is Err(reason) else {
+    fail("expected replaced destination refusal")
+  }
+  assert_eq(reason.code(), "destination-state-changed")
+  assert_eq(@fs.read_file("\{destination}/result").text(), "after!!")
+  assert_eq(@fs.read_file("\{scratch}/artifact").text(), "reviewed")
+  ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
+}
+
+///|
+async test "promotion atomically exchanges an unchanged reviewed destination" {
+  let scratch = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-exchange-source-"),
+  )
+  let destination = @fs.realpath(
+    @fs.tmpdir(prefix="moonfort-promote-exchange-dest-"),
+  )
+  @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
+  @fs.write_file("\{destination}/result", "before!", create_mode=CreateNew)
+  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let plan = plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result" },
+  ]).unwrap()
+  let applied = apply_sandbox_promotion(scratch, plan).unwrap()
+  assert_eq(applied.promoted_paths, ["result"])
+  assert_eq(@fs.read_file("\{destination}/result").text(), "reviewed")
+  let names = @fs.readdir(destination)
+  assert_eq(names, ["result"])
+  ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  ignore(@fs.rmdir(destination, recursive=true) catch { _ => () })
+}
+
+///|
 async test "discard refuses a swapped root without touching symlink target" {
   let owner = @fs.realpath(@fs.tmpdir(prefix="moonfort-discard-race-owner-"))
   let outside = @fs.realpath(

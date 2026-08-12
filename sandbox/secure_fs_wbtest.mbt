@@ -13,6 +13,9 @@ async test "native promotion rejects same-size source mutation" {
     "result",
     expected.size_bytes,
     expected.fingerprint,
+    0,
+    0L,
+    "",
   )
   assert_eq(status, 2)
   assert_false(@fs.exists("\{destination}/result"))

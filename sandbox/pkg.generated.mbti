@@ -208,11 +208,17 @@ pub(all) struct SandboxProfile {
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxProfile::allow_degraded(Self) -> Self
 
+pub(all) enum SandboxPromotionDestinationState {
+  ReviewedDestinationAbsent
+  ReviewedDestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct SandboxPromotionItem {
   source_relative_path : String
   destination_relative_path : String
   expected_source_fingerprint : String
   size_bytes : Int64
+  expected_destination_state : SandboxPromotionDestinationState
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
 pub struct SandboxPromotionPlan {
@@ -235,6 +241,7 @@ pub(all) enum SandboxPromotionRefusal {
   DestinationParentNotDirectory(String)
   DestinationIsDirectory(String)
   DestinationUnsupported(path~ : String, kind~ : String)
+  DestinationStateChanged(String)
   SourceFingerprintMismatch(String)
   DestinationIo(String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)

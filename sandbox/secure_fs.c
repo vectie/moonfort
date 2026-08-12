@@ -12,6 +12,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if defined(__APPLE__)
+/* _POSIX_C_SOURCE intentionally hides Darwin's extension declarations. Keep
+   the closed declaration local instead of enabling unrelated APIs. */
+extern int renameatx_np(
+  int, const char *, int, const char *, unsigned int
+);
+#define MOONFORT_RENAME_SWAP 0x00000002U
+#define MOONFORT_RENAME_EXCL 0x00000004U
+#elif defined(__linux__)
+#include <sys/syscall.h>
+extern long syscall(long, ...);
+#endif
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -28,7 +40,8 @@ enum secure_fs_status {
   SECURE_FS_SOURCE = 2,
   SECURE_FS_DESTINATION = 3,
   SECURE_FS_IO = 4,
-  SECURE_FS_UNSUPPORTED = 5
+  SECURE_FS_UNSUPPORTED = 5,
+  SECURE_FS_DESTINATION_REGULAR = 6
 };
 
 static atomic_uint_fast64_t temporary_counter = 1;
@@ -174,6 +187,121 @@ static int sha256_matches_hex(
     difference |= expected[index * 2 + 1] ^ hex[digest[index] & 15];
   }
   return difference == 0;
+}
+
+static void sha256_hex(
+  const unsigned char digest[32],
+  unsigned char output[64]
+) {
+  static const char hex[] = "0123456789abcdef";
+  for (int index = 0; index < 32; ++index) {
+    output[index * 2] = (unsigned char)hex[digest[index] >> 4];
+    output[index * 2 + 1] = (unsigned char)hex[digest[index] & 15];
+  }
+}
+
+static int hash_regular_descriptor(
+  int descriptor,
+  int64_t expected_size,
+  const unsigned char *expected_fingerprint,
+  int32_t expected_fingerprint_length,
+  unsigned char output_digest[32]
+) {
+  struct stat before;
+  if (fstat(descriptor, &before) != 0 || !S_ISREG(before.st_mode) ||
+      before.st_size < 0 ||
+      (expected_size >= 0 && before.st_size != expected_size) ||
+      lseek(descriptor, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+  struct sha256_state hasher;
+  sha256_init(&hasher);
+  int64_t total = 0;
+  unsigned char buffer[65536];
+  for (;;) {
+    ssize_t count = read(descriptor, buffer, sizeof(buffer));
+    if (count == 0) break;
+    if (count < 0) {
+      if (errno == EINTR) continue;
+      return -1;
+    }
+    total += count;
+    if (total > before.st_size) return -1;
+    sha256_update(&hasher, buffer, (size_t)count);
+  }
+  struct stat after;
+  sha256_finish(&hasher, output_digest);
+  if (total != before.st_size || fstat(descriptor, &after) != 0 ||
+      after.st_dev != before.st_dev || after.st_ino != before.st_ino ||
+      after.st_size != before.st_size) {
+    return -1;
+  }
+  if (expected_fingerprint != NULL &&
+      !sha256_matches_hex(
+        output_digest, expected_fingerprint, expected_fingerprint_length
+      )) {
+    return 1;
+  }
+  return 0;
+}
+
+static int atomic_rename_no_replace(
+  int old_directory,
+  const char *old_name,
+  int new_directory,
+  const char *new_name
+) {
+#if defined(__APPLE__)
+  return renameatx_np(
+    old_directory, old_name, new_directory, new_name, MOONFORT_RENAME_EXCL
+  );
+#elif defined(__linux__) && defined(SYS_renameat2)
+  return (int)syscall(
+    SYS_renameat2,
+    old_directory,
+    old_name,
+    new_directory,
+    new_name,
+    1U /* RENAME_NOREPLACE */
+  );
+#else
+  (void)old_directory;
+  (void)old_name;
+  (void)new_directory;
+  (void)new_name;
+  errno = ENOTSUP;
+  return -1;
+#endif
+}
+
+static int atomic_rename_exchange(
+  int first_directory,
+  const char *first_name,
+  int second_directory,
+  const char *second_name
+) {
+#if defined(__APPLE__)
+  return renameatx_np(
+    first_directory, first_name, second_directory, second_name,
+    MOONFORT_RENAME_SWAP
+  );
+#elif defined(__linux__) && defined(SYS_renameat2)
+  return (int)syscall(
+    SYS_renameat2,
+    first_directory,
+    first_name,
+    second_directory,
+    second_name,
+    2U /* RENAME_EXCHANGE */
+  );
+#else
+  (void)first_directory;
+  (void)first_name;
+  (void)second_directory;
+  (void)second_name;
+  errno = ENOTSUP;
+  return -1;
+#endif
 }
 
 static int open_directory_at(int parent, const char *component) {
@@ -467,6 +595,84 @@ int32_t moonfort_secure_discard_tree(
   return result;
 }
 
+static int inspect_destination_regular(
+  int parent,
+  const char *leaf,
+  int64_t *size,
+  unsigned char digest[32]
+) {
+  struct stat path_before;
+  if (fstatat(parent, leaf, &path_before, AT_SYMLINK_NOFOLLOW) != 0) {
+    return errno == ENOENT ? 0 : -1;
+  }
+  if (!S_ISREG(path_before.st_mode) || path_before.st_size < 0) return -1;
+  int file = open_regular_at(parent, leaf);
+  if (file < 0) return -1;
+  int hashed = hash_regular_descriptor(file, path_before.st_size, NULL, 0, digest);
+  struct stat opened;
+  struct stat path_after;
+  int stable = hashed == 0 && fstat(file, &opened) == 0 &&
+    fstatat(parent, leaf, &path_after, AT_SYMLINK_NOFOLLOW) == 0 &&
+    S_ISREG(path_after.st_mode) && opened.st_dev == path_before.st_dev &&
+    opened.st_ino == path_before.st_ino &&
+    path_after.st_dev == path_before.st_dev &&
+    path_after.st_ino == path_before.st_ino &&
+    path_after.st_size == path_before.st_size;
+  close(file);
+  if (!stable) return -1;
+  *size = path_before.st_size;
+  return 1;
+}
+
+MOONBIT_FFI_EXPORT
+int32_t moonfort_secure_destination_state(
+  moonbit_bytes_t destination_root_bytes,
+  int32_t destination_root_length,
+  moonbit_bytes_t destination_path_bytes,
+  int32_t destination_path_length,
+  moonbit_bytes_t state_bytes,
+  int32_t state_length
+) {
+  if (state_length != 72) return SECURE_FS_INVALID;
+  char *destination_root = copy_checked_path(
+    destination_root_bytes, destination_root_length, 1
+  );
+  char *destination_path = copy_checked_path(
+    destination_path_bytes, destination_path_length, 0
+  );
+  if (destination_root == NULL || destination_path == NULL) {
+    free(destination_root);
+    free(destination_path);
+    return SECURE_FS_INVALID;
+  }
+  int root = open_absolute_directory(destination_root);
+  free(destination_root);
+  if (root < 0) {
+    free(destination_path);
+    return SECURE_FS_DESTINATION;
+  }
+  char leaf[NAME_MAX + 1];
+  int parent = open_relative_parent(root, destination_path, 0, leaf);
+  int parent_error = errno;
+  free(destination_path);
+  close(root);
+  if (parent < 0) {
+    return parent_error == ENOENT ? SECURE_FS_OK : SECURE_FS_DESTINATION;
+  }
+  int64_t size = 0;
+  unsigned char digest[32];
+  int state = inspect_destination_regular(parent, leaf, &size, digest);
+  close(parent);
+  if (state == 0) return SECURE_FS_OK;
+  if (state < 0) return SECURE_FS_DESTINATION;
+  uint64_t encoded_size = (uint64_t)size;
+  for (int index = 0; index < 8; ++index) {
+    state_bytes[7 - index] = (unsigned char)(encoded_size >> (index * 8));
+  }
+  sha256_hex(digest, state_bytes + 8);
+  return SECURE_FS_DESTINATION_REGULAR;
+}
+
 MOONBIT_FFI_EXPORT
 int32_t moonfort_secure_promote_regular(
   moonbit_bytes_t source_root_bytes,
@@ -479,7 +685,11 @@ int32_t moonfort_secure_promote_regular(
   int32_t destination_path_length,
   int64_t expected_size,
   moonbit_bytes_t expected_fingerprint,
-  int32_t expected_fingerprint_length
+  int32_t expected_fingerprint_length,
+  int32_t expected_destination_kind,
+  int64_t expected_destination_size,
+  moonbit_bytes_t expected_destination_fingerprint,
+  int32_t expected_destination_fingerprint_length
 ) {
   char *source_root = copy_checked_path(
     source_root_bytes, source_root_length, 1
@@ -495,7 +705,11 @@ int32_t moonfort_secure_promote_regular(
   );
   if (source_root == NULL || source_path == NULL || destination_root == NULL ||
       destination_path == NULL || expected_size < 0 ||
-      expected_fingerprint_length != 64) {
+      expected_fingerprint_length != 64 ||
+      (expected_destination_kind != 0 && expected_destination_kind != 1) ||
+      (expected_destination_kind == 1 &&
+       (expected_destination_size < 0 ||
+        expected_destination_fingerprint_length != 64))) {
     free(source_root);
     free(source_path);
     free(destination_root);
@@ -542,19 +756,23 @@ int32_t moonfort_secure_promote_regular(
     close(destination_parent);
     return SECURE_FS_SOURCE;
   }
-  struct stat destination_status;
-  errno = 0;
-  int destination_stat = fstatat(
+  int64_t current_destination_size = 0;
+  unsigned char current_destination_digest[32];
+  int destination_state = inspect_destination_regular(
     destination_parent,
     destination_leaf,
-    &destination_status,
-    AT_SYMLINK_NOFOLLOW
+    &current_destination_size,
+    current_destination_digest
   );
-  if (destination_stat == 0 && !S_ISREG(destination_status.st_mode)) {
-    close(source);
-    close(destination_parent);
-    return SECURE_FS_DESTINATION;
-  } else if (destination_stat != 0 && errno != ENOENT) {
+  if ((expected_destination_kind == 0 && destination_state != 0) ||
+      (expected_destination_kind == 1 &&
+       (destination_state != 1 ||
+        current_destination_size != expected_destination_size ||
+        !sha256_matches_hex(
+          current_destination_digest,
+          expected_destination_fingerprint,
+          expected_destination_fingerprint_length
+        )))) {
     close(source);
     close(destination_parent);
     return SECURE_FS_DESTINATION;
@@ -629,17 +847,106 @@ int32_t moonfort_secure_promote_regular(
        ))) {
     result = SECURE_FS_SOURCE;
   }
-  if (result == SECURE_FS_OK && fsync(output) != 0) result = SECURE_FS_IO;
+  struct stat output_status;
+  int output_status_valid = 0;
+  if (result == SECURE_FS_OK &&
+      (fsync(output) != 0 || fstat(output, &output_status) != 0 ||
+       !S_ISREG(output_status.st_mode))) {
+    result = SECURE_FS_IO;
+  } else if (result == SECURE_FS_OK) {
+    output_status_valid = 1;
+  }
   close(source);
   close(output);
-  if (result == SECURE_FS_OK &&
-      renameat(destination_parent, temporary, destination_parent, destination_leaf) != 0) {
-    result = SECURE_FS_DESTINATION;
+  int destination_directory_mutated = 0;
+  if (result == SECURE_FS_OK && expected_destination_kind == 0) {
+    if (atomic_rename_no_replace(
+          destination_parent,
+          temporary,
+          destination_parent,
+          destination_leaf
+        ) != 0) {
+      result = (errno == ENOSYS || errno == ENOTSUP || errno == EOPNOTSUPP ||
+                errno == EINVAL)
+        ? SECURE_FS_UNSUPPORTED
+        : SECURE_FS_DESTINATION;
+    } else {
+      destination_directory_mutated = 1;
+    }
+  } else if (result == SECURE_FS_OK) {
+    if (atomic_rename_exchange(
+          destination_parent,
+          temporary,
+          destination_parent,
+          destination_leaf
+        ) != 0) {
+      result = (errno == ENOSYS || errno == ENOTSUP || errno == EOPNOTSUPP ||
+                errno == EINVAL)
+        ? SECURE_FS_UNSUPPORTED
+        : SECURE_FS_DESTINATION;
+    } else {
+      destination_directory_mutated = 1;
+      int64_t swapped_size = 0;
+      unsigned char swapped_digest[32];
+      int swapped_state = inspect_destination_regular(
+        destination_parent, temporary, &swapped_size, swapped_digest
+      );
+      int expected_was_swapped = swapped_state == 1 &&
+        swapped_size == expected_destination_size &&
+        sha256_matches_hex(
+          swapped_digest,
+          expected_destination_fingerprint,
+          expected_destination_fingerprint_length
+        );
+      if (!expected_was_swapped) {
+        struct stat installed;
+        int installed_is_ours = output_status_valid && fstatat(
+          destination_parent,
+          destination_leaf,
+          &installed,
+          AT_SYMLINK_NOFOLLOW
+        ) == 0 && S_ISREG(installed.st_mode) &&
+          installed.st_dev == output_status.st_dev &&
+          installed.st_ino == output_status.st_ino;
+        if (!installed_is_ours || atomic_rename_exchange(
+              destination_parent,
+              temporary,
+              destination_parent,
+              destination_leaf
+            ) != 0) {
+          /* Never unlink the displaced entry if its restoration cannot be
+             proven; preserve both names for operator recovery. */
+          result = SECURE_FS_IO;
+        } else {
+          destination_directory_mutated = 1;
+          result = SECURE_FS_DESTINATION;
+        }
+      }
+      if (result == SECURE_FS_OK || result == SECURE_FS_DESTINATION) {
+        if (unlinkat(destination_parent, temporary, 0) != 0) {
+          result = SECURE_FS_IO;
+        }
+      }
+    }
   }
-  if (result == SECURE_FS_OK && fsync(destination_parent) != 0) {
+  if (destination_directory_mutated && fsync(destination_parent) != 0) {
     result = SECURE_FS_IO;
   }
-  if (result != SECURE_FS_OK) (void)unlinkat(destination_parent, temporary, 0);
+  if (result != SECURE_FS_OK && expected_destination_kind == 0) {
+    (void)unlinkat(destination_parent, temporary, 0);
+  } else if (result != SECURE_FS_OK && expected_destination_kind == 1) {
+    struct stat leftover;
+    if (fstatat(
+          destination_parent,
+          temporary,
+          &leftover,
+          AT_SYMLINK_NOFOLLOW
+        ) == 0 && output_status_valid && S_ISREG(leftover.st_mode) &&
+        leftover.st_dev == output_status.st_dev &&
+        leftover.st_ino == output_status.st_ino) {
+      (void)unlinkat(destination_parent, temporary, 0);
+    }
+  }
   close(destination_parent);
   return result;
 }
