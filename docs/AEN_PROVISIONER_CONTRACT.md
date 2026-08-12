@@ -91,7 +91,10 @@ The executor image contains two distinct fixed binaries:
 Both are addressed only by paths from executor-owned configuration inside the
 digest-pinned root image. The adapter checks a versioned JSON attestation before
 starting an approved command. It later runs `guest_attester inventory`, bounded
-to 4096 entries and 4 MiB response, to obtain content-hashed structured changes.
+to 4096 entries per view and a 4 MiB response, to hash the immutable lower
+workspace and merged overlay view. Diffing those observable views represents
+copy-up as `Modified`, new files as `Added`, and whiteout or opaque-directory
+effects as `Removed` without trusting overlay implementation nodes.
 An envd watcher independently supplies the changed-path event set. Failure of
 either source refuses the run.
 

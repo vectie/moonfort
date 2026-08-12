@@ -124,12 +124,12 @@ static int registry_allows(const char *capability,const char *executable,const c
   free(line);fclose(stream);return allowed;
 }
 
-struct policy {char contract[64],profile[MF_SHA256_HEX],scratch[MF_PATH_MAX],supervisor_digest[MF_SHA256_HEX],registry_digest[MF_SHA256_HEX],root_digest[MF_SHA256_HEX];long long cpu,processes,disk;};
+struct policy {char contract[64],profile[MF_SHA256_HEX],workspace[MF_PATH_MAX],scratch[MF_PATH_MAX],supervisor_digest[MF_SHA256_HEX],registry_digest[MF_SHA256_HEX],root_digest[MF_SHA256_HEX];long long cpu,processes,disk;};
 
 static struct policy read_policy(const char *profile){
   char path[MF_PATH_MAX],body[MF_PATH_MAX*3];snprintf(path,sizeof(path),MF_RUNTIME_DIR "/policy-%s",profile);if(mf_read_text_file(path,body,sizeof(body))<0)mf_die("prepared profile policy unavailable");
-  struct policy p={0};char extra;int read=sscanf(body,"%63[^\n]\n%64[a-f0-9]\n%lld\n%lld\n%lld\n%4095[^\n]\n%64[a-f0-9]\n%64[a-f0-9]\n%64[a-f0-9]\n%c",p.contract,p.profile,&p.cpu,&p.processes,&p.disk,p.scratch,p.supervisor_digest,p.registry_digest,p.root_digest,&extra);
-  if(read!=9||strcmp(p.contract,"moonfort-guest-v1")||strcmp(p.profile,profile)||!mf_canonical_absolute(p.scratch)||!mf_valid_digest(p.supervisor_digest)||!mf_valid_digest(p.registry_digest)||!mf_valid_digest(p.root_digest))mf_die("prepared profile policy malformed");
+  struct policy p={0};char extra;int read=sscanf(body,"%63[^\n]\n%64[a-f0-9]\n%lld\n%lld\n%lld\n%4095[^\n]\n%4095[^\n]\n%64[a-f0-9]\n%64[a-f0-9]\n%64[a-f0-9]\n%c",p.contract,p.profile,&p.cpu,&p.processes,&p.disk,p.workspace,p.scratch,p.supervisor_digest,p.registry_digest,p.root_digest,&extra);
+  if(read!=10||strcmp(p.contract,"moonfort-guest-v1")||strcmp(p.profile,profile)||!mf_canonical_absolute(p.workspace)||!mf_canonical_absolute(p.scratch)||!mf_valid_digest(p.supervisor_digest)||!mf_valid_digest(p.registry_digest)||!mf_valid_digest(p.root_digest))mf_die("prepared profile policy malformed");
   return p;
 }
 

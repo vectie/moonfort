@@ -64,6 +64,22 @@ jobs:
           run_case aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa /scratch-outside outside
           run_case bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb /scratch-inodes inode-storm
           run_case cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc /scratch-deleted deleted-open
+          sudo umount /workspace
+          printf before > /workspace/modify.txt
+          printf removed > /workspace/delete.txt
+          modify_digest=$(sha256sum /workspace/modify.txt | awk '{print $1}')
+          delete_digest=$(sha256sum /workspace/delete.txt | awk '{print $1}')
+          workspace_digest=$(printf 'F\tdelete.txt\t7\t%s\nF\tmodify.txt\t6\t%s\n' "$delete_digest" "$modify_digest" | sha256sum | awk '{print $1}')
+          sudo mount --bind /workspace /workspace
+          sudo mount -o remount,bind,ro /workspace
+          profile=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          sudo mkdir -m 0700 /scratch-diff
+          sudo /opt/moonfort/bin/attester prepare-and-attest --contract moonfort-guest-v1 --workspace /workspace --workspace-digest "$workspace_digest" --scratch /scratch-diff --profile-digest "$profile" --supervisor /opt/moonfort/bin/supervisor --executor-root-digest "$root_digest" --attester-digest "$attester_digest" --supervisor-digest "$supervisor_digest" --tool-registry-digest "$registry_digest" --cpu-seconds 10 --process-limit 32 --scratch-disk-mib 1 >/dev/null
+          sudo -u nobody sh -c 'printf after > /scratch-diff/modify.txt; printf added > /scratch-diff/add.txt; rm /scratch-diff/delete.txt'
+          sudo /opt/moonfort/bin/attester inventory --contract moonfort-guest-v1 --scratch /scratch-diff --profile-digest "$profile" --disk-mib 1 --max-entries 4096 > _build/aen-guest/overlay-diff.json
+          jq -e '.baseline.entries | map(.relative_path) | sort == ["delete.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
+          jq -e '.inventory.entries | map(.relative_path) | sort == ["add.txt","modify.txt"]' _build/aen-guest/overlay-diff.json
+          jq -e '(.baseline.entries[] | select(.relative_path=="modify.txt") | .fingerprint) != (.inventory.entries[] | select(.relative_path=="modify.txt") | .fingerprint)' _build/aen-guest/overlay-diff.json
       - uses: hustcer/setup-moonbit@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

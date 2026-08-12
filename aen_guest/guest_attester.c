@@ -172,7 +172,7 @@ static void write_policy(const struct options *o) {
   char path[MF_PATH_MAX],temporary[MF_PATH_MAX],body[MF_PATH_MAX*3];
   char policy_name[80],temporary_name[128];int policy_length=snprintf(policy_name,sizeof(policy_name),"policy-%s",o->profile_digest);int temporary_length=snprintf(temporary_name,sizeof(temporary_name),"policy-%s.tmp-%ld",o->profile_digest,(long)getpid());
   if(policy_length<=0||(size_t)policy_length>=sizeof(policy_name)||temporary_length<=0||(size_t)temporary_length>=sizeof(temporary_name)||mf_join_path(path,sizeof(path),MF_RUNTIME_DIR,policy_name)||mf_join_path(temporary,sizeof(temporary),MF_RUNTIME_DIR,temporary_name))mf_die("profile policy path exceeds bound");
-  int length=snprintf(body,sizeof(body),"%s\n%s\n%lld\n%lld\n%lld\n%s\n%s\n%s\n%s\n",o->contract,o->profile_digest,o->cpu_seconds,o->process_limit,o->scratch_disk_mib,o->scratch,o->supervisor_digest,o->tool_registry_digest,o->executor_root_digest);
+  int length=snprintf(body,sizeof(body),"%s\n%s\n%lld\n%lld\n%lld\n%s\n%s\n%s\n%s\n%s\n",o->contract,o->profile_digest,o->cpu_seconds,o->process_limit,o->scratch_disk_mib,o->workspace,o->scratch,o->supervisor_digest,o->tool_registry_digest,o->executor_root_digest);
   if(length<=0||(size_t)length>=sizeof(body)||mf_write_text_file(temporary,body,0600,1)||rename(temporary,path))mf_die("profile policy persistence failed");
 }
 
@@ -202,11 +202,20 @@ static void inventory_command(int argc,char **argv){
   const char *contract=argument(argc,argv,"--contract"),*scratch=argument(argc,argv,"--scratch"),*profile=argument(argc,argv,"--profile-digest");
   long long disk=number_argument(argc,argv,"--disk-mib",1048576),maximum=number_argument(argc,argv,"--max-entries",4096);
   if(!contract||strcmp(contract,"moonfort-guest-v1")||!mf_canonical_absolute(scratch)||!mf_valid_digest(profile))mf_die("inventory request is malformed");
-  char policy[MF_PATH_MAX],state[MF_PATH_MAX*3];snprintf(policy,sizeof(policy),MF_RUNTIME_DIR "/policy-%s",profile);if(mf_read_text_file(policy,state,sizeof(state))<0||!strstr(state,scratch))mf_die("inventory is not bound to a prepared profile");
-  char upper[MF_PATH_MAX];snprintf(upper,sizeof(upper),MF_RUNTIME_DIR "/overlay-%s/upper",profile);int root=open(upper,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(root<0)mf_die("overlay upper directory unavailable");
-  dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"profileDigest\":\"%s\",\"inventory\":{\"entries\":[",profile);
-  struct inventory scan={.entries=0,.bytes=0,.maximum_entries=maximum,.maximum_bytes=disk*1048576LL,.emit_json=1,.first=1};walk_tree(&scan,root,"",0);close(root);
-  dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"}}\n",scan.bytes);
+  char policy[MF_PATH_MAX],policy_name[80],state[MF_PATH_MAX*3];
+  int policy_name_length=snprintf(policy_name,sizeof(policy_name),"policy-%s",profile);
+  if(policy_name_length<=0||(size_t)policy_name_length>=sizeof(policy_name)||mf_join_path(policy,sizeof(policy),MF_RUNTIME_DIR,policy_name)||mf_read_text_file(policy,state,sizeof(state))<0)mf_die("inventory policy unavailable");
+  char saved_contract[64],saved_profile[MF_SHA256_HEX],workspace[MF_PATH_MAX],saved_scratch[MF_PATH_MAX],supervisor_digest[MF_SHA256_HEX],registry_digest[MF_SHA256_HEX],root_digest[MF_SHA256_HEX],extra;
+  long long cpu=0,processes=0,saved_disk=0;
+  int fields=sscanf(state,"%63[^\n]\n%64[a-f0-9]\n%lld\n%lld\n%lld\n%4095[^\n]\n%4095[^\n]\n%64[a-f0-9]\n%64[a-f0-9]\n%64[a-f0-9]\n%c",saved_contract,saved_profile,&cpu,&processes,&saved_disk,workspace,saved_scratch,supervisor_digest,registry_digest,root_digest,&extra);
+  if(fields!=10||strcmp(saved_contract,contract)||strcmp(saved_profile,profile)||strcmp(saved_scratch,scratch)||saved_disk!=disk||!mf_canonical_absolute(workspace))mf_die("inventory is not bound to a prepared profile");
+  int baseline_root=open(workspace,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(baseline_root<0)mf_die("workspace baseline unavailable");
+  dprintf(STDOUT_FILENO,"{\"contract\":\"moonfort-guest-v1\",\"profileDigest\":\"%s\",\"baseline\":{\"entries\":[",profile);
+  struct inventory baseline={.entries=0,.bytes=0,.maximum_entries=maximum,.maximum_bytes=disk*1048576LL,.emit_json=1,.first=1};walk_tree(&baseline,baseline_root,"",0);close(baseline_root);
+  dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"},\"inventory\":{\"entries\":[",baseline.bytes);
+  int merged_root=open(scratch,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(merged_root<0)mf_die("merged scratch view unavailable");
+  struct inventory current={.entries=0,.bytes=0,.maximum_entries=maximum,.maximum_bytes=disk*1048576LL,.emit_json=1,.first=1};walk_tree(&current,merged_root,"",0);close(merged_root);
+  dprintf(STDOUT_FILENO,"],\"total_bytes\":\"%lld\"}}\n",current.bytes);
 }
 
 int main(int argc,char **argv){

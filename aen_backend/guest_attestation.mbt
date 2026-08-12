@@ -190,24 +190,33 @@ async fn[T : AenTransport] AenBackend::inventory_guest_changes(
     required_string(object, "profileDigest") == self.digest else {
     raise ProtocolFailure("guest inventory is not bound to this profile")
   }
+  let baseline_json = match object.get("baseline") {
+    Some(value) => value
+    None => raise ProtocolFailure("guest inventory omitted baseline")
+  }
   let inventory_json = match object.get("inventory") {
     Some(value) => value
     None => raise ProtocolFailure("guest inventory omitted inventory")
   }
+  let baseline : @sandbox.ScratchInventory = @json.from_json(baseline_json) catch {
+    _ => raise ProtocolFailure("guest baseline inventory is malformed")
+  }
   let inventory : @sandbox.ScratchInventory = @json.from_json(inventory_json) catch {
     _ => raise ProtocolFailure("guest inventory is malformed")
   }
-  guard inventory.entries.length() <= 4_096 &&
+  guard baseline.entries.length() <= 4_096 &&
+    inventory.entries.length() <= 4_096 &&
+    baseline.total_bytes <= self.profile.limits.disk_mib.to_int64() * 1_048_576L &&
     inventory.total_bytes <=
     self.profile.limits.disk_mib.to_int64() * 1_048_576L else {
     raise ProtocolFailure("guest inventory exceeds the profile bound")
   }
-  for entry in inventory.entries {
+  for entry in [..baseline.entries, ..inventory.entries] {
     guard @sandbox.scratch_relative_path_is_safe(entry.relative_path) &&
       entry.size_bytes >= 0L &&
       entry.fingerprint.length() <= 256 else {
       raise ProtocolFailure("guest inventory contains an unsafe entry")
     }
   }
-  @sandbox.diff_scratch({ entries: [], total_bytes: 0L }, inventory)
+  @sandbox.diff_scratch(baseline, inventory)
 }
