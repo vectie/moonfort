@@ -26,7 +26,7 @@ static int outside_scratch(void) {
 
 static int inode_storm(void) {
   const char *temporary = getenv("TMPDIR");
-  if (!temporary || mkdir(temporary, 0700) != 0 && errno != EEXIST) return 92;
+  if (!temporary || (mkdir(temporary, 0700) != 0 && errno != EEXIST)) return 92;
   char path[4096];
   for (int index = 0; index < 100000; ++index) {
     int length = snprintf(path, sizeof(path), "%s/inode-%d", temporary, index);
@@ -40,7 +40,7 @@ static int inode_storm(void) {
 
 static int deleted_open_allocation(void) {
   const char *temporary = getenv("TMPDIR");
-  if (!temporary || mkdir(temporary, 0700) != 0 && errno != EEXIST) return 96;
+  if (!temporary || (mkdir(temporary, 0700) != 0 && errno != EEXIST)) return 96;
   char path[4096]; int length = snprintf(path, sizeof(path), "%s/deleted-open", temporary);
   if (length <= 0 || (size_t)length >= sizeof(path)) return 97;
   int descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
