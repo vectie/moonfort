@@ -87,13 +87,19 @@ test "native supervisor kills stubborn descendants on deadline" {
   debug_inspect(result.limit, content="Some(\"wall_clock\")")
   let descendant = read_pid_file(@utf8.encode(pid_path))
   assert_true(descendant > 0)
-  assert_true(wait_pid_gone(descendant, 2000))
+  // Under a highly parallel full-suite run the killed orphan can remain as a
+  // non-executing zombie until launchd reaps it. Give the system reaper a
+  // bounded window without weakening the supervisor's 250 ms kill deadline.
+  assert_true(wait_pid_gone(descendant, 10000))
   unlink_file(@utf8.encode(pid_path))
 }
 
 ///|
 test "native supervisor enforces CPU and file size limits" {
-  let cpu_base = test_request(["/bin/sh", "-c", "while :; do :; done"], 5000L)
+  // RLIMIT_CPU measures scheduled CPU time, not elapsed time. Leave enough
+  // wall-clock headroom for this process to accumulate one CPU second while
+  // the full native suite is running other CPU-heavy supervisor fixtures.
+  let cpu_base = test_request(["/bin/sh", "-c", "while :; do :; done"], 30000L)
   let cpu_request = {
     ..cpu_base,
     limits: { ..cpu_base.limits, cpu_seconds: 1L },
