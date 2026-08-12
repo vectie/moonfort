@@ -117,6 +117,11 @@ async test "local backend either enforces its profile or refuses without fallbac
       assert_true(
         receipt.unverified_limits.contains("detached-descendant-processes"),
       )
+      if local_os_platform() is Linux {
+        assert_true(
+          receipt.unverified_limits.contains("nested-user-namespaces"),
+        )
+      }
     }
     Enforced => fail("local backend must never claim full enforcement")
   }
@@ -164,13 +169,8 @@ test "Linux bubblewrap plan exposes only runtime roots and private scratch" {
     "packages/app",
   )
   assert_true(args.contains("--unshare-all"))
-  let unshare_user_index = args.search_by(value => value == "--unshare-user")
-  let disable_userns_index = args.search_by(value => value == "--disable-userns")
-  guard unshare_user_index is Some(unshare_index) &&
-    disable_userns_index is Some(disable_index) else {
-    fail("missing explicit locked user namespace")
-  }
-  assert_true(unshare_index < disable_index)
+  assert_true(args.contains("--unshare-user"))
+  assert_false(args.contains("--disable-userns"))
   assert_true(args.contains("--unshare-net"))
   assert_true(args.contains("--cap-drop"))
   assert_false(args.contains("--share-net"))

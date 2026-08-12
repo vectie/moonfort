@@ -33,7 +33,10 @@ and Linux GitHub-hosted runners. Linux installs the fixed `/usr/bin/bwrap`
 backend; absence of usable user/mount/network namespaces is a hard test failure.
 The job never changes policy to make a failing kernel probe appear successful.
 
-The Linux proof uses Ubuntu 22.04. GitHub's Ubuntu 24.04 runner currently
+The Linux proof uses Ubuntu 22.04, whose bubblewrap 0.6 creates explicit
+user/mount/PID/network namespaces and drops every child capability but predates
+the defense-in-depth `--disable-userns` switch. Linux receipts therefore list
+`nested-user-namespaces` as unverified. GitHub's Ubuntu 24.04 runner currently
 applies an AppArmor unprivileged-user-namespace restriction that lets bwrap
 begin namespace setup but denies the route-netlink operation used to initialize
 its isolated loopback device (`RTM_NEWADDR`). MoonFort recognizes that as

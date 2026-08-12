@@ -643,7 +643,7 @@ async fn execute_local_invocation(
       ..if local_os_platform() is MacOs {
         ["detached-descendant-processes"]
       } else {
-        []
+        ["nested-user-namespaces"]
       },
     ],
   }
