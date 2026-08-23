@@ -15,6 +15,8 @@ fn lifecycle_test_profile(
     allowed_commands: ["moon"],
     limits: { ..default_limits(), disk_mib: 1 },
     read_only_workspace: true,
+    executor_evidence_root: "",
+    live_output_id: "",
   }
 }
 

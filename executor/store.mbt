@@ -105,6 +105,12 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
     private_directory(output_artifact_root) else {
     fail("output artifact root is not a canonical private directory")
   }
+  let live_output_root = "\{config.retention_root}/live-output"
+  guard @fs.realpath(live_output_root) == live_output_root &&
+    @fs.kind(live_output_root, follow_symlink=false) is Directory &&
+    private_directory(live_output_root) else {
+    fail("live output root is not a canonical private directory")
+  }
   guard !paths_overlap(config.approval_root, config.scratch_root) &&
     !paths_overlap(config.approval_root, config.retention_root) &&
     !paths_overlap(config.scratch_root, config.retention_root) else {

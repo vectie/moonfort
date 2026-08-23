@@ -68,6 +68,11 @@ async test "published grant executes only in private local snapshot and binds ev
   guard response.receipt() is Some(receipt) else {
     fail("published local grant must produce a terminal receipt")
   }
+  guard response.live_output() is Some(live_output) else {
+    fail("published local grant must return a signed live output reference")
+  }
+  assert_eq(live_output.run_id, grant.request_id)
+  assert_true(live_output.status == "exited" || live_output.status == "failed")
   assert_eq(receipt.approval_id, grant.approval_id)
   assert_eq(receipt.approval_digest, grant_digest(grant))
   assert_true(receipt.command_digest.length() == 64)
@@ -123,6 +128,8 @@ async test "published grant executes only in private local snapshot and binds ev
         grant,
         config.workspaces["book"],
         retained,
+        live_output~,
+        evidence_root=live_output_root(config),
       )
       let selected_tools = { "sh": shell }
       assert_eq(
@@ -139,6 +146,17 @@ async test "published grant executes only in private local snapshot and binds ev
           trusted_local_binding_digest(selected_tools),
         ),
       )
+      let live = read_live_output(
+        {
+          protocol_version: 1,
+          approval_id: grant.approval_id,
+          offset: 0L,
+          max_bytes: LiveOutputMaxChunkBytes,
+        },
+        config,
+      )
+      assert_true(live.terminal)
+      assert_true(live.content_base64 != "")
       println("moonfort local E2E: sandbox-exec execution verified")
     }
     Refused => {

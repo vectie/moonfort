@@ -5,6 +5,7 @@ async fn test_executor_config() -> (ExecutorConfig, Array[String]) {
   let workspace = @fs.realpath(@fs.tmpdir(prefix="moonfort-trusted-workspace-"))
   let retention = @fs.realpath(@fs.tmpdir(prefix="moonfort-retention-"))
   @fs.mkdir("\{retention}/output-artifacts", permission=0o700)
+  @fs.mkdir("\{retention}/live-output", permission=0o700)
   @fs.mkdir("\{approval}/pending", permission=0o700)
   @fs.mkdir("\{approval}/consumed", permission=0o700)
   let limits : ExecutorLimits = {

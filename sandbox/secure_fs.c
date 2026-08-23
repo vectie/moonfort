@@ -33,6 +33,57 @@ extern long syscall(long, ...);
 #ifndef O_NOFOLLOW
 #define O_NOFOLLOW 0
 #endif
+#ifndef S_ISVTX
+#define S_ISVTX 01000
+#endif
+
+static int sandbox_trusted_owner(const struct stat *st, uid_t uid) {
+  return st->st_uid == uid || st->st_uid == 0;
+}
+
+static int sandbox_trusted_directory_mode(const struct stat *st, uid_t uid) {
+  if (!S_ISDIR(st->st_mode) || !sandbox_trusted_owner(st, uid)) return 0;
+  if ((st->st_mode & (S_IWGRP | S_IWOTH)) == 0) return 1;
+  return st->st_uid == 0 && (st->st_mode & S_ISVTX) != 0;
+}
+
+static int sandbox_trusted_parent_chain(char *path, uid_t uid) {
+  char *slash = strrchr(path, '/');
+  if (slash == NULL) return 0;
+  if (slash == path) slash[1] = '\0';
+  else *slash = '\0';
+  for (;;) {
+    struct stat parent;
+    if (lstat(path, &parent) != 0 ||
+        !sandbox_trusted_directory_mode(&parent, uid)) return 0;
+    if (strcmp(path, "/") == 0) return 1;
+    slash = strrchr(path, '/');
+    if (slash == NULL) return 0;
+    if (slash == path) slash[1] = '\0';
+    else *slash = '\0';
+  }
+}
+
+MOONBIT_FFI_EXPORT
+int32_t moonfort_sandbox_private_directory(
+  moonbit_bytes_t bytes,
+  int32_t length
+) {
+  if (length <= 0 || memchr(bytes, '\0', (size_t)length) != NULL) return 0;
+  char *path = malloc((size_t)length + 1);
+  if (path == NULL) return 0;
+  memcpy(path, bytes, (size_t)length);
+  path[length] = '\0';
+  struct stat st;
+  uid_t uid = geteuid();
+  int ok = lstat(path, &st) == 0 &&
+    S_ISDIR(st.st_mode) &&
+    sandbox_trusted_owner(&st, uid) &&
+    (st.st_mode & (S_IRWXG | S_IRWXO)) == 0 &&
+    sandbox_trusted_parent_chain(path, uid);
+  free(path);
+  return ok ? 1 : 0;
+}
 
 enum secure_fs_status {
   SECURE_FS_OK = 0,

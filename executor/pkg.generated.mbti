@@ -22,6 +22,8 @@ pub async fn publish_grant(GrantPublicationRequest, ExecutorConfig) -> GrantPubl
 
 pub async fn read_command_output_artifact(@sandbox.CommandOutputArtifactRef, String, String, String, ExecutorConfig) -> Bytes
 
+pub async fn read_live_output(LiveOutputReadRequest, ExecutorConfig) -> LiveOutputReadResponse
+
 pub fn rejected_response(String, String, String) -> ExecutorResponse
 
 pub async fn sweep_expired_retentions(ExecutorConfig) -> Int
@@ -91,9 +93,12 @@ pub struct ExecutorResponse {
   approval_id : String
   receipt : @sandbox.SandboxReceipt?
   error : ExecutorProtocolError?
+  live_output : LiveOutputReference?
 } derive(Eq, ToJson, @debug.Debug)
 pub fn ExecutorResponse::error(Self) -> ExecutorProtocolError?
+pub fn ExecutorResponse::live_output(Self) -> LiveOutputReference?
 pub fn ExecutorResponse::receipt(Self) -> @sandbox.SandboxReceipt?
+pub fn ExecutorResponse::with_live_output(Self, LiveOutputReference) -> Self
 
 pub(all) struct GrantPublicationRequest {
   protocol_version : Int
@@ -107,6 +112,41 @@ pub(all) struct GrantPublicationResponse {
   published : Bool
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+
+pub(all) struct LiveOutputReadRequest {
+  protocol_version : Int
+  approval_id : String
+  offset : Int64
+  max_bytes : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct LiveOutputReadResponse {
+  protocol_version : Int
+  approval_id : String
+  stream_id : String
+  run_id : String
+  offset : Int64
+  next_offset : Int64
+  available_bytes : Int64
+  content_base64 : String
+  status : String
+  terminal : Bool
+  retry_after_ms : Int
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
+
+type LiveOutputRecord derive(ToJson, @json.FromJson)
+
+pub(all) struct LiveOutputReference {
+  stream_id : String
+  run_id : String
+  status : String
+  size_bytes : Int64
+  sha256 : String
+  expires_at_ms : Int64
+  key_id : String
+  signature : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
 type PromotionClaim derive(ToJson, @json.FromJson)
 

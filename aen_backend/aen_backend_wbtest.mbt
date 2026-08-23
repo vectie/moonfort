@@ -124,6 +124,8 @@ fn test_profile(output_bytes? : Int = 256) -> @sandbox.SandboxProfile {
       output_bytes,
     },
     read_only_workspace: true,
+    executor_evidence_root: "",
+    live_output_id: "",
   }
 }
 

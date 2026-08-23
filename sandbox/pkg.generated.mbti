@@ -224,6 +224,8 @@ pub(all) struct SandboxProfile {
   allowed_commands : Array[String]
   limits : SandboxLimits
   read_only_workspace : Bool
+  executor_evidence_root : String
+  live_output_id : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxProfile::allow_degraded(Self) -> Self
 

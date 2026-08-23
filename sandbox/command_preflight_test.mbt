@@ -16,6 +16,8 @@ fn test_profile(
     allowed_commands,
     limits: default_limits(),
     read_only_workspace: true,
+    executor_evidence_root: "",
+    live_output_id: "",
   }
 }
 

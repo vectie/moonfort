@@ -13,6 +13,19 @@ extern "c" fn secure_discard_tree_native(
 ) -> Int = "moonfort_secure_discard_tree"
 
 ///|
+#borrow(path)
+extern "c" fn sandbox_private_directory_native(
+  path : Bytes,
+  path_length : Int,
+) -> Bool = "moonfort_sandbox_private_directory"
+
+///|
+fn sandbox_private_directory(path : String) -> Bool {
+  let encoded = @utf8.encode(path)
+  sandbox_private_directory_native(encoded, encoded.length())
+}
+
+///|
 #borrow(sr, sp, dr, dp, hash, destination_hash)
 extern "c" fn secure_promote_regular_native(
   sr : Bytes,

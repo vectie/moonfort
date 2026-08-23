@@ -7,6 +7,42 @@ pub(all) struct SandboxInvocation {
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
+pub(all) struct LiveOutputReadRequest {
+  protocol_version : Int
+  approval_id : String
+  offset : Int64
+  max_bytes : Int
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
+pub(all) struct LiveOutputReference {
+  stream_id : String
+  run_id : String
+  status : String
+  size_bytes : Int64
+  sha256 : String
+  expires_at_ms : Int64
+  key_id : String
+  signature : String
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
+pub(all) struct LiveOutputReadResponse {
+  protocol_version : Int
+  approval_id : String
+  stream_id : String
+  run_id : String
+  offset : Int64
+  next_offset : Int64
+  available_bytes : Int64
+  content_base64 : String
+  status : String
+  terminal : Bool
+  retry_after_ms : Int
+  error : ExecutorProtocolError?
+} derive(Debug, Eq, ToJson)
+
+///|
 /// Request accepted only by the trusted grant publisher, never the executor.
 pub(all) struct GrantPublicationRequest {
   protocol_version : Int
@@ -148,6 +184,13 @@ struct CommandOutputArtifactRecord {
 } derive(ToJson, FromJson)
 
 ///|
+struct LiveOutputRecord {
+  reference : LiveOutputReference
+  approval_id : String
+  approval_digest : String
+} derive(ToJson, FromJson)
+
+///|
 struct RetentionRecord {
   retention_id : String
   scratch_path : String
@@ -208,6 +251,7 @@ pub struct ExecutorResponse {
   approval_id : String
   receipt : @sandbox.SandboxReceipt?
   error : ExecutorProtocolError?
+  live_output : LiveOutputReference?
 } derive(Debug, Eq, ToJson)
 
 ///|
@@ -225,11 +269,32 @@ pub fn ExecutorResponse::error(
 }
 
 ///|
+pub fn ExecutorResponse::live_output(
+  self : ExecutorResponse,
+) -> LiveOutputReference? {
+  self.live_output
+}
+
+///|
 pub fn completed_response(
   approval_id : String,
   receipt : @sandbox.SandboxReceipt,
 ) -> ExecutorResponse {
-  { protocol_version: 3, approval_id, receipt: Some(receipt), error: None }
+  {
+    protocol_version: 3,
+    approval_id,
+    receipt: Some(receipt),
+    error: None,
+    live_output: None,
+  }
+}
+
+///|
+pub fn ExecutorResponse::with_live_output(
+  self : ExecutorResponse,
+  reference : LiveOutputReference,
+) -> ExecutorResponse {
+  { ..self, live_output: Some(reference) }
 }
 
 ///|
@@ -243,5 +308,6 @@ pub fn rejected_response(
     approval_id,
     receipt: None,
     error: Some({ code, message }),
+    live_output: None,
   }
 }

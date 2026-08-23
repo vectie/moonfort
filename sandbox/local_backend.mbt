@@ -204,6 +204,31 @@ pub async fn run_local_sandbox(
         "failed to canonicalize sandbox roots: \{error}",
       )
   }
+  let live_output_path = if canonical.executor_evidence_root == "" {
+    ""
+  } else {
+    let root = canonical.executor_evidence_root
+    guard @fs.realpath(root) == root &&
+      @fs.kind(root, follow_symlink=false) is Directory &&
+      sandbox_private_directory(root) else {
+      return refused_receipt(
+        canonical.run_id,
+        LocalOs,
+        profile_digest(canonical),
+        "executor evidence root is not a canonical private directory",
+      )
+    }
+    let path = root + "/" + canonical.live_output_id + ".blob"
+    guard !(@fs.exists(path) catch { _ => true }) else {
+      return refused_receipt(
+        canonical.run_id,
+        LocalOs,
+        profile_digest(canonical),
+        "live output destination already exists",
+      )
+    }
+    path
+  }
   if !safe_local_working_directory(working_directory) {
     return refused_receipt(
       canonical.run_id,
@@ -270,7 +295,12 @@ pub async fn run_local_sandbox(
         "failed to prepare local invocation: \{error}",
       )
   }
-  let receipt = execute_local_invocation(checked, invocation, process_cwd)
+  let receipt = execute_local_invocation(
+    checked,
+    invocation,
+    process_cwd,
+    live_output_path~,
+  )
   match inventory_scratch(canonical.scratch_root, disk_limit_bytes) {
     Err(reason) =>
       failed_receipt(
@@ -441,6 +471,7 @@ async fn execute_local_invocation(
   prepared : PreparedSandboxCommand,
   invocation : LocalInvocation,
   process_cwd : String,
+  live_output_path~ : String,
 ) -> SandboxReceipt {
   let profile = prepared.profile()
   let capture_root = @fs.tmpdir(prefix="moonfort-supervisor-capture-") catch {
@@ -477,7 +508,16 @@ async fn execute_local_invocation(
       "private supervisor capture resolved inside writable scratch",
     )
   }
-  let capture_path = "\{capture_root}/merged-output"
+  let capture_path = if live_output_path == "" {
+    "\{capture_root}/merged-output"
+  } else {
+    live_output_path
+  }
+  let removable_capture_path = if live_output_path == "" {
+    capture_path
+  } else {
+    ""
+  }
   let native_request : @local_supervisor.Request = {
     argv: invocation.argv,
     cwd: process_cwd,
@@ -497,7 +537,7 @@ async fn execute_local_invocation(
   }
   let native_result = @local_supervisor.run(native_request) catch {
     error => {
-      cleanup_supervisor_capture(capture_root, capture_path)
+      cleanup_supervisor_capture(capture_root, removable_capture_path)
       return failed_receipt(
         profile.run_id,
         LocalOs,
@@ -512,7 +552,7 @@ async fn execute_local_invocation(
   } noraise {
     data => @utf8.decode_lossy(data.binary())
   }
-  cleanup_supervisor_capture(capture_root, capture_path)
+  cleanup_supervisor_capture(capture_root, removable_capture_path)
   let required_limit_mask = if local_os_platform() is MacOs { 61 } else { 63 }
   if native_result.kind != "setup_failed" &&
     native_result.kind != "monitor_unverified" &&

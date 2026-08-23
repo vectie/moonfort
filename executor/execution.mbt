@@ -3,6 +3,8 @@ fn profile_for_grant(
   grant : ExecutionGrant,
   workspace : WorkspacePolicy,
   scratch : String,
+  live_output? : LiveOutputReference,
+  evidence_root? : String = "",
 ) -> @sandbox.SandboxProfile {
   {
     run_id: grant.request_id,
@@ -16,6 +18,15 @@ fn profile_for_grant(
     allowed_commands: grant.allowed_commands.copy(),
     limits: grant.limits,
     read_only_workspace: true,
+    executor_evidence_root: if live_output is Some(_) {
+      evidence_root
+    } else {
+      ""
+    },
+    live_output_id: match live_output {
+      Some(reference) => reference.stream_id
+      None => ""
+    },
   }
 }
 
@@ -172,6 +183,7 @@ pub async fn execute_invocation(
 ) -> ExecutorResponse {
   ignore(sweep_expired_retentions(config) catch { _ => 0 })
   ignore(sweep_expired_output_artifacts(config) catch { _ => 0 })
+  ignore(sweep_expired_live_output(config) catch { _ => 0 })
   let grant = consume_grant(invocation, config) catch {
     _ =>
       return rejected_response(
@@ -199,8 +211,28 @@ pub async fn execute_invocation(
         "executor-owned scratch could not be created",
       )
   }
-  let profile = profile_for_grant(grant, workspace, scratch)
   let approval_digest = grant_digest(grant)
+  let started_live_output : LiveOutputReference? = if grant.backend is LocalOs {
+    Some(
+      begin_live_output(
+        grant.request_id,
+        invocation.approval_id,
+        approval_digest,
+        config,
+      ),
+    ) catch {
+      _ => None
+    }
+  } else {
+    None
+  }
+  let profile = profile_for_grant(
+    grant,
+    workspace,
+    scratch,
+    live_output?=started_live_output,
+    evidence_root=live_output_root(config),
+  )
   let mut selected_tools : Map[String, String] = Map([])
   let mut backend_binding_digest = ""
   let raw_receipt = match grant.backend {
@@ -256,6 +288,21 @@ pub async fn execute_invocation(
     grant.backend_config_id,
     backend_binding_digest,
   )
+  let final_live_output : LiveOutputReference? = match started_live_output {
+    Some(started) =>
+      Some(
+        finalize_live_output(
+          started,
+          invocation.approval_id,
+          approval_digest,
+          raw_receipt,
+          config,
+        ),
+      ) catch {
+        _ => None
+      }
+    None => None
+  }
   let receipt_with_output_artifact = if (
       raw_receipt.status is Exited || raw_receipt.status is Killed
     ) &&
@@ -331,7 +378,7 @@ pub async fn execute_invocation(
   } else {
     receipt_with_output_artifact
   }
-  completed_response(
+  let response = completed_response(
     invocation.approval_id,
     receipt.with_approval_binding(
       approval_id=invocation.approval_id,
@@ -345,4 +392,8 @@ pub async fn execute_invocation(
       },
     ),
   )
+  match final_live_output {
+    Some(reference) => response.with_live_output(reference)
+    None => response
+  }
 }

@@ -6,6 +6,7 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/core/json",
   "moonbitlang/x/crypto",
+  "moonbitlang/x/codec/base64",
   "vectie/moonfort/aen_backend",
   "vectie/moonfort/sandbox",
 }

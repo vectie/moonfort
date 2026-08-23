@@ -46,6 +46,10 @@ pub(all) struct SandboxProfile {
   allowed_commands : Array[String]
   limits : SandboxLimits
   read_only_workspace : Bool
+  /// Executor-owned private evidence root. Empty disables live output.
+  executor_evidence_root : String
+  /// Opaque HMAC-derived identifier beneath `executor_evidence_root`.
+  live_output_id : String
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
@@ -78,6 +82,8 @@ pub fn local_profile(
     allowed_commands: ["moon", "git"],
     limits: default_limits(),
     read_only_workspace: true,
+    executor_evidence_root: "",
+    live_output_id: "",
   }
 }
 
@@ -100,6 +106,26 @@ pub fn profile_rejection(profile : SandboxProfile) -> String {
     "scratch_root must be a canonical absolute path"
   } else if roots_overlap(profile.workspace_root, profile.scratch_root) {
     "scratch_root must be disjoint from workspace_root"
+  } else if (profile.executor_evidence_root == "") !=
+    (profile.live_output_id == "") {
+    "executor evidence root and live output id must be enabled together"
+  } else if profile.executor_evidence_root != "" &&
+    !path_is_canonical_absolute(profile.executor_evidence_root) {
+    "executor evidence root must be a canonical absolute path"
+  } else if profile.executor_evidence_root != "" &&
+    (
+      roots_overlap(profile.executor_evidence_root, profile.workspace_root) ||
+      roots_overlap(profile.executor_evidence_root, profile.scratch_root) ||
+      profile.read_only_roots.any(root => {
+        roots_overlap(profile.executor_evidence_root, root)
+      })
+    ) {
+    "executor evidence root must be disjoint from sandbox roots"
+  } else if profile.live_output_id != "" &&
+    !profile.live_output_id.all(ch => {
+      ch.is_ascii_digit() || (ch >= 'a' && ch <= 'f')
+    }) {
+    "live output id must be lowercase hexadecimal"
   } else if !profile.read_only_workspace {
     "workspace must be read-only"
   } else if profile.read_only_roots.is_empty() {
