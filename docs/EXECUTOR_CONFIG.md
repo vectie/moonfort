@@ -78,11 +78,12 @@ approval root.
 }
 ```
 
-Create `retention_root/output-artifacts` as an executor-owned `0700`
-directory before startup. It is deliberately derived from the trusted
-retention root rather than accepted from a grant or invocation. The executor
-refuses configuration when this directory is missing, non-canonical, linked,
-or writable by group/other.
+Create both `retention_root/output-artifacts` and
+`retention_root/live-output` as executor-owned `0700` directories before
+startup. They are deliberately derived from the trusted retention root rather
+than accepted from a grant or invocation. The executor refuses configuration
+when either directory is missing, non-canonical, linked, or writable by
+group/other.
 
 Generate the actual file from typed configuration and validate it during
 deployment. AEN, provisioner, and `artifact_signing_key` secrets should normally come from a protected secret
@@ -118,6 +119,20 @@ key ID, and HMAC. Artifact reads revalidate the HMAC run/approval/command
 binding, manifest, expiry, exact file size, regular-file confinement, and
 SHA-256 before returning bytes. Expired signed pairs are removed during the
 normal executor sweep. No host artifact path crosses the protocol boundary.
+
+Local execution also has an optional signed live-output capability. Before the
+child starts, MoonFort creates a `running` manifest and binds its opaque stream
+ID into the immutable sandbox profile. The native supervisor appends merged
+stdout/stderr directly to the corresponding executor-private blob while the
+process runs. `cmd/read-live-output` accepts only an approval ID, cursor, and
+bounded byte count; it returns base64 data plus monotonic offsets and never a
+host path. Every read revalidates the signed manifest, approval/run binding,
+private regular-file identity, cursor bounds, and—after termination—the exact
+size and SHA-256. Terminal execution replaces the running manifest atomically
+with a signed `exited`, `killed`, or `failed` reference. Expired streams are
+swept with the normal executor maintenance pass. MicroVM live streaming is not
+claimed until AEN supplies an equivalently attested channel; those runs still
+return their terminal receipt normally.
 
 For a successful changed microVM run, `scratch_root/<opaque-id>` is also the
 host-side export destination. The fixed guest attester sends one bounded (at

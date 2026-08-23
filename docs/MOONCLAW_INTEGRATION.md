@@ -89,6 +89,17 @@ ID as opaque and ask the trusted executor artifact reader to verify the signed
 run/approval/command binding, expiry, size, media type, regular-file identity,
 and SHA-256. It must never construct or expose a host path from that ID.
 
+For local executions the response may also contain a signed `live_output`
+reference. MoonClaw may poll only the fixed `cmd/read-live-output` deployment
+using the same approval ID and the returned monotonic cursor. The reader owns
+all filesystem and signature verification; callers must not derive a blob or
+manifest path from the stream ID. Ordinary MoonDesk progress should expose
+only bounded byte counts and terminal state. Raw command content remains a
+developer/tool result and must not be copied into user-facing status events,
+reasoning streams, logs, metrics, or model context. Missing live output is a
+supported capability absence, especially for MicroVM runs, and must never
+trigger host execution or a weaker backend fallback.
+
 Changed local scratch is retained under an opaque ID only after a 0600 TTL
 record is durably created in the executor-owned retention root. Expired records
 are safely swept without following links. AEN changed regular files are

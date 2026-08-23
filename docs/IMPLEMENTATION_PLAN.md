@@ -1,7 +1,7 @@
 # MoonFort implementation plan
 
-Status: implemented contract, supervised degraded macOS/Linux backends, and
-attested AEN adapter, 2026-08-12
+Status: implemented contract, supervised degraded macOS/Linux backends,
+attested AEN adapter, and signed local live-output capability, 2026-08-23
 
 ## Decision
 
@@ -122,6 +122,9 @@ versus operator-opted-in degraded enforcement; receipt output and limit fields.
   hard cap in the native supervisor. Spill complete bounded UTF-8 output to
   executor-owned artifact storage only when it reaches that ceiling or exceeds
   the model budget; keep small output inline without filesystem work.
+- Append merged local output to a profile-bound executor-private live stream,
+  expose it only through a signed cursor reader, and finalize its digest before
+  returning the terminal response.
 - Emit receipts for both allowed and denied writes.
 
 Implemented: canonical roots and trusted executable bindings; private workspace
