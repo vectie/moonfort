@@ -21,6 +21,8 @@ approval root.
   "approval_root": "/var/lib/moonfort/approvals",
   "scratch_root": "/var/lib/moonfort/scratch",
   "retention_root": "/var/lib/moonfort/retention",
+  "artifact_key_id": "production-2026-08",
+  "artifact_signing_key": "injected-at-least-32-byte-hmac-key",
   "workspaces": {
     "moonbook-main": {
       "root": "/srv/moonbooks/main",
@@ -67,6 +69,7 @@ approval root.
     "max_disk_mib": 8192,
     "max_processes": 256,
     "max_output_bytes": 10485760,
+    "max_model_output_bytes": 262144,
     "max_command_args": 256,
     "max_argument_bytes": 65536,
     "max_changed_paths": 10000,
@@ -75,8 +78,14 @@ approval root.
 }
 ```
 
+Create `retention_root/output-artifacts` as an executor-owned `0700`
+directory before startup. It is deliberately derived from the trusted
+retention root rather than accepted from a grant or invocation. The executor
+refuses configuration when this directory is missing, non-canonical, linked,
+or writable by group/other.
+
 Generate the actual file from typed configuration and validate it during
-deployment. AEN and provisioner secrets should normally come from a protected secret
+deployment. AEN, provisioner, and `artifact_signing_key` secrets should normally come from a protected secret
 materialization at service start, with the resulting config file mode
 0600 and never included in logs, crash reports, grants, or receipts. Executor
 and provisioned workspace images must use immutable `@sha256:` references;
@@ -96,6 +105,19 @@ The executor applies independent hard maxima even to trusted configuration.
 Local runs accept only deny-network profiles and always report `Degraded`.
 Production untrusted work should authorize only `MicroVm` and
 `RequireEnforced`.
+
+`max_output_bytes` is the hard per-command merged-output ceiling. The native
+supervisor kills an output flood at that boundary. The independently
+configurable `max_model_output_bytes` bounds only the inline receipt projection
+and must not exceed half of `max_protocol_bytes` or `max_output_bytes`. Small,
+complete output stays inline and does not touch artifact storage. When output
+reaches the hard ceiling or exceeds the model budget, the executor retains the
+complete bounded UTF-8 receipt output and the receipt carries an opaque
+`output_artifact` reference containing its digest, size, media type, expiry,
+key ID, and HMAC. Artifact reads revalidate the HMAC run/approval/command
+binding, manifest, expiry, exact file size, regular-file confinement, and
+SHA-256 before returning bytes. Expired signed pairs are removed during the
+normal executor sweep. No host artifact path crosses the protocol boundary.
 
 For a successful changed microVM run, `scratch_root/<opaque-id>` is also the
 host-side export destination. The fixed guest attester sends one bounded (at

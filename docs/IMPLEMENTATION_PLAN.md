@@ -118,8 +118,10 @@ versus operator-opted-in degraded enforcement; receipt output and limit fields.
 - Behavioral probe: allowed no-op plus denied write.
 - Deny writes to canonical source and manifest paths; allow only scratch/build
   paths.
-- Add process-group cancellation, wall-clock timeout, output hard cap, and
-  spill-to-file output handling.
+- Apply process-group cancellation, wall-clock timeout, and the command-output
+  hard cap in the native supervisor. Spill complete bounded UTF-8 output to
+  executor-owned artifact storage only when it reaches that ceiling or exceeds
+  the model budget; keep small output inline without filesystem work.
 - Emit receipts for both allowed and denied writes.
 
 Implemented: canonical roots and trusted executable bindings; private workspace

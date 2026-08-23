@@ -20,13 +20,23 @@ pub async fn promote_retention(RetentionPromotionRequest, ExecutorConfig) -> Ret
 
 pub async fn publish_grant(GrantPublicationRequest, ExecutorConfig) -> GrantPublicationResponse
 
+pub async fn read_command_output_artifact(@sandbox.CommandOutputArtifactRef, String, String, String, ExecutorConfig) -> Bytes
+
 pub fn rejected_response(String, String, String) -> ExecutorResponse
 
 pub async fn sweep_expired_retentions(ExecutorConfig) -> Int
 
 // Errors
+pub(all) suberror CommandOutputArtifactRefusal {
+  InvalidReference
+  ArtifactExpired
+  ArtifactUnavailable
+  ArtifactIntegrityFailure
+} derive(Eq, ToJson, @debug.Debug)
 
 // Types and methods
+type CommandOutputArtifactRecord derive(ToJson, @json.FromJson)
+
 pub(all) struct ExecutionGrant {
   protocol_version : Int
   approval_id : String
@@ -48,6 +58,8 @@ pub(all) struct ExecutorConfig {
   approval_root : String
   scratch_root : String
   retention_root : String
+  artifact_key_id : String
+  artifact_signing_key : String
   workspaces : Map[String, WorkspacePolicy]
   local_tools : Map[String, String]
   aen_backends : Map[String, TrustedAenConfig]
@@ -62,6 +74,7 @@ pub(all) struct ExecutorLimits {
   max_disk_mib : Int
   max_processes : Int
   max_output_bytes : Int
+  max_model_output_bytes : Int
   max_command_args : Int
   max_argument_bytes : Int
   max_changed_paths : Int

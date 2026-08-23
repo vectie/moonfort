@@ -66,6 +66,8 @@ fn test_executor(
     approval_root: "/var/lib/moonfort/approvals",
     scratch_root: "/var/lib/moonfort/scratch",
     retention_root: "/var/lib/moonfort/retention",
+    artifact_key_id: "canary-key-1",
+    artifact_signing_key: "0123456789abcdef0123456789abcdef",
     workspaces: {
       "aen-canary": {
         root: "/srv/moonfort/canary",
@@ -91,6 +93,7 @@ fn test_executor(
       max_disk_mib: config.limits.disk_mib,
       max_processes: config.limits.processes,
       max_output_bytes: config.limits.output_bytes,
+      max_model_output_bytes: config.limits.output_bytes.min(32_768),
       max_command_args: 64,
       max_argument_bytes: 4_096,
       max_changed_paths: config.limits.max_diff_entries,
@@ -196,6 +199,7 @@ fn test_receipt(
     exit_code,
     output,
     output_truncated,
+    output_artifact: None,
     limit_reason,
     unverified_limits: [],
     changed_paths: [],

@@ -57,6 +57,12 @@ from executor-owned configuration. Neither backend has an unsandboxed fallback.
   opaque TTL retention. Native ownership and permission checks reject unsafe
   configuration, registry, executable, grant-store, and parent paths before
   any backend work.
+- Command output that reaches the approved hard ceiling or exceeds the
+  configurable model budget is retained in a separate executor-private
+  artifact spool. Small complete output stays inline and performs no artifact
+  I/O. Spilled receipts contain a head/tail projection plus an opaque
+  HMAC-bound reference with size, SHA-256, media type, and expiry. Reads
+  revalidate the run and approval/command binding and never expose host paths.
 - `cmd/executor` is the v3 approval-ID-only JSON boundary intended for
   MoonClaw. Caller-supplied profiles and backend configuration are rejected by
   construction. `cmd/grant-publisher` is the narrow validated publication

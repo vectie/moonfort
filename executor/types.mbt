@@ -76,6 +76,7 @@ pub(all) struct ExecutorLimits {
   max_disk_mib : Int
   max_processes : Int
   max_output_bytes : Int
+  max_model_output_bytes : Int
   max_command_args : Int
   max_argument_bytes : Int
   max_changed_paths : Int
@@ -128,11 +129,23 @@ pub(all) struct ExecutorConfig {
   approval_root : String
   scratch_root : String
   retention_root : String
+  artifact_key_id : String
+  artifact_signing_key : String
   workspaces : Map[String, WorkspacePolicy]
   local_tools : Map[String, String]
   aen_backends : Map[String, TrustedAenConfig]
   limits : ExecutorLimits
 } derive(FromJson)
+
+///|
+/// Executor-private manifest stored beside one complete bounded output blob.
+/// The HMAC binds the opaque ID, run and approval identity, content, lifetime,
+/// and media type so a reference cannot be replayed across runs.
+struct CommandOutputArtifactRecord {
+  reference : @sandbox.CommandOutputArtifactRef
+  approval_digest : String
+  command_digest : String
+} derive(ToJson, FromJson)
 
 ///|
 struct RetentionRecord {

@@ -76,6 +76,19 @@ choice for the local macOS/Linux backend, never an automatic fallback. Persist t
 returned receipt and verify its approval ID, approval digest, command digest,
 profile digest, terminal status, and cleanup state.
 
+For `Exited` and `Killed` results, require a non-null `output_artifact` whenever
+`output_truncated` is true. Otherwise a null reference means the small complete
+output stayed inline without artifact I/O; a present reference means the inline
+`output` is only the executor-configured model projection. Required spill
+failure changes the executor result to `Failed`, so a terminal success never
+silently drops oversized output.
+
+`output_truncated` means the approved hard command-output ceiling was reached,
+not that the model projection was shortened. MoonClaw must treat the artifact
+ID as opaque and ask the trusted executor artifact reader to verify the signed
+run/approval/command binding, expiry, size, media type, regular-file identity,
+and SHA-256. It must never construct or expose a host path from that ID.
+
 Changed local scratch is retained under an opaque ID only after a 0600 TTL
 record is durably created in the executor-owned retention root. Expired records
 are safely swept without following links. AEN changed regular files are

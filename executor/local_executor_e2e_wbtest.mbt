@@ -85,6 +85,10 @@ async test "published grant executes only in private local snapshot and binds ev
       assert_true(receipt.status is Exited)
       assert_eq(receipt.exit_code, Some(0))
       assert_true(receipt.output.contains("e2e-ok"))
+      assert_true(receipt.output_artifact is None)
+      assert_true(
+        @fs.readdir("\{config.retention_root}/output-artifacts", sort=true).is_empty(),
+      )
       assert_eq(receipt.changed_paths, ["generated.txt", "original.txt"])
       assert_eq(receipt.changes.length(), 2)
       assert_true(
@@ -189,6 +193,22 @@ async test "real local executor enforces bounded output or refuses closed" {
       assert_eq(receipt.limit_reason, Some("output-limit"))
       assert_true(receipt.output_truncated)
       assert_true(@utf8.encode(receipt.output).length() <= 256)
+      guard receipt.output_artifact is Some(output_artifact) else {
+        fail("bounded command output must retain an executor-owned artifact")
+      }
+      assert_eq(output_artifact.size_bytes, 256L)
+      let complete_output = read_command_output_artifact(
+        output_artifact,
+        grant.request_id,
+        receipt.approval_digest,
+        receipt.command_digest,
+        config,
+      )
+      assert_eq(complete_output.length(), 256)
+      assert_eq(
+        @crypto.bytes_to_hex_string(@crypto.sha256(complete_output)),
+        output_artifact.sha256,
+      )
       assert_true(receipt.retention_id is None)
       assert_true(receipt.cleanup_verified)
     }

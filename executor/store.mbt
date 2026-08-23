@@ -99,6 +99,12 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
   guard private_directory(config.retention_root) else {
     fail("retention root ownership or permissions are unsafe")
   }
+  let output_artifact_root = "\{config.retention_root}/output-artifacts"
+  guard @fs.realpath(output_artifact_root) == output_artifact_root &&
+    @fs.kind(output_artifact_root, follow_symlink=false) is Directory &&
+    private_directory(output_artifact_root) else {
+    fail("output artifact root is not a canonical private directory")
+  }
   guard !paths_overlap(config.approval_root, config.scratch_root) &&
     !paths_overlap(config.approval_root, config.retention_root) &&
     !paths_overlap(config.scratch_root, config.retention_root) else {
@@ -118,6 +124,9 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
     config.limits.max_processes <= 65_536 &&
     config.limits.max_output_bytes > 0 &&
     config.limits.max_output_bytes <= 1_073_741_824 &&
+    config.limits.max_model_output_bytes > 0 &&
+    config.limits.max_model_output_bytes <= config.limits.max_output_bytes &&
+    config.limits.max_model_output_bytes <= config.limits.max_protocol_bytes / 2 &&
     config.limits.max_command_args > 0 &&
     config.limits.max_command_args <= 4_096 &&
     config.limits.max_argument_bytes > 0 &&
@@ -126,6 +135,10 @@ pub async fn load_executor_config(path : String) -> ExecutorConfig {
     config.limits.max_changed_paths <= 1_000_000 &&
     retention_window_is_valid(config.limits.retention_ms) else {
     fail("executor deployment limits are invalid")
+  }
+  guard safe_identifier(config.artifact_key_id) &&
+    config.artifact_signing_key.length() >= 32 else {
+    fail("output artifact signing configuration is invalid")
   }
   for name, workspace in config.workspaces {
     guard safe_identifier(name) &&

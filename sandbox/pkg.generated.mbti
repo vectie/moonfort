@@ -66,6 +66,17 @@ pub fn shell_compatibility_command_label() -> String
 // Errors
 
 // Types and methods
+pub(all) struct CommandOutputArtifactRef {
+  artifact_id : String
+  run_id : String
+  sha256 : String
+  size_bytes : Int64
+  media_type : String
+  expires_at_ms : Int64
+  key_id : String
+  signature : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
 pub(all) struct LocalSandboxTool {
   capability_label : String
   executable_path : String
@@ -283,6 +294,7 @@ pub(all) struct SandboxReceipt {
   exit_code : Int?
   output : String
   output_truncated : Bool
+  output_artifact : CommandOutputArtifactRef?
   limit_reason : String?
   unverified_limits : Array[String]
   changed_paths : Array[String]
@@ -293,6 +305,7 @@ pub(all) struct SandboxReceipt {
   retention_id : String?
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxReceipt::with_approval_binding(Self, approval_id~ : String, approval_digest~ : String, command_digest~ : String, cleanup_verified~ : Bool, retention_id? : String) -> Self
+pub fn SandboxReceipt::with_output_artifact(Self, String, CommandOutputArtifactRef) -> Self
 
 pub struct SandboxRunContract {
   profile : SandboxProfile

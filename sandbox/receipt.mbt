@@ -15,6 +15,22 @@ pub(all) enum SandboxRunStatus {
 } derive(Debug, Eq, ToJson, FromJson)
 
 ///|
+/// Opaque executor-owned reference to the complete merged command output that
+/// was captured within the approved output-byte ceiling. The executor verifies
+/// the signature and content digest before returning artifact bytes; consumers
+/// must never turn `artifact_id` into a host path themselves.
+pub(all) struct CommandOutputArtifactRef {
+  artifact_id : String
+  run_id : String
+  sha256 : String
+  size_bytes : Int64
+  media_type : String
+  expires_at_ms : Int64
+  key_id : String
+  signature : String
+} derive(Debug, Eq, ToJson, FromJson)
+
+///|
 pub(all) struct SandboxReceipt {
   run_id : String
   approval_id : String
@@ -27,6 +43,7 @@ pub(all) struct SandboxReceipt {
   exit_code : Int?
   output : String
   output_truncated : Bool
+  output_artifact : CommandOutputArtifactRef?
   limit_reason : String?
   unverified_limits : Array[String]
   changed_paths : Array[String]
@@ -56,6 +73,7 @@ pub fn refused_receipt(
     exit_code: None,
     output: "",
     output_truncated: false,
+    output_artifact: None,
     limit_reason: None,
     unverified_limits: [],
     changed_paths: [],
@@ -88,6 +106,7 @@ pub fn exited_receipt(
     exit_code: Some(exit_code),
     output,
     output_truncated: false,
+    output_artifact: None,
     limit_reason: None,
     unverified_limits: [],
     changed_paths: [],
@@ -121,6 +140,7 @@ pub fn killed_receipt(
     exit_code: None,
     output,
     output_truncated,
+    output_artifact: None,
     limit_reason: Some(limit_reason),
     unverified_limits: [],
     changed_paths: [],
@@ -152,6 +172,7 @@ pub fn failed_receipt(
     exit_code: None,
     output: "",
     output_truncated: false,
+    output_artifact: None,
     limit_reason: None,
     unverified_limits: [],
     changed_paths: [],
@@ -161,6 +182,17 @@ pub fn failed_receipt(
     cleanup_verified: false,
     retention_id: None,
   }
+}
+
+///|
+/// Replace the model-facing output with a bounded projection while binding the
+/// full retained bytes through an opaque executor-owned artifact reference.
+pub fn SandboxReceipt::with_output_artifact(
+  self : SandboxReceipt,
+  output : String,
+  artifact : CommandOutputArtifactRef,
+) -> SandboxReceipt {
+  { ..self, output, output_artifact: Some(artifact) }
 }
 
 ///|

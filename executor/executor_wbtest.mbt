@@ -4,6 +4,7 @@ async fn test_executor_config() -> (ExecutorConfig, Array[String]) {
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-private-scratch-"))
   let workspace = @fs.realpath(@fs.tmpdir(prefix="moonfort-trusted-workspace-"))
   let retention = @fs.realpath(@fs.tmpdir(prefix="moonfort-retention-"))
+  @fs.mkdir("\{retention}/output-artifacts", permission=0o700)
   @fs.mkdir("\{approval}/pending", permission=0o700)
   @fs.mkdir("\{approval}/consumed", permission=0o700)
   let limits : ExecutorLimits = {
@@ -14,6 +15,7 @@ async fn test_executor_config() -> (ExecutorConfig, Array[String]) {
     max_disk_mib: 32,
     max_processes: 32,
     max_output_bytes: 64 * 1024,
+    max_model_output_bytes: 32 * 1024,
     max_command_args: 16,
     max_argument_bytes: 4_096,
     max_changed_paths: 32,
@@ -33,6 +35,8 @@ async fn test_executor_config() -> (ExecutorConfig, Array[String]) {
       approval_root: approval,
       scratch_root: scratch,
       retention_root: retention,
+      artifact_key_id: "test-key-1",
+      artifact_signing_key: "0123456789abcdef0123456789abcdef",
       workspaces: { "book": policy },
       local_tools: { "true": "/usr/bin/true" },
       aen_backends: Map([]),

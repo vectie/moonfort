@@ -219,7 +219,8 @@ pub fn contract_json() -> Json {
     "required_receipt_fields": [
       "run_id", "approval_id", "approval_digest", "command_digest", "backend", "enforcement",
       "profile_digest", "exit_code", "changed_paths", "artifacts", "output", "output_truncated",
-      "limit_reason", "unverified_limits", "cleanup_verified", "retention_id",
+      "output_artifact", "limit_reason", "unverified_limits", "cleanup_verified",
+      "retention_id",
     ],
   }
 }

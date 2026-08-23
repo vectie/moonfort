@@ -171,6 +171,7 @@ pub async fn execute_invocation(
   config : ExecutorConfig,
 ) -> ExecutorResponse {
   ignore(sweep_expired_retentions(config) catch { _ => 0 })
+  ignore(sweep_expired_output_artifacts(config) catch { _ => 0 })
   let grant = consume_grant(invocation, config) catch {
     _ =>
       return rejected_response(
@@ -255,9 +256,42 @@ pub async fn execute_invocation(
     grant.backend_config_id,
     backend_binding_digest,
   )
+  let receipt_with_output_artifact = if (
+      raw_receipt.status is Exited || raw_receipt.status is Killed
+    ) &&
+    output_artifact_required(raw_receipt, config.limits.max_model_output_bytes) {
+    try {
+      let artifact = retain_command_output_artifact(
+        raw_receipt.run_id,
+        raw_receipt.output,
+        grant.limits.output_bytes,
+        approval_digest,
+        command_digest,
+        config,
+      )
+      raw_receipt.with_output_artifact(
+        model_output_projection(
+          raw_receipt.output,
+          config.limits.max_model_output_bytes,
+        ),
+        artifact,
+      )
+    } catch {
+      _ =>
+        @sandbox.failed_receipt(
+          grant.request_id,
+          grant.backend,
+          raw_receipt.enforcement,
+          @sandbox.profile_digest(profile),
+          "complete command output could not be retained",
+        )
+    }
+  } else {
+    raw_receipt
+  }
   let retained = retain_execution_result(
     grant.backend,
-    raw_receipt,
+    receipt_with_output_artifact,
     scratch,
     retention_id,
     grant.workspace_id,
@@ -276,14 +310,17 @@ pub async fn execute_invocation(
   // terminal kind, so accept host scratch cleanup only for ordinary local
   // terminal results; never upgrade a refusal/failure from the supervisor.
   let backend_terminal_cleanup = match grant.backend {
-    MicroVm => raw_receipt.cleanup_verified
+    MicroVm => receipt_with_output_artifact.cleanup_verified
     LocalOs =>
-      raw_receipt.enforcement is Degraded &&
-      (raw_receipt.status is Exited || raw_receipt.status is Killed)
+      receipt_with_output_artifact.enforcement is Degraded &&
+      (
+        receipt_with_output_artifact.status is Exited ||
+        receipt_with_output_artifact.status is Killed
+      )
     Unavailable => false
   }
   let cleanup_verified = backend_terminal_cleanup && host_cleanup_verified
-  let receipt = if raw_receipt.changed_paths.length() >
+  let receipt = if receipt_with_output_artifact.changed_paths.length() >
     config.limits.max_changed_paths {
     @sandbox.refused_receipt(
       grant.request_id,
@@ -292,7 +329,7 @@ pub async fn execute_invocation(
       "changed path count exceeds deployment limit",
     )
   } else {
-    raw_receipt
+    receipt_with_output_artifact
   }
   completed_response(
     invocation.approval_id,
@@ -304,7 +341,7 @@ pub async fn execute_invocation(
       retention_id?=if retained {
         Some(retention_id)
       } else {
-        raw_receipt.retention_id
+        receipt_with_output_artifact.retention_id
       },
     ),
   )

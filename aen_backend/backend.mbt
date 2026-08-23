@@ -344,6 +344,7 @@ fn[T] AenBackend::base_receipt(
     exit_code: None,
     output: "",
     output_truncated: false,
+    output_artifact: None,
     limit_reason: None,
     unverified_limits: [],
     changed_paths: [],
