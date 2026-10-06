@@ -77,7 +77,7 @@ fn valid_bind_address(value : String) -> Bool {
   guard value.has_prefix("127.0.0.1:") && value.find(":") == value.rev_find(":") else {
     return false
   }
-  let parsed : Int = @strconv.from_str(value[10:]) catch { _ => return false }
+  let parsed = @string.parse_int(value[10:]) catch { _ => return false }
   parsed > 0 && parsed <= 65535
 }
 

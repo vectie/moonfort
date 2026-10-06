@@ -21,7 +21,7 @@ fn required_int64_string(
   key : String,
 ) -> Int64 raise AenBackendError {
   let text = required_string(object, key)
-  @strconv.from_str(text) catch {
+  @string.parse_int64(text) catch {
     _ => raise ProtocolFailure("guest export has an invalid \{key}")
   }
 }

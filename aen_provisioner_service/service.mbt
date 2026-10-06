@@ -50,7 +50,7 @@ fn request_from_json(
   guard protocol == protocol_version.to_double() else {
     raise InvalidRequest("protocol version is invalid")
   }
-  let max_bytes : Int64 = @strconv.from_str(max_bytes) catch {
+  let max_bytes = @string.parse_int64(max_bytes) catch {
     _ => raise InvalidRequest("maxBytes is invalid")
   }
   let reject_symlinks = match reject_symlinks {
@@ -162,7 +162,7 @@ pub fn provision(
     !write_lease(config.lease_root, lease_id, encoded) {
     return error_result(503, "Service Unavailable", "lease-storage-failed")
   }
-  { status: 201, reason: "Created", body: encoded }
+  { status: 201, reason: "Created", body: encoded, }
 }
 
 ///|
@@ -182,7 +182,7 @@ pub fn release(
     return error_result(400, "Bad Request", "invalid-lease-id")
   }
   match release_lease(config.lease_root, lease_id) {
-    0 => { status: 204, reason: "No Content", body: "" }
+    0 => { status: 204, reason: "No Content", body: "", }
     1 => error_result(404, "Not Found", "lease-not-found")
     _ => error_result(503, "Service Unavailable", "lease-release-failed")
   }
@@ -248,7 +248,7 @@ async fn handle_http_request(
           is Some(raw_length) else {
           return error_result(411, "Length Required", "content-length-required")
         }
-        let length : Int = @strconv.from_str(raw_length) catch {
+        let length = @string.parse_int(raw_length) catch {
           _ => return error_result(400, "Bad Request", "invalid-content-length")
         }
         let text = read_bounded_body(

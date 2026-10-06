@@ -101,7 +101,7 @@ async test "provisions deterministic content-addressed OCI blobs and signed leas
   assert_true(
     constant_time_equal(
       first_lease.receipt_mac,
-      receipt_mac(config.receipt_key, { ..first_lease, receipt_mac: "" }),
+      receipt_mac(config.receipt_key, { ..first_lease, receipt_mac: "", }),
     ),
   )
   assert_true(@fs.readdir(staging).is_empty())
@@ -247,7 +247,7 @@ async test "loopback HTTP service enforces authentication and bounded protocol" 
     guard accepted.headers.get("content-length") is Some(raw_length) else {
       fail("provisioner response omitted content-length")
     }
-    let length : Int = @strconv.from_str(raw_length)
+    let length = @string.parse_int(raw_length)
     let lease : ProvisionerLease = @json.from_json(
       @json.parse(@utf8.decode(client.read_exactly(length))),
     )
