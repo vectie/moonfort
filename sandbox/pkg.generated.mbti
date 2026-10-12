@@ -53,6 +53,8 @@ pub fn profile_is_valid(SandboxProfile) -> Bool
 
 pub fn profile_rejection(SandboxProfile) -> String
 
+pub fn read_scratch_artifact(String, ScratchEntry, Int) -> Bytes raise
+
 pub fn refused_receipt(String, SandboxBackendKind, String, String) -> SandboxReceipt
 
 pub async fn reset_workspace_snapshot(String, String, Int64) -> Result[ScratchInventory, SandboxStorageRefusal]

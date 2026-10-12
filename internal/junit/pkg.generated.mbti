@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/internal/junit"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn parse(String) -> Report raise
+
+// Errors
+
+// Types and methods
+pub(all) struct Report {
+  headers : Array[String]
+  rows : Array[Array[String]]
+  passed : Int
+  failed : Int
+  errors : Int
+  skipped : Int
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

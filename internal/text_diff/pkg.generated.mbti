@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vectie/moonfort/internal/text_diff"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn unified(String, String, String, String, context? : Int) -> TextDiff raise
+
+// Errors
+
+// Types and methods
+pub struct TextDiff {
+  patch : String
+  added_lines : Int
+  removed_lines : Int
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

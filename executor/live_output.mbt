@@ -204,6 +204,9 @@ async fn finalize_live_output(
   let root = live_output_root(config)
   let blob = "\{root}/\{started.stream_id}.blob"
   if !(@fs.exists(blob) catch { _ => false }) {
+    guard !(receipt.status is Exited || receipt.status is Killed) else {
+      fail("terminal command output spool is missing")
+    }
     @fs.write_file(
       blob,
       b"",

@@ -541,6 +541,60 @@ static int split_absolute_parent(
   return *parent < 0 ? -1 : 0;
 }
 
+/* Read-only companion to promotion's descriptor-relative source open. The
+   MoonBit caller hashes the returned buffer before releasing any bytes. */
+MOONBIT_FFI_EXPORT
+int32_t moonfort_read_scratch_file(
+  moonbit_bytes_t root_bytes, int32_t root_length,
+  moonbit_bytes_t path_bytes, int32_t path_length,
+  moonbit_bytes_t output, int32_t output_length
+) {
+  if (output_length < 0 || output_length > 16777216) return SECURE_FS_INVALID;
+  char *root = copy_checked_path(root_bytes, root_length, 1);
+  char *path = copy_checked_path(path_bytes, path_length, 0);
+  if (root == NULL || path == NULL) {
+    free(root);
+    free(path);
+    return SECURE_FS_INVALID;
+  }
+  int root_fd = open_absolute_directory(root);
+  free(root);
+  char leaf[NAME_MAX + 1];
+  int parent = root_fd < 0 ? -1 : open_relative_parent(root_fd, path, 0, leaf);
+  free(path);
+  if (root_fd >= 0) close(root_fd);
+  if (parent < 0) return SECURE_FS_SOURCE;
+  int file = open_regular_at(parent, leaf);
+  if (file < 0) {
+    close(parent);
+    return SECURE_FS_SOURCE;
+  }
+  int result = SECURE_FS_SOURCE;
+  struct stat before, after, named;
+  if (fstat(file, &before) != 0 || before.st_size != output_length) goto done;
+  int32_t used = 0;
+  while (used < output_length) {
+    ssize_t count = read(file, output + used, (size_t)(output_length - used));
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) goto done;
+    used += (int32_t)count;
+  }
+  unsigned char extra;
+  ssize_t count;
+  do { count = read(file, &extra, 1); } while (count < 0 && errno == EINTR);
+  if (count != 0 || fstat(file, &after) != 0 ||
+      fstatat(parent, leaf, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+      !S_ISREG(named.st_mode) || after.st_size != before.st_size ||
+      after.st_dev != before.st_dev || after.st_ino != before.st_ino ||
+      named.st_dev != before.st_dev || named.st_ino != before.st_ino ||
+      named.st_size != before.st_size) goto done;
+  result = SECURE_FS_OK;
+done:
+  close(file);
+  close(parent);
+  return result;
+}
+
 static int remove_directory_children(int directory) {
   int stream_fd = dup(directory);
   if (stream_fd < 0) return SECURE_FS_IO;

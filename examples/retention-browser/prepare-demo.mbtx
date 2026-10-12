@@ -1,0 +1,55 @@
+import {
+  "moonbitlang/async@0.22.4",
+  "moonbitlang/async@0.22.4/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x@0.5.5/crypto",
+}
+
+///|
+// Create a new disposable synthetic retention, never an execution grant.
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 else { fail("prepare-demo.mbtx SAMPLE-DIRECTORY NEW-ABSOLUTE-DEMO-DIRECTORY") }
+  let samples = @fs.realpath(args[1])
+  let requested = args[2]
+  guard requested.has_prefix("/") else { fail("demo directory must be absolute and new") }
+  @fs.mkdir(requested, permission=0o700)
+  let root = @fs.realpath(requested)
+  for directory in ["approvals", "approvals/pending", "approvals/consumed", "scratch", "scratch/maple-demo", "scratch/maple-demo/reports", "scratch/maple-demo/notes", "scratch/maple-demo/data", "retention", "retention/output-artifacts", "retention/live-output"] {
+    @fs.mkdir(root + "/" + directory, permission=0o700)
+  }
+  let manifest : Array[Json] = []
+  let names = ["data/empty.txt", "data/measurement.bin", "notes/review.txt", "reports/checks.csv", "reports/details.json", "reports/launch-summary.md"]
+  // The existing retention wire contract uses MoonBit's default shortlex order.
+  names.sort()
+  for name in names {
+    let bytes = match name {
+      "data/measurement.bin" => Bytes::from_array([0, 255, 10, 13, 27, 128, 42])
+      "data/empty.txt" => b""
+      _ => @fs.read_file(samples + "/files/" + name).binary()
+    }
+    @fs.write_file(root + "/scratch/maple-demo/" + name, bytes, permission=0o600)
+    manifest.push({ "relative_path": name, "kind": "RegularFile", "size_bytes": bytes.length().to_int64(), "fingerprint": @crypto.bytes_to_hex_string(@crypto.sha256(bytes)) })
+  }
+  let approval = "b".repeat(64)
+  let command = "c".repeat(64)
+  let binding : Json = { "protocol_version": 1, "retention_id": "maple-demo", "workspace_id": "demo-workspace", "approval_digest": approval, "command_digest": command }
+  let record : Json = {
+    "retention_id": "maple-demo", "scratch_path": root + "/scratch/maple-demo",
+    "expires_at_ms": @env.now().reinterpret_as_int64() + 86_400_000L,
+    "workspace_id": "demo-workspace", "profile_digest": "a".repeat(64),
+    "approval_digest": approval, "command_digest": command, "reviewable_files": manifest,
+  }
+  let config : Json = {
+    "approval_root": root + "/approvals", "scratch_root": root + "/scratch", "retention_root": root + "/retention",
+    "artifact_key_id": "synthetic-demo-key", "artifact_signing_key": "synthetic-example-only-01234567890123456789",
+    "workspaces": {}, "local_tools": {}, "aen_backends": {},
+    "limits": { "max_protocol_bytes": 65536, "max_wall_clock_ms": 5000, "max_cpu_seconds": 2, "max_memory_mib": 256, "max_disk_mib": 32, "max_processes": 32, "max_output_bytes": 65536, "max_model_output_bytes": 32768, "max_command_args": 16, "max_argument_bytes": 4096, "max_changed_paths": 32, "retention_ms": "86400000" },
+  }
+  @fs.write_file(root + "/retention/maple-demo.json", record.stringify(), permission=0o600)
+  @fs.write_file(root + "/config.json", config.stringify(), permission=0o600)
+  @fs.write_file(root + "/receipt-binding.json", binding.stringify(), permission=0o600)
+  println("Synthetic demo ready for 24 hours: " + root)
+  println("Use config.json with MOONFORT_EXECUTOR_CONFIG and receipt-binding.json on stdin.")
+}

@@ -88,7 +88,10 @@ fn output_reference_is_well_formed(
   sha256_digest(reference.sha256) &&
   reference.size_bytes >= 0L &&
   reference.size_bytes <= config.limits.max_output_bytes.to_int64() &&
-  reference.media_type == CommandOutputMediaType &&
+  (
+    reference.media_type == CommandOutputMediaType ||
+    reference.media_type == "application/octet-stream"
+  ) &&
   reference.expires_at_ms > 0L &&
   reference.key_id == config.artifact_key_id &&
   sha256_digest(reference.signature)
@@ -195,6 +198,20 @@ async fn retain_command_output_artifact(
   config : ExecutorConfig,
 ) -> @sandbox.CommandOutputArtifactRef {
   let bytes = @utf8.encode(output)
+  retain_command_output_bytes(
+    run_id, bytes, output_limit, approval_digest, command_digest, config,
+  )
+}
+
+///|
+async fn retain_command_output_bytes(
+  run_id : String,
+  bytes : Bytes,
+  output_limit : Int,
+  approval_digest : String,
+  command_digest : String,
+  config : ExecutorConfig,
+) -> @sandbox.CommandOutputArtifactRef {
   guard artifact_root_is_private(config) &&
     safe_identifier(run_id) &&
     sha256_digest(approval_digest) &&
@@ -217,7 +234,11 @@ async fn retain_command_output_artifact(
     run_id,
     sha256: @crypto.bytes_to_hex_string(@crypto.sha256(bytes)),
     size_bytes: bytes.length().to_int64(),
-    media_type: CommandOutputMediaType,
+    media_type: try @utf8.decode(bytes) catch {
+      _ => "application/octet-stream"
+    } noraise {
+      _ => CommandOutputMediaType
+    },
     expires_at_ms: now + config.limits.retention_ms,
     key_id: config.artifact_key_id,
     signature: "",
@@ -248,7 +269,7 @@ async fn retain_command_output_artifact(
   try {
     @fs.write_file(
       blob_staging,
-      output,
+      bytes,
       create_mode=CreateNew,
       permission=0o600,
       sync=Full,

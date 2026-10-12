@@ -50,7 +50,7 @@ async fn local_bindings(
       fail("trusted local executable changed before launch")
     }
     selected[label] = configured
-    bindings.push({ capability_label: label, executable_path: configured })
+    bindings.push({ capability_label: label, executable_path: configured, })
   }
   (selected, bindings)
 }
@@ -303,38 +303,24 @@ pub async fn execute_invocation(
       }
     None => None
   }
-  let receipt_with_output_artifact = if (
-      raw_receipt.status is Exited || raw_receipt.status is Killed
-    ) &&
-    output_artifact_required(raw_receipt, config.limits.max_model_output_bytes) {
-    try {
-      let artifact = retain_command_output_artifact(
-        raw_receipt.run_id,
-        raw_receipt.output,
-        grant.limits.output_bytes,
-        approval_digest,
-        command_digest,
-        config,
-      )
-      raw_receipt.with_output_artifact(
-        model_output_projection(
-          raw_receipt.output,
-          config.limits.max_model_output_bytes,
-        ),
-        artifact,
-      )
-    } catch {
-      _ =>
-        @sandbox.failed_receipt(
-          grant.request_id,
-          grant.backend,
-          raw_receipt.enforcement,
-          @sandbox.profile_digest(profile),
-          "complete command output could not be retained",
-        )
+  let receipt_with_output_artifact = try {
+    if grant.backend is LocalOs &&
+      (raw_receipt.status is Exited || raw_receipt.status is Killed) &&
+      final_live_output is None {
+      fail("terminal local output spool could not be verified")
     }
-  } else {
-    raw_receipt
+    retain_receipt_command_output(
+      raw_receipt, grant, approval_digest, command_digest, final_live_output, config,
+    )
+  } catch {
+    _ =>
+      @sandbox.failed_receipt(
+        grant.request_id,
+        grant.backend,
+        raw_receipt.enforcement,
+        @sandbox.profile_digest(profile),
+        "complete command output could not be retained",
+      )
   }
   let retained = retain_execution_result(
     grant.backend,

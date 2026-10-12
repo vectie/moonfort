@@ -9,7 +9,14 @@ import {
   "moonbitlang/x/codec/base64",
   "vectie/moonfort/aen_backend",
   "vectie/moonfort/sandbox",
+  "vectie/moonfort/internal/text_diff",
+  "vectie/moonfort/internal/junit",
+  "vectie/moonfort/internal/tap",
 }
+
+import {
+  "moonbitlang/async/process",
+} for "wbtest"
 
 supported_targets = "+native"
 

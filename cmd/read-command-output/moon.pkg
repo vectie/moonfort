@@ -1,0 +1,13 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/buffer",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "vectie/moonfort/executor" @trusted_executor,
+}
+
+supported_targets = "+native"
+
+pkgtype(kind: "executable")

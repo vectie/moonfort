@@ -12,6 +12,50 @@ grant, and resolves every path, executable, credential, and deployment limit
 from executor-owned configuration. Neither backend has an unsandboxed fallback.
 
 ## Current status
+To reconstruct interleaved events, [merge retained JSONL logs into a chronological timeline](docs/RETAINED_EVENT_TIMELINES.md)
+with `browse-retention timeline --mapping timeline.json`. Select exact log paths,
+a canonical UTC timestamp field, and scalar columns. Export all events with
+original path/line drillback and digest-bound source/candidate context.
+
+To locate diagnostics when the file is unknown, [search across retained run artifacts](docs/RETAINED_RUN_SEARCH.md)
+with `browse-retention search-all --query error --ignore-case --prefix logs/`.
+Resume path/line pages, inspect explicit binary/oversized omissions, and export
+receipt-bound JSON results with exact matching-file fingerprints.
+
+For reordered report revisions, [compare retained CSV records by key](docs/RETAINED_CSV_COMPARISON.md)
+with `compare-retained-csv PATH --key-columns 1,2`. Inspect added, removed and
+changed records with exact before/after cells, or export a reusable CSV review.
+
+To inspect structured report data, [browse verified retained CSV tables](docs/RETAINED_CSV_TABLES.md)
+with `browse-retention table PATH`: select columns, filter exact cell values,
+continue logical-row pages and export a reusable CSV selection or provenance JSON.
+
+To find the most frequent diagnostic groups, [summarize retained CSV rows](docs/RETAINED_CSV_SUMMARIES.md)
+with `browse-retention summarize-csv checks.csv --group-by 2,3`. Export exact-key
+counts with source-row drillback and candidate provenance; optional filtering
+can isolate errors before grouping.
+
+To add ownership, labels or other reference fields, [enrich retained CSV with a local lookup](docs/RETAINED_CSV_ENRICHMENT.md)
+using `browse-retention enrich-csv PATH --lookup LOCAL-FILE --source-key N --lookup-key N`.
+It exports a reusable left-joined CSV candidate with source, lookup and output
+fingerprints, preserving every source row without changing retained evidence.
+
+To find diagnostic or review lines within one file, [search verified retained text](docs/RETAINED_TEXT_SEARCH.md)
+with `browse-retention search PATH --query TEXT`, including line-numbered excerpts,
+resumable pages, ASCII case-insensitive matching and JSON output.
+
+For changed text, [export a verified unified diff between retained runs](docs/RETAINED_TEXT_DIFF.md)
+with `cmd/diff-retention`. Inspect generated source, configuration or report
+changes with context and original receipt identities.
+
+For multi-file review, [export a selected ZIP package](docs/RETAINED_REVIEW_BUNDLE.md)
+with `browse-retention bundle`, including exact artifact bytes and a receipt-bound
+manifest. This is a review copy, not promotion.
+
+
+For read-only iteration review, [compare two retained run inventories](docs/RETAINED_RUN_COMPARISON.md)
+with `cmd/compare-retention`, then use the retained artifact browser to verify
+and export selected bytes. Comparison does not execute or promote artifacts.
 
 - `sandbox/` contains profiles, immutable digests, command preflight, receipts,
   lifecycle, private workspace materialization, scratch inventory/diff,
@@ -69,6 +113,15 @@ from executor-owned configuration. Neither backend has an unsandboxed fallback.
   boundary, so MoonClaw does not need direct approval-store write access.
   `cmd/promote-retention` is the digest-bound reviewed promotion boundary;
   `cmd/main` prints the contract surface for integration checks.
+- `cmd/read-command-output` retrieves signed completed-output artifacts through
+  bounded resumable JSON byte pages, or `--export` writes the verified complete
+  file directly to stdout in one pass. It never reruns execution or promotes
+  scratch. See `docs/COMMAND_OUTPUT_RETRIEVAL.md` for the operator workflow and
+  the separate host-client integration boundary.
+- `cmd/browse-retention` lists and filters generated files in an existing
+  retained result, previews selected bytes, and exports exact verified files
+  for inspection. See `docs/RETAINED_ARTIFACT_BROWSER.md` for the six-file demo,
+  CLI workflow, byte limits, and the separate reviewed promotion step.
 - `docs/IMPLEMENTATION_PLAN.md` is the implementation plan and security
   decision record.
 - `docs/AEN_PROVISIONER_CONTRACT.md` specifies the exact trusted workspace OCI
@@ -89,3 +142,84 @@ The local backend is not a production-grade arbitrary-code sandbox. Use the
 strict default for untrusted work: it selects the AEN microVM backend and
 refuses execution unless the deployment independently attests every requested
 limit and mount/network property.
+
+## Inspect generated test results
+
+[Turn retained JUnit XML into a testcase CSV](docs/RETAINED_JUNIT_REPORTS.md)
+with `browse-retention junit-csv reports/tests.xml`. Review passed, failed, error,
+and skipped checks with full diagnostics, exact duration strings, and original
+XML source lines. Context binds the derived CSV to the original retained file.
+
+[Inspect retained TAP test output](docs/RETAINED_TAP_REPORTS.md) with
+`browse-retention tap-csv results.tap --failures`. Explore test statuses,
+SKIP/TODO explanations and diagnostic text with original report-line drillback.
+The accompanying context distinguishes skipped, unplanned and bailed-out runs.
+
+## Inspect nested retained JSON
+
+For line-oriented logs, [turn retained JSONL/NDJSON records into CSV](docs/RETAINED_JSONL_CSV.md)
+with `browse-retention jsonl-csv diagnostics.jsonl --mapping columns.json`.
+Choose nested scalar fields, retain exact numeric spellings, and use the generated
+physical source-line column to drill back to the original record. Blank separators
+require explicit `--skip-blank-lines`.
+
+
+To reuse report records in a spreadsheet, [project retained JSON arrays into CSV](docs/RETAINED_JSON_CSV.md)
+with `browse-retention json-csv PATH --mapping columns.json`. Choose ordered,
+named columns from nested fields and retain the source/mapping/output context.
+
+Use `browse-retention json` to navigate retained object keys and array entries,
+then extract a typed subtree with its source context. See
+[the retained JSON guide](docs/RETAINED_JSON_EXPLORER.md).
+
+To correct fields, remove draft-only data, or append rows for reuse, apply a
+[local JSON edit recipe](docs/RETAINED_JSON_DRAFTS.md) with
+`browse-retention edit-json PATH --recipe local-edits.json`. It exports a new
+candidate and source/recipe provenance while leaving the retained original
+unchanged. Candidate creation is separate from review and promotion.
+
+## Retained static-analysis findings
+
+`browse-retention sarif-csv reports/findings.sarif < receipt-binding.json`
+exports receipt-bound SARIF 2.1.0 findings across runs as CSV, resolving driver
+rule and artifact indexes and retaining JSON Pointers for source drillback.
+See [retained SARIF reports](docs/RETAINED_SARIF_REPORTS.md) for output, supported
+inline subset and limits. This interprets existing reports; it does not execute
+analysis, compute effective severity, or promote artifacts.
+
+## Compare coverage evidence offline
+
+[Review line-coverage changes across retained review ZIPs](docs/PORTABLE_COVERAGE_REVIEW.md)
+with `python3 tools/coverage_review.py before.zip after.zip --report reports/coverage.info`.
+Union repeated LCOV test observations, inspect changed coverage coordinates and
+checksum conflicts, and export JSON or CSV with original receipt/report-line
+provenance. This is local evidence review, not code-equivalent regression proof
+or execution/promotion authority.
+
+## Inspect retained database results
+
+[Explore SQLite tables from a retained review ZIP](docs/PORTABLE_SQLITE_REVIEW.md)
+with `python3 tools/sqlite_review.py review.zip --database results/review.sqlite schema`.
+Select stored columns, exact typed filters and ordering in a local JSON recipe;
+page records with source-row locators and export typed JSON/CSV with receipt,
+database, selection and output fingerprints. This inspects a self-contained
+database copy without modifying retained output or running the original workload.
+
+[Follow a retained row to its referenced records](docs/PORTABLE_SQLITE_RELATIONS.md)
+with the same tool's `related --selection reference.json` command. Discover
+declared outgoing foreign keys in `schema`, pin the inspected database digest
+and row locator, then inspect a failed sample's run or configuration. JSON/CSV
+pages preserve parent locators, child reference values, and receipt context;
+NULL and unmatched references remain explicit. This is read-only review.
+
+[Inspect the records that reference a retained run or configuration](docs/PORTABLE_SQLITE_REFERENCING.md)
+with `referencing --selection children.json`. Discover incoming declarations in
+`schema`, select an exact parent row, filter and page its child records, and export
+typed JSON/CSV with source and candidate fingerprints. Parent affinity and
+collation are preserved; this is one-hop evidence inspection, not impact proof.
+
+[Compare two retained SQLite result snapshots by typed business key](docs/PORTABLE_SQLITE_COMPARISON.md)
+with `compare after.zip --selection comparison.json`. Pin both inspected database
+digests, choose stable key columns, and export complete bounded added/removed/
+changed records as JSON or CSV. Reordered rowids do not create changes; both
+sides retain exact source locators and receipts for further inspection.

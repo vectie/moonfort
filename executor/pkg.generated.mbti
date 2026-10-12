@@ -8,25 +8,79 @@ import {
 }
 
 // Values
+pub async fn aggregate_retained_csv(RetentionArtifactBinding, String, ExecutorConfig, value_column~ : Int, group_by? : Array[Int]) -> RetentionCsvAggregate
+
+pub async fn browse_retained_json(RetentionArtifactBinding, String, ExecutorConfig, pointer? : String, after_child? : Int, limit? : Int) -> RetentionJsonPage
+
+pub async fn compare_retained_artifacts(RetentionArtifactBinding, RetentionArtifactBinding, ExecutorConfig, prefix? : String, after? : String, include_unchanged? : Bool, limit? : Int) -> RetentionComparison
+
+pub async fn compare_retained_csv(RetentionArtifactBinding, RetentionArtifactBinding, String, ExecutorConfig, key_columns~ : Array[Int]) -> RetentionCsvComparison
+
 pub fn completed_response(String, @sandbox.SandboxReceipt) -> ExecutorResponse
+
+pub fn decode_command_output_read_request(Json) -> CommandOutputReadRequest raise
+
+pub fn decode_retention_artifact_binding(Json) -> RetentionArtifactBinding raise
+
+pub async fn diff_retained_artifact(RetentionArtifactBinding, RetentionArtifactBinding, String, ExecutorConfig, context? : Int) -> RetentionTextDiff
+
+pub async fn draft_retained_json(RetentionArtifactBinding, String, ExecutorConfig, Bytes) -> RetentionJsonDraft
+
+pub async fn enrich_retained_csv(RetentionArtifactBinding, String, ExecutorConfig, Bytes, source_key~ : Int, lookup_key~ : Int, lookup_columns? : Array[Int], prefix? : String) -> RetentionCsvEnrichment
 
 pub async fn execute_invocation(SandboxInvocation, ExecutorConfig) -> ExecutorResponse
 
+pub async fn export_command_output(CommandOutputReadRequest, ExecutorConfig) -> Bytes
+
+pub async fn export_retained_artifact(RetentionArtifactBinding, String, ExecutorConfig) -> Bytes
+
+pub async fn export_retained_bundle(RetentionArtifactBinding, Array[String], ExecutorConfig) -> Bytes
+
+pub async fn extract_retained_json(RetentionArtifactBinding, String, ExecutorConfig, pointer? : String) -> RetentionJsonSelection
+
 pub async fn inspect_retention_recovery(RetentionRecoveryInspectionRequest, ExecutorConfig) -> RetentionRecoveryInspectionResponse
 
+pub async fn list_retained_artifacts(RetentionArtifactBinding, ExecutorConfig, prefix? : String, contains? : String, after? : String, limit? : Int) -> RetentionArtifactList
+
 pub async fn load_executor_config(String) -> ExecutorConfig
+
+pub async fn merge_retained_timeline(RetentionArtifactBinding, ExecutorConfig, Bytes, skip_blank_lines? : Bool) -> RetentionTimeline
 
 pub async fn promote_retention(RetentionPromotionRequest, ExecutorConfig) -> RetentionPromotionResponse
 
 pub async fn publish_grant(GrantPublicationRequest, ExecutorConfig) -> GrantPublicationResponse
 
+pub async fn read_command_output(CommandOutputReadRequest, ExecutorConfig) -> CommandOutputReadResponse
+
 pub async fn read_command_output_artifact(@sandbox.CommandOutputArtifactRef, String, String, String, ExecutorConfig) -> Bytes
 
 pub async fn read_live_output(LiveOutputReadRequest, ExecutorConfig) -> LiveOutputReadResponse
 
+pub async fn read_retained_artifact(RetentionArtifactBinding, String, ExecutorConfig, offset? : Int64, max_bytes? : Int) -> RetentionArtifactPage
+
+pub async fn read_retained_csv(RetentionArtifactBinding, String, ExecutorConfig, columns? : Array[Int], where_column? : Int, equals? : String, after_row? : Int, limit? : Int) -> RetentionCsvPage
+
 pub fn rejected_response(String, String, String) -> ExecutorResponse
 
+pub async fn search_retained_artifact(RetentionArtifactBinding, String, String, ExecutorConfig, after_line? : Int, limit? : Int, ignore_ascii_case? : Bool) -> RetentionTextSearch
+
+pub async fn search_retained_run(RetentionArtifactBinding, String, ExecutorConfig, prefix? : String, contains? : String, after_path? : String, after_line? : Int, limit? : Int, ignore_ascii_case? : Bool) -> RetentionRunSearch
+
+pub async fn summarize_retained_csv(RetentionArtifactBinding, String, ExecutorConfig, group_by~ : Array[Int], where_column? : Int, equals? : String) -> RetentionCsvSummary
+
 pub async fn sweep_expired_retentions(ExecutorConfig) -> Int
+
+pub async fn tabulate_retained_json(RetentionArtifactBinding, String, ExecutorConfig, Bytes) -> RetentionJsonTable
+
+pub async fn tabulate_retained_jsonl(RetentionArtifactBinding, String, ExecutorConfig, Bytes, skip_blank_lines? : Bool) -> RetentionJsonLinesTable
+
+pub async fn tabulate_retained_junit(RetentionArtifactBinding, String, ExecutorConfig) -> RetentionJunitTable
+
+pub async fn tabulate_retained_lcov(RetentionArtifactBinding, String, ExecutorConfig, uncovered_only? : Bool) -> RetentionLcovTable
+
+pub async fn tabulate_retained_sarif(RetentionArtifactBinding, String, ExecutorConfig) -> RetentionSarifTable
+
+pub async fn tabulate_retained_tap(RetentionArtifactBinding, String, ExecutorConfig, failures_only? : Bool) -> RetentionTapTable
 
 // Errors
 pub(all) suberror CommandOutputArtifactRefusal {
@@ -38,6 +92,27 @@ pub(all) suberror CommandOutputArtifactRefusal {
 
 // Types and methods
 type CommandOutputArtifactRecord derive(ToJson, @json.FromJson)
+
+pub(all) struct CommandOutputReadRequest {
+  protocol_version : Int
+  reference : @sandbox.CommandOutputArtifactRef
+  run_id : String
+  approval_digest : String
+  command_digest : String
+  offset : Int64
+  max_bytes : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct CommandOutputReadResponse {
+  protocol_version : Int
+  reference : @sandbox.CommandOutputArtifactRef?
+  offset : Int64
+  next_offset : Int64
+  content_base64 : String
+  eof : Bool
+  status : String
+  error : ExecutorProtocolError?
+} derive(Eq, ToJson, @debug.Debug)
 
 pub(all) struct ExecutionGrant {
   protocol_version : Int
@@ -150,6 +225,263 @@ pub(all) struct LiveOutputReference {
 
 type PromotionClaim derive(ToJson, @json.FromJson)
 
+pub(all) struct RetentionArtifactBinding {
+  protocol_version : Int
+  retention_id : String
+  workspace_id : String
+  approval_digest : String
+  command_digest : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionArtifactList {
+  binding : RetentionArtifactBinding
+  expires_at_ms : Int64
+  total_files : Int
+  total_bytes : Int64
+  matched_files : Int
+  matched_bytes : Int64
+  files : Array[@sandbox.ScratchEntry]
+  next_after : String
+  has_more : Bool
+  max_export_bytes : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionArtifactPage {
+  binding : RetentionArtifactBinding
+  expires_at_ms : Int64
+  file : @sandbox.ScratchEntry
+  offset : Int64
+  next_offset : Int64
+  content_base64 : String
+  eof : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionBundleManifest {
+  format_version : Int
+  purpose : String
+  binding : RetentionArtifactBinding
+  expires_at_ms : Int64
+  files : Array[@sandbox.ScratchEntry]
+  total_bytes : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionComparison {
+  baseline : RetentionArtifactBinding
+  candidate : RetentionArtifactBinding
+  added : Int
+  removed : Int
+  changed : Int
+  unchanged : Int
+  byte_delta : Int64
+  matched : Int
+  entries : Array[RetentionComparisonEntry]
+  next_after : String
+  has_more : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionComparisonEntry {
+  path : String
+  change : String
+  before : @sandbox.ScratchEntry?
+  after : @sandbox.ScratchEntry?
+  byte_delta : Int64
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionCsvAggregate {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  group_by : Array[Int]
+  value_column : Int
+  source_rows : Int
+  group_count : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvAggregate::context(Self) -> Json
+
+pub(all) struct RetentionCsvChange {
+  key : Array[String]
+  change : String
+  before_row : Int?
+  after_row : Int?
+  before : Array[String]?
+  after : Array[String]?
+  changed_columns : Array[Int]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionCsvComparison {
+  baseline : RetentionArtifactBinding
+  candidate : RetentionArtifactBinding
+  before_file : @sandbox.ScratchEntry
+  after_file : @sandbox.ScratchEntry
+  key_columns : Array[Int]
+  headers : Array[String]
+  baseline_rows : Int
+  candidate_rows : Int
+  added : Int
+  removed : Int
+  changed : Int
+  unchanged : Int
+  entries : Array[RetentionCsvChange]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvComparison::context(Self) -> Json
+pub fn RetentionCsvComparison::to_csv(Self) -> String raise
+
+pub(all) struct RetentionCsvEnrichment {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  lookup_fingerprint : String
+  lookup_size_bytes : Int
+  source_key : Int
+  lookup_key : Int
+  lookup_columns : Array[Int]
+  prefix : String
+  source_rows : Int
+  lookup_rows : Int
+  matched_rows : Int
+  unused_lookup_rows : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvEnrichment::context(Self) -> Json
+
+pub(all) struct RetentionCsvPage {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  columns : Array[Int]
+  headers : Array[String]
+  where_column : Int
+  equals : String
+  total_rows : Int
+  matching_rows : Int
+  rows : Array[RetentionCsvRow]
+  next_after_row : Int
+  has_more : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvPage::to_csv(Self) -> String
+
+pub(all) struct RetentionCsvRow {
+  row : Int
+  cells : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionCsvSummary {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  group_by : Array[Int]
+  where_column : Int
+  equals : String
+  source_rows : Int
+  matching_rows : Int
+  group_count : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvSummary::context(Self) -> Json
+
+pub(all) struct RetentionJsonColumn {
+  header : String
+  pointer : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionJsonDraft {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  recipe_fingerprint : String
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  operation_count : Int
+  value : Json
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonDraft::context(Self) -> Json
+
+pub(all) struct RetentionJsonEntry {
+  pointer : String
+  kind : String
+  child_count : Int
+  preview : String
+  preview_truncated : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionJsonLinesTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  mapping_fingerprint : String
+  columns : Array[RetentionJsonColumn]
+  total_lines : Int
+  row_count : Int
+  blank_lines_skipped : Int
+  skip_blank_lines : Bool
+  missing_cells : Int
+  null_cells : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonLinesTable::context(Self) -> Json
+
+pub(all) struct RetentionJsonPage {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  selected : RetentionJsonEntry
+  children : Array[RetentionJsonEntry]
+  next_after_child : Int
+  has_more : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionJsonSelection {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  pointer : String
+  value : Json
+} derive(ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionJsonTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  mapping_fingerprint : String
+  pointer : String
+  columns : Array[RetentionJsonColumn]
+  row_count : Int
+  missing_cells : Int
+  null_cells : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonTable::context(Self) -> Json
+
+pub(all) struct RetentionJunitTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  row_count : Int
+  passed : Int
+  failed : Int
+  errors : Int
+  skipped : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJunitTable::context(Self) -> Json
+
+pub(all) struct RetentionLcovTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  record_count : Int
+  line_count : Int
+  covered_count : Int
+  row_count : Int
+  uncovered_only : Bool
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionLcovTable::context(Self) -> Json
+
 pub(all) struct RetentionPromotionRequest {
   protocol_version : Int
   retention_id : String
@@ -193,6 +525,121 @@ pub(all) struct RetentionRecoveryInspectionResponse {
   outcome : String
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+
+pub(all) struct RetentionRunMatch {
+  file : @sandbox.ScratchEntry
+  hit : RetentionTextMatch
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionRunSearch {
+  binding : RetentionArtifactBinding
+  query : String
+  ignore_ascii_case : Bool
+  prefix : String
+  contains : String
+  selected_files : Int
+  searched_files : Int
+  searched_bytes : Int64
+  matching_files : Int
+  matching_lines : Int
+  skipped_files : Array[RetentionSearchOmission]
+  matches : Array[RetentionRunMatch]
+  next_after_path : String
+  next_after_line : Int
+  has_more : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionSarifTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  run_count : Int
+  result_count : Int
+  row_count : Int
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionSarifTable::context(Self) -> Json
+
+pub(all) struct RetentionSearchOmission {
+  file : @sandbox.ScratchEntry
+  reason : String
+  bytes_verified : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionTapTable {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  plan_count : Int?
+  test_count : Int
+  status_counts : Map[String, Int]
+  row_count : Int
+  failures_only : Bool
+  skip_reason : String
+  bailout : String?
+  bailout_line : Int?
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTapTable::context(Self) -> Json
+
+pub(all) struct RetentionTextDiff {
+  baseline : RetentionArtifactBinding
+  candidate : RetentionArtifactBinding
+  path : String
+  before : @sandbox.ScratchEntry?
+  after : @sandbox.ScratchEntry?
+  added_lines : Int
+  removed_lines : Int
+  patch : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionTextMatch {
+  line : Int
+  excerpt : String
+  omitted_before : Bool
+  omitted_after : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionTextSearch {
+  binding : RetentionArtifactBinding
+  file : @sandbox.ScratchEntry
+  query : String
+  ignore_ascii_case : Bool
+  total_lines : Int
+  matching_lines : Int
+  matches : Array[RetentionTextMatch]
+  next_after_line : Int
+  has_more : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct RetentionTimeline {
+  binding : RetentionArtifactBinding
+  sources : Array[RetentionTimelineSource]
+  mapping_fingerprint : String
+  timestamp_pointer : String
+  columns : Array[RetentionJsonColumn]
+  skip_blank_lines : Bool
+  total_lines : Int
+  row_count : Int
+  blank_lines_skipped : Int
+  missing_cells : Int
+  null_cells : Int
+  first_timestamp : String
+  last_timestamp : String
+  candidate_fingerprint : String
+  candidate_size_bytes : Int
+  csv : String
+} derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTimeline::context(Self) -> Json
+
+pub(all) struct RetentionTimelineSource {
+  file : @sandbox.ScratchEntry
+  total_lines : Int
+  row_count : Int
+  blank_lines_skipped : Int
+} derive(ToJson, @debug.Debug, @json.FromJson)
 
 pub(all) struct SandboxInvocation {
   protocol_version : Int

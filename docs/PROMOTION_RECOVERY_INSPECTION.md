@@ -65,3 +65,18 @@ Do not automatically unlock or roll back based on this command. Preserve both
 locked files and the destination until an operator reviews the claim, this
 inspection evidence, application-level invariants, and the intended recovery
 action.
+
+## MoonClaw host recovery
+
+MoonClaw's daemon and authenticated gateway now expose the same read-only
+inspection path for an exact saved pending return attempt. Its normal owner
+overview shows the observation time and the five states above without any
+retry, unlock, rollback, or promotion control. The host resolves the reviewed
+selection from its existing pending checkpoint and invokes this command with
+only the saved retention ID through an operator-configured executable/argv.
+It does not accept a trusted workspace root or expected content from the UI.
+
+A desired-content observation leaves the pending attempt unresolved; it is
+not converted into a promotion success receipt. The private round55 fixtures
+qualify this bounded Fort-to-host observation journey, not an actual prior
+promotion, backend containment, graphical browser, or production deployment.
