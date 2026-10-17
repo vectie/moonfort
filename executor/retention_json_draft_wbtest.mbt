@@ -280,7 +280,9 @@ async test "compiled JSON edit CLI integrates local recipe and reusable candidat
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/source_file/fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/recipe_fingerprint"),
@@ -290,11 +292,13 @@ async test "compiled JSON edit CLI integrates local recipe and reusable candidat
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_size_bytes"),
-    output.binary().length().to_json(),
+    ToJson::to_json(output.binary().length()),
   )
   let reopened = config.scratch_root + "/candidate.json"
   @fs.write_file(reopened, output.binary(), create_mode=CreateNew)

@@ -272,7 +272,7 @@ pub fn RetentionTimeline::context(self : RetentionTimeline) -> Json {
     "derived_candidate": true,
     "derivation": "moonfort-retained-jsonl-timeline-v1",
     "binding": self.binding.to_json(),
-    "sources": self.sources.to_json(),
+    "sources": ToJson::to_json(self.sources),
     "mapping_fingerprint": ToJson::to_json(self.mapping_fingerprint),
     "timestamp_pointer": ToJson::to_json(self.timestamp_pointer),
     "timestamp_format": "YYYY-MM-DDTHH:mm:ss.SSSZ",
