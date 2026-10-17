@@ -147,4 +147,10 @@ jobs:
       - name: Check and test guest wire contract
         run: |
           moon check --target native --warn-list +73 --deny-warn
+          moon build --target native --release --strip -j 2 cmd/browse-retention cmd/read-command-output cmd/compare-retention cmd/compare-retained-csv cmd/diff-retention
+          MOONFORT_ARTIFACT_READER_CLI="$PWD/_build/native/release/build/cmd/browse-retention/browse-retention.exe" \
+          MOONFORT_OUTPUT_READER_CLI="$PWD/_build/native/release/build/cmd/read-command-output/read-command-output.exe" \
+          MOONFORT_COMPARISON_CLI="$PWD/_build/native/release/build/cmd/compare-retention/compare-retention.exe" \
+          MOONFORT_CSV_COMPARE_CLI="$PWD/_build/native/release/build/cmd/compare-retained-csv/compare-retained-csv.exe" \
+          MOONFORT_TEXT_DIFF_CLI="$PWD/_build/native/release/build/cmd/diff-retention/diff-retention.exe" \
           moon test aen_backend executor --target native -v
