@@ -36,7 +36,11 @@ test "timeline accepts canonical Gregorian UTC milliseconds and rejects ambiguou
       "2026-01-01T00:60:00.000Z", "2026-01-01T00:00:60.000Z", "2026-01-01T00:00:00.a00Z",
       "２０２６-01-01T00:00:00.000Z",
     ] {
-    assert_true((try? retained_timeline_timestamp(timestamp)) is Err(_))
+    try retained_timeline_timestamp(timestamp) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -71,15 +75,23 @@ test "timeline mapping requires exact unique files pointers and reserved column 
       ),
       Bytes::make(65_537, 32),
     ] {
-    assert_true((try? retained_timeline_mapping(mapping)) is Err(_))
+    try retained_timeline_mapping(mapping) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for header in ["__timestamp", "__source_path", "__source_line"] {
-    assert_true(
-      (try? retained_timeline_mapping(
+    try
+      retained_timeline_mapping(
         timeline_mapping(["x"], columns=[{ header, pointer: "/event", }]),
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -132,7 +144,7 @@ async test "timeline merges unsorted interleaved logs preserves ties exact cells
   assert_eq(rows[0], [
     "__source_path", "__source_line", "__timestamp", "Event", "Reading", "Note",
   ])
-  assert_eq(rows[1:].to_array().map(row => (row[0], row[1], row[3])), [
+  assert_eq(rows[1:].to_owned().map(row => (row[0], row[1], row[3])), [
     ("logs/alpha.jsonl", "3", "start"),
     ("logs/alpha.jsonl", "4", "retry"),
     ("logs/beta.jsonl", "1", "retry"),
@@ -194,39 +206,44 @@ async test "timeline merges unsorted interleaved logs preserves ties exact cells
     (0, "", ""),
   )
   assert_eq(parse_retained_csv(empty.csv).length(), 1)
-  assert_true(
-    (try? merge_retained_timeline(binding, config, mapping)) is Err(_),
-  )
-  assert_true(
-    (try? merge_retained_timeline(
+  try merge_retained_timeline(binding, config, mapping) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    merge_retained_timeline(
       { ..binding, command_digest: "d".repeat(64), },
       config,
       mapping,
       skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? merge_retained_timeline(
-      binding,
-      config,
-      timeline_mapping(["absent.jsonl"]),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    merge_retained_timeline(binding, config, timeline_mapping(["absent.jsonl"]))
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/run-search/logs/beta.jsonl",
     b"changed",
   )
-  assert_true(
-    (try? merge_retained_timeline(
-      binding,
-      config,
-      mapping,
-      skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
+  try
+    merge_retained_timeline(binding, config, mapping, skip_blank_lines=true)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/run-search/logs/beta.jsonl",
     timeline_sources()[1].1,
@@ -236,15 +253,14 @@ async test "timeline merges unsorted interleaved logs preserves ties exact cells
     receipt_path,
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true(
-    (try? merge_retained_timeline(
-      binding,
-      config,
-      mapping,
-      skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
+  try
+    merge_retained_timeline(binding, config, mapping, skip_blank_lines=true)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -262,14 +278,18 @@ async test "timeline rejects malformed later sources and missing null numeric or
       ),
       ("logs/z.jsonl", invalid),
     ])
-    assert_true(
-      (try? merge_retained_timeline(
+    try
+      merge_retained_timeline(
         binding,
         config,
         timeline_mapping(["logs/a.jsonl", "logs/z.jsonl"]),
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -292,33 +312,45 @@ async test "timeline enforces whole selection value line byte candidate and cont
       ),
     ),
   ])
-  assert_true(
-    (try? merge_retained_timeline(
+  try
+    merge_retained_timeline(
       binding,
       config,
       timeline_mapping(["logs/a.jsonl", "logs/b.jsonl"]),
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? merge_retained_timeline(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    merge_retained_timeline(
       binding,
       config,
       timeline_mapping(["logs/blanks-a.jsonl", "logs/blanks-b.jsonl"]),
       skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? merge_retained_timeline(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    merge_retained_timeline(
       binding,
       config,
       timeline_mapping(["logs/large.jsonl"]),
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? merge_retained_timeline(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    merge_retained_timeline(
       binding,
       config,
       timeline_mapping(
@@ -328,23 +360,31 @@ async test "timeline enforces whole selection value line byte candidate and cont
           pointer: "/event",
         }),
       ),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let limited = {
     ..config,
     limits: { ..config.limits, max_protocol_bytes: 4096, },
   }
-  assert_true(
-    (try? merge_retained_timeline(
+  try
+    merge_retained_timeline(
       binding,
       limited,
       timeline_mapping(["logs/repeat.jsonl"], columns=[
         { header: "h".repeat(5000), pointer: "/event", },
       ]),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let (many_config, _) = test_executor_config()
   let many = [
     for i in 1..<=5 => {
@@ -352,13 +392,16 @@ async test "timeline enforces whole selection value line byte candidate and cont
     }
   ]
   let many_binding = run_search_fixture(many_config, many)
-  guard (try? merge_retained_timeline(
+  let error = try
+    merge_retained_timeline(
       many_binding,
       many_config,
       timeline_mapping(many.map(file => file.0)),
-    ))
-    is Err(error) else {
-    fail("expected aggregate byte limit")
+    )
+  catch {
+    error => error
+  } noraise {
+    _ => fail("expected aggregate byte limit")
   }
   assert_true(error.to_string().contains("exceed 4 MiB"))
 }

@@ -62,3 +62,27 @@ fn SandboxCommand::copy(self : SandboxCommand) -> SandboxCommand {
     Shell(script~) => Shell(script~)
   }
 }
+
+///|
+pub extend SandboxCommand with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxCommand with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxCommand with ToJson::{to_json}
+
+///|
+pub extend SandboxCommand with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxCommandKind with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxCommandKind with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxCommandKind with ToJson::{to_json}
+
+///|
+pub extend SandboxCommandKind with @moonbitlang/core/json.FromJson::{from_json}

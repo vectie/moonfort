@@ -42,9 +42,9 @@ pub async fn compare_retained_artifacts(
   }
   let left = bound_artifact_record(baseline, config)
   let right = bound_artifact_record(candidate, config)
-  let old : Map[String, @sandbox.ScratchEntry] = {}
-  let new : Map[String, @sandbox.ScratchEntry] = {}
-  let paths : Map[String, Bool] = {}
+  let old : Map[String, @sandbox.ScratchEntry] = Map([])
+  let new : Map[String, @sandbox.ScratchEntry] = Map([])
+  let paths : Map[String, Bool] = Map([])
   for file in left.reviewable_files {
     old[file.relative_path] = file
     paths[file.relative_path] = true
@@ -132,3 +132,31 @@ pub async fn compare_retained_artifacts(
   }
   result
 }
+
+///|
+pub extend RetentionComparisonEntry with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionComparisonEntry with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionComparisonEntry with ToJson::{to_json}
+
+///|
+pub extend RetentionComparisonEntry with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionComparison with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionComparison with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionComparison with ToJson::{to_json}
+
+///|
+pub extend RetentionComparison with @moonbitlang/core/json.FromJson::{from_json}

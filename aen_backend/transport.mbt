@@ -1,8 +1,8 @@
 ///|
 fn control_headers(api_key : String) -> Array[AenHeader] {
   [
-    { name: "X-API-Key", value: api_key },
-    { name: "Content-Type", value: "application/json" },
+    { name: "X-API-Key", value: api_key, },
+    { name: "Content-Type", value: "application/json", },
   ]
 }
 
@@ -13,11 +13,11 @@ fn envd_headers(
   content_type : String,
 ) -> Array[AenHeader] {
   [
-    { name: "X-API-Key", value: api_key },
-    { name: "x-agentenv-sandbox-id", value: sandbox_id },
-    { name: "x-agentenv-target-port", value: "49983" },
-    { name: "Connect-Protocol-Version", value: "1" },
-    { name: "Content-Type", value: content_type },
+    { name: "X-API-Key", value: api_key, },
+    { name: "x-agentenv-sandbox-id", value: sandbox_id, },
+    { name: "x-agentenv-target-port", value: "49983", },
+    { name: "Connect-Protocol-Version", value: "1", },
+    { name: "Content-Type", value: content_type, },
   ]
 }
 

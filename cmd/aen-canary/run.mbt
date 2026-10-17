@@ -54,7 +54,7 @@ async fn run_case(
   let (approval_id, request_id) = fresh_case_ids(plan.case)
   let grant = make_grant(plan, config, approval_id, request_id)
   let publication = @trusted_executor.publish_grant(
-    { protocol_version: 3, grant },
+    { protocol_version: 3, grant, },
     executor,
   )
   if !publication.published ||
@@ -66,7 +66,7 @@ async fn run_case(
     )
   }
   let response = @trusted_executor.execute_invocation(
-    { protocol_version: 3, approval_id },
+    { protocol_version: 3, approval_id, },
     executor,
   )
   guard response.receipt() is Some(receipt) else {

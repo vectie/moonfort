@@ -193,7 +193,10 @@ pub fn SandboxRunObservation::snapshot(
 pub fn SandboxRunObservation::diff_from_baseline(
   self : SandboxRunObservation,
 ) -> ScratchDiff {
-  { ..self.diff_from_baseline, entries: self.diff_from_baseline.entries.copy() }
+  {
+    ..self.diff_from_baseline,
+    entries: self.diff_from_baseline.entries.copy(),
+  }
 }
 
 ///|
@@ -238,7 +241,7 @@ fn observation(
     revision: run.revision,
     inventory: copy_scratch_inventory(inventory),
   }
-  { run, snapshot, diff_from_baseline: diff_scratch(baseline, inventory) }
+  { run, snapshot, diff_from_baseline: diff_scratch(baseline, inventory), }
 }
 
 ///|
@@ -246,7 +249,7 @@ pub fn SandboxRunContract::begin_start(
   self : SandboxRunContract,
 ) -> Result[SandboxRunContract, SandboxLifecycleRefusal] {
   match self.state {
-    Created => Ok({ ..self, state: Starting })
+    Created => Ok({ ..self, state: Starting, })
     actual => lifecycle_transition_error(operation="start", actual~)
   }
 }
@@ -292,7 +295,7 @@ pub fn SandboxRunContract::begin_exec(
     prepared_profile.backend != self.profile.backend {
     Err(PreparedRunMismatch)
   } else {
-    Ok({ ..self, state: Executing })
+    Ok({ ..self, state: Executing, })
   }
 }
 
@@ -337,7 +340,7 @@ pub fn SandboxRunContract::begin_stop(
   self : SandboxRunContract,
 ) -> Result[SandboxRunContract, SandboxLifecycleRefusal] {
   match self.state {
-    Ready | Executing => Ok({ ..self, state: Stopping })
+    Ready | Executing => Ok({ ..self, state: Stopping, })
     actual => lifecycle_transition_error(operation="stop", actual~)
   }
 }
@@ -370,8 +373,8 @@ pub fn SandboxRunContract::begin_snapshot(
   self : SandboxRunContract,
 ) -> Result[SandboxRunContract, SandboxLifecycleRefusal] {
   match self.state {
-    Ready => Ok({ ..self, state: SnapshottingReady })
-    Stopped => Ok({ ..self, state: SnapshottingStopped })
+    Ready => Ok({ ..self, state: SnapshottingReady, })
+    Stopped => Ok({ ..self, state: SnapshottingStopped, })
     actual => lifecycle_transition_error(operation="snapshot", actual~)
   }
 }
@@ -409,7 +412,7 @@ pub fn SandboxRunContract::begin_reset(
   self : SandboxRunContract,
 ) -> Result[SandboxRunContract, SandboxLifecycleRefusal] {
   match self.state {
-    Stopped => Ok({ ..self, state: Resetting })
+    Stopped => Ok({ ..self, state: Resetting, })
     actual => lifecycle_transition_error(operation="reset", actual~)
   }
 }
@@ -460,5 +463,51 @@ pub async fn SandboxRunContract::complete_reset(
 pub fn SandboxRunContract::mark_failed(
   self : SandboxRunContract,
 ) -> SandboxRunContract {
-  { ..self, state: Failed }
+  { ..self, state: Failed, }
 }
+
+///|
+pub extend SandboxLifecycleState with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxLifecycleState with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxLifecycleState with ToJson::{to_json}
+
+///|
+pub extend SandboxLifecycleState with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxLifecycleRefusal with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxLifecycleRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxLifecycleRefusal with ToJson::{to_json}
+
+///|
+pub extend SandboxLifecycleRefusal with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxRunContract with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxRunContract with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxScratchSnapshot with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxScratchSnapshot with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxRunObservation with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxRunObservation with Eq::{not_equal, equal}

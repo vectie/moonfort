@@ -168,7 +168,7 @@ fn promotion_outcome_from_native_status(
   status : Int,
 ) -> SandboxPromotionOutcome {
   match status {
-    0 => AppliedDurable({ promoted_paths: [item.destination_relative_path] })
+    0 => AppliedDurable({ promoted_paths: [item.destination_relative_path], })
     1 | 3 => NotApplied(DestinationStateChanged(item.destination_relative_path))
     2 => NotApplied(SourceFingerprintMismatch(item.source_relative_path))
     4 =>
@@ -370,7 +370,7 @@ pub async fn plan_sandbox_promotion(
         expected_destination_state: destination_state,
       })
     }
-    Ok({ destination_root, items })
+    Ok({ destination_root, items, })
   } catch {
     error if @async.is_being_cancelled() => raise error
     error => Err(DestinationIo("\{error}"))
@@ -445,4 +445,138 @@ pub async fn apply_sandbox_promotion(
     error if @async.is_being_cancelled() => raise error
     error => NotApplied(DestinationIo("\{error}"))
   }
+}
+
+///|
+pub extend SandboxArtifact with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxArtifact with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxArtifact with ToJson::{to_json}
+
+///|
+pub extend SandboxArtifact with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxArtifactRefusal with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxArtifactRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxArtifactRefusal with ToJson::{to_json}
+
+///|
+pub extend SandboxArtifactRefusal with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionRequest with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionRequest with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionDestinationState with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend SandboxPromotionDestinationState with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionDestinationState with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionDestinationState with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxDestinationObservation with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend SandboxDestinationObservation with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxDestinationObservation with ToJson::{to_json}
+
+///|
+pub extend SandboxDestinationObservation with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionItem with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionItem with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionItem with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionItem with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionPlan with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionPlan with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionRefusal with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionRefusal with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionRefusal with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionResult with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionResult with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionResult with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPromotionOutcome with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPromotionOutcome with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPromotionOutcome with ToJson::{to_json}
+
+///|
+pub extend SandboxPromotionOutcome with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

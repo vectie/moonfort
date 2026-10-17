@@ -115,9 +115,8 @@ pub async fn search_retained_run(
     // Keep verification outside the UTF-8 classification: changed or missing
     // evidence must never look like an ordinary skipped binary file.
     let bytes = export_retained_artifact(binding, file.relative_path, config)
-    let text = match (try? @utf8.decode(bytes)) {
-      Ok(text) => text
-      Err(_) => {
+    let text = @utf8.decode(bytes) catch {
+      _ => {
         skipped_files.push({
           file,
           reason: "invalid_utf8",
@@ -140,7 +139,7 @@ pub async fn search_retained_run(
       let line = lines[index]
         .strip_suffix("\r")
         .unwrap_or(lines[index])
-        .to_string()
+        .to_owned()
       let searchable = if ignore_ascii_case { line.to_lower() } else { line }
       if searchable.find(needle) is Some(_) {
         in_file += 1
@@ -204,7 +203,7 @@ pub async fn search_retained_run(
       let line = lines[index]
         .strip_suffix("\r")
         .unwrap_or(lines[index])
-        .to_string()
+        .to_owned()
       let searchable = if ignore_ascii_case { line.to_lower() } else { line }
       if searchable.find(needle) is Some(position) {
         pending += 1
@@ -241,3 +240,41 @@ pub async fn search_retained_run(
   }
   result
 }
+
+///|
+pub extend RetentionRunMatch with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionRunMatch with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionRunMatch with ToJson::{to_json}
+
+///|
+pub extend RetentionRunMatch with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionSearchOmission with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionSearchOmission with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionSearchOmission with ToJson::{to_json}
+
+///|
+pub extend RetentionSearchOmission with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionRunSearch with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionRunSearch with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionRunSearch with ToJson::{to_json}
+
+///|
+pub extend RetentionRunSearch with @moonbitlang/core/json.FromJson::{from_json}

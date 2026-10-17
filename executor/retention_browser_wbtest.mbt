@@ -191,43 +191,66 @@ async test "artifact browser uses the retained selection and original receipt bi
       { ..binding, approval_digest: "d".repeat(64), },
       { ..binding, command_digest: "d".repeat(64), },
     ] {
-    assert_true((try? list_retained_artifacts(wrong, config)) is Err(_))
-    assert_true(
-      (try? export_retained_artifact(wrong, "reports/checks.csv", config))
-      is Err(_),
-    )
+    try list_retained_artifacts(wrong, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
+    try
+      export_retained_artifact(wrong, "reports/checks.csv", config) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for name in ["not-in-receipt.txt", "../outside", "/etc/passwd"] {
-    assert_true(
-      (try? export_retained_artifact(binding, name, config)) is Err(_),
-    )
+    try export_retained_artifact(binding, name, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let path = config.scratch_root + "/maple-results/reports/checks.csv"
   let original = @fs.read_file(path).binary()
   @fs.write_file(path, Bytes::make(original.length(), 65))
-  assert_true(
-    (try? export_retained_artifact(binding, "reports/checks.csv", config))
-    is Err(_),
-  )
+  try
+    export_retained_artifact(binding, "reports/checks.csv", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.remove(path)
   @fs.symlink(
     path,
     target=config.scratch_root + "/maple-results/reports/details.json",
   )
-  assert_true(
-    (try? read_retained_artifact(binding, "reports/checks.csv", config))
-    is Err(_),
-  )
+  try
+    read_retained_artifact(binding, "reports/checks.csv", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let record_path = config.retention_root + "/maple-results.json"
   let record = load_retention_record(binding.retention_id, config)
   @fs.write_file(
     record_path,
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true((try? list_retained_artifacts(binding, config)) is Err(_))
+  try list_retained_artifacts(binding, config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(record_path, record.to_json().stringify())
   @fs.rename(record_path, config.retention_root + "/maple-results.promoting")
-  assert_true((try? list_retained_artifacts(binding, config)) is Err(_))
+  try list_retained_artifacts(binding, config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   cleanup_test_roots(roots)
 }
 
@@ -237,13 +260,19 @@ async test "artifact browser bounds previews and large exports without hiding li
   let binding = artifact_fixture(base)
   let config = { ..base, limits: { ..base.limits, max_protocol_bytes: 4096, }, }
   assert_eq(list_retained_artifacts(binding, config).total_files, 6)
-  assert_true(
-    (try? list_retained_artifacts(binding, config, limit=0)) is Err(_),
-  )
-  assert_true(
-    (try? read_retained_artifact(binding, "data/empty.txt", config, offset=1L))
-    is Err(_),
-  )
+  try list_retained_artifacts(binding, config, limit=0) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    read_retained_artifact(binding, "data/empty.txt", config, offset=1L)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let record = load_retention_record(binding.retention_id, config)
   let large : @sandbox.ScratchEntry = {
     relative_path: "data/large.bin",
@@ -256,9 +285,12 @@ async test "artifact browser bounds previews and large exports without hiding li
     { ..record, reviewable_files: [large], }.to_json().stringify(),
   )
   assert_eq(list_retained_artifacts(binding, config).files, [large])
-  assert_true(
-    (try? export_retained_artifact(binding, large.relative_path, config))
-    is Err(_),
-  )
+  try
+    export_retained_artifact(binding, large.relative_path, config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   cleanup_test_roots(roots)
 }

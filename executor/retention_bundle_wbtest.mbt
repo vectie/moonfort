@@ -47,24 +47,35 @@ async test "review ZIP round trips binary Unicode empty and selected artifacts" 
       ["../outside"],
       ["not-in-receipt.txt"],
     ] {
-    assert_true((try? export_retained_bundle(binding, paths, config)) is Err(_))
+    try export_retained_bundle(binding, paths, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? export_retained_bundle(
-      binding,
-      Array::make(201, "data/empty.txt"),
-      config,
-    ))
-    is Err(_),
-  )
+  try
+    export_retained_bundle(binding, Array::make(201, "data/empty.txt"), config)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let reduced = { ..config, limits: { ..config.limits, max_disk_mib: 0, }, }
-  assert_true(
-    (try? export_retained_bundle(binding, ["reports/checks.csv"], reduced))
-    is Err(_),
-  )
+  try
+    export_retained_bundle(binding, ["reports/checks.csv"], reduced) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let scratch = config.scratch_root + "/maple-results/reports/checks.csv"
   @fs.write_file(scratch, b"changed bytes")
-  assert_true((try? export_retained_bundle(binding, paths, config)) is Err(_))
+  try export_retained_bundle(binding, paths, config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
   cleanup_test_roots(roots)

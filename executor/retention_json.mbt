@@ -74,7 +74,7 @@ fn RetainedJsonReader::value(self : RetainedJsonReader) -> Json raise {
     '{' => {
       self.position += 1
       self.space()
-      let fields : Map[String, Json] = {}
+      let fields : Map[String, Json] = Map([])
       if self.chars[self.position] != '}' {
         while true {
           let key = self.string()
@@ -132,8 +132,39 @@ fn RetainedJsonReader::value(self : RetainedJsonReader) -> Json raise {
 }
 
 ///|
+fn validate_retained_json_syntax(text : String) -> Unit raise {
+  // Bound recursion before the standard parser; its depth parameter is being
+  // retired. JSON string contents and escaped quotes do not increase depth.
+  let mut depth = 0
+  let mut in_string = false
+  let mut escaped = false
+  for char in text {
+    if in_string {
+      if escaped {
+        escaped = false
+      } else if char == '\\' {
+        escaped = true
+      } else if char == '"' {
+        in_string = false
+      }
+    } else {
+      match char {
+        '"' => in_string = true
+        '[' | '{' => {
+          depth += 1
+          guard depth <= 64 else { fail("JSON nesting exceeds 64") }
+        }
+        ']' | '}' => depth -= 1
+        _ => ()
+      }
+    }
+  }
+  @json.parse(text) |> ignore
+}
+
+///|
 fn parse_retained_json(text : String) -> Json raise {
-  @json.parse(text, max_nesting_depth=64) |> ignore
+  validate_retained_json_syntax(text)
   let reader : RetainedJsonReader = {
     chars: text.iter().collect(),
     position: 0,
@@ -350,4 +381,39 @@ pub async fn extract_retained_json(
     fail("JSON selection exceeds protocol budget; use whole-file export")
   }
   selection
+}
+
+///|
+pub extend RetentionJsonEntry with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonEntry with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionJsonEntry with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonEntry with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionJsonPage with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonPage with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionJsonPage with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonPage with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionJsonSelection with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonSelection with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonSelection with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

@@ -10,7 +10,7 @@ test "typed export parser preserves signed Int64 and error boundaries" {
       ("-9223372036854775808", -9223372036854775808L),
     ] {
     assert_eq(
-      required_int64_string({ "size": text.to_json() }, "size"),
+      required_int64_string({ "size": ToJson::to_json(text) }, "size"),
       expected,
     )
   }
@@ -19,7 +19,7 @@ test "typed export parser preserves signed Int64 and error boundaries" {
       "9223372036854775808", "-9223372036854775809", "18446744073709551615", "1.0",
       " 1", "one",
     ] {
-    try required_int64_string({ "size": text.to_json() }, "size") catch {
+    try required_int64_string({ "size": ToJson::to_json(text) }, "size") catch {
       ProtocolFailure(message) =>
         assert_eq(message, "guest export has an invalid size")
       _ => fail("Parser changed protocol error type")

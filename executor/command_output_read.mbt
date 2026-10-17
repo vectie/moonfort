@@ -163,3 +163,30 @@ pub async fn export_command_output(
     config,
   )
 }
+
+///|
+pub extend CommandOutputReadRequest with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend CommandOutputReadRequest with Eq::{not_equal, equal}
+
+///|
+pub extend CommandOutputReadRequest with ToJson::{to_json}
+
+///|
+pub extend CommandOutputReadRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend CommandOutputReadResponse with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend CommandOutputReadResponse with Eq::{not_equal, equal}
+
+///|
+pub extend CommandOutputReadResponse with ToJson::{to_json}

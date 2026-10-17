@@ -1,4 +1,17 @@
 ///|
+test "retained JSON preflight preserves the 64-container limit" {
+  validate_retained_json_syntax("[".repeat(64) + "0" + "]".repeat(64))
+  try
+    validate_retained_json_syntax("[".repeat(65) + "0" + "]".repeat(65))
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected nesting refusal")
+  }
+  assert_eq(parse_retained_json("[\"[[[[[\\\"{}\"]"), (["[[[[[\"{}"] : Json))
+}
+
+///|
 async fn json_fixture(
   config : ExecutorConfig,
   bytes : Bytes,
@@ -71,7 +84,11 @@ test "retained JSON exact pointers and number spellings" {
       "//a~1b/~0key/0/x",
       "/" + "a".repeat(4096),
     ] {
-    assert_true((try? retained_json_at(root, pointer)) is Err(_))
+    try retained_json_at(root, pointer) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -90,7 +107,11 @@ test "retained JSON rejects duplicate escaped-equivalent keys at every level" {
       "[".repeat(65) + "0" + "]".repeat(65),
       "[" + "0,".repeat(40_001) + "0]",
     ] {
-    assert_true((try? parse_retained_json(source)) is Err(_))
+    try parse_retained_json(source) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   assert_eq(
     parse_retained_json("[{\"x\":1},{\"x\":2}]").stringify(),
@@ -197,51 +218,74 @@ async test "retained JSON protocol pages advance and large selections remain exp
     cursor = page.next_after_child
   }
   assert_eq(count, 60)
-  assert_true(
-    (try? extract_retained_json(binding, "report.json", config)) is Err(_),
-  )
-  assert_true(
-    (try? extract_retained_json(binding, "report.json", config, pointer="/0"))
-    is Ok(_),
-  )
-  assert_true(
-    (try? browse_retained_json(binding, "report.json", config, after_child=61))
-    is Err(_),
-  )
-  assert_true(
-    (try? browse_retained_json(binding, "report.json", config, limit=0))
-    is Err(_),
-  )
-  assert_true(
-    (try? browse_retained_json(binding, "report.json", config, limit=101))
-    is Err(_),
-  )
-  assert_true(
-    (try? browse_retained_json(binding, "report.json", config, after_child=-1))
-    is Err(_),
-  )
+  try extract_retained_json(binding, "report.json", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  ignore(extract_retained_json(binding, "report.json", config, pointer="/0"))
+  try
+    browse_retained_json(binding, "report.json", config, after_child=61)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    browse_retained_json(binding, "report.json", config, limit=0) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    browse_retained_json(binding, "report.json", config, limit=101) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    browse_retained_json(binding, "report.json", config, after_child=-1)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
 async test "retained JSON keeps binding fingerprint expiry and input limits" {
   let (config, _) = test_executor_config()
   let binding = json_fixture(config, b"{\"x\":1}")
-  assert_true(
-    (try? browse_retained_json(
+  try
+    browse_retained_json(
       { ..binding, workspace_id: "other", },
       "report.json",
       config,
-    ))
-    is Err(_),
-  )
-  assert_true((try? browse_retained_json(binding, "missing", config)) is Err(_))
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try browse_retained_json(binding, "missing", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/json-results/report.json",
     b"{\"x\":2}",
   )
-  assert_true(
-    (try? extract_retained_json(binding, "report.json", config)) is Err(_),
-  )
+  try extract_retained_json(binding, "report.json", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/json-results/report.json",
     b"{\"x\":1}",
@@ -251,15 +295,19 @@ async test "retained JSON keeps binding fingerprint expiry and input limits" {
     config.retention_root + "/json-results.json",
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true(
-    (try? browse_retained_json(binding, "report.json", config)) is Err(_),
-  )
+  try browse_retained_json(binding, "report.json", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for bytes in [b"\xff", b"{\"x\":1,\"\\u0078\":2}", Bytes::make(1_048_577, 32)] {
     let (other, _) = test_executor_config()
     let selected = json_fixture(other, bytes)
-    assert_true(
-      (try? extract_retained_json(selected, "report.json", other)) is Err(_),
-    )
+    try extract_retained_json(selected, "report.json", other) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 

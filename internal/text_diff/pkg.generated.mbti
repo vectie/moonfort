@@ -16,6 +16,9 @@ pub struct TextDiff {
   added_lines : Int
   removed_lines : Int
 } derive(Eq, @debug.Debug)
+pub fn TextDiff::equal(Self, Self) -> Bool
+pub fn TextDiff::not_equal(Self, Self) -> Bool
+pub fn TextDiff::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

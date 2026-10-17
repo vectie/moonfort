@@ -16,7 +16,7 @@ test "HAR public context roundtrip retains filter and source without copying CSV
     },
     entry_count: 3,
     row_count: 1,
-    method: "POST",
+    http_method: "POST",
     status: Some(503),
     minimum_ms: 100.0,
     candidate_fingerprint: "d".repeat(64),
@@ -32,7 +32,11 @@ test "HAR public context roundtrip retains filter and source without copying CSV
     Some({ "method": "POST", "status": 503, "minimum_ms": 100 }),
   )
   assert_false(context.stringify().contains("private-request-url"))
-  let reopened : @executor.RetentionHarTable = @json.from_json(table.to_json())
+  let encoded = table.to_json()
+  guard encoded is Object(serialized) else { fail("expected serialized table") }
+  assert_eq(serialized.get("method"), Some(Json::string("POST")))
+  assert_false(serialized.contains("http_method"))
+  let reopened : @executor.RetentionHarTable = @json.from_json(encoded)
   assert_eq(reopened.context(), context)
   assert_eq(reopened.csv, table.csv)
 }

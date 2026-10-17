@@ -99,24 +99,32 @@ async test "JUnit API projects observed tests and binds source candidate and unc
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_junit(binding, "missing.xml", config)) is Err(_),
-  )
-  assert_true(
-    (try? tabulate_retained_junit(
+  try tabulate_retained_junit(binding, "missing.xml", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    tabulate_retained_junit(
       { ..binding, command_digest: "d".repeat(64), },
       "tests.xml",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/junit-results/tests.xml",
     b"<testsuite/>",
   )
-  assert_true(
-    (try? tabulate_retained_junit(binding, "tests.xml", config)) is Err(_),
-  )
+  try tabulate_retained_junit(binding, "tests.xml", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -135,9 +143,11 @@ async test "JUnit API refuses invalid later XML encoding oversize output and exp
     ] {
     let (config, _) = test_executor_config()
     let binding = junit_fixture(config, source)
-    assert_true(
-      (try? tabulate_retained_junit(binding, "tests.xml", config)) is Err(_),
-    )
+    try tabulate_retained_junit(binding, "tests.xml", config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (config, _) = test_executor_config()
   let binding = junit_fixture(config, b"<testsuite/>")
@@ -147,9 +157,11 @@ async test "JUnit API refuses invalid later XML encoding oversize output and exp
   let path = config.retention_root + "/junit-results.json"
   let saved = load_retention_record(binding.retention_id, config)
   @fs.write_file(path, { ..saved, expires_at_ms: 1L, }.to_json().stringify())
-  assert_true(
-    (try? tabulate_retained_junit(binding, "tests.xml", config)) is Err(_),
-  )
+  try tabulate_retained_junit(binding, "tests.xml", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

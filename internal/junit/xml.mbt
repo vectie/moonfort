@@ -146,7 +146,7 @@ fn XmlReader::entity(self : XmlReader) -> Char raise {
         }
       }
       guard xml_character(code) else { fail("invalid XML character reference") }
-      Char::from_int(code)
+      code.unsafe_to_char()
     }
   }
 }
@@ -156,7 +156,7 @@ fn XmlReader::attributes(
   self : XmlReader,
   terminator : String,
 ) -> Map[String, String] raise {
-  let attrs : Map[String, String] = {}
+  let attrs : Map[String, String] = Map([])
   while true {
     let separated = self.spaces()
     if self.starts(terminator) || self.starts("/>") {
@@ -294,7 +294,7 @@ fn parse_xml(text : String) -> XmlElement raise {
   let normalized = text
     .strip_prefix("\u{feff}")
     .unwrap_or(text[:])
-    .to_string()
+    .to_owned()
     .replace_all(old="\r\n", new="\n")
     .replace_all(old="\r", new="\n")
   guard normalized.iter().all(ch => xml_character(ch.to_int())) else {

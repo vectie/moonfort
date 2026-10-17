@@ -89,7 +89,7 @@ fn live_output_reference_valid(
 ) -> Bool {
   let reference = record.reference
   let expected = sign_live_output_reference(
-    { ..reference, signature: "" },
+    { ..reference, signature: "", },
     record.approval_id,
     record.approval_digest,
     config,
@@ -177,7 +177,7 @@ async fn begin_live_output(
     unsigned, approval_id, approval_digest, config,
   )
   write_live_output_record(
-    { reference, approval_id, approval_digest },
+    { reference, approval_id, approval_digest, },
     false,
     config,
   )
@@ -239,7 +239,7 @@ async fn finalize_live_output(
     unsigned, approval_id, approval_digest, config,
   )
   write_live_output_record(
-    { reference, approval_id, approval_digest },
+    { reference, approval_id, approval_digest, },
     true,
     config,
   )
@@ -264,7 +264,7 @@ fn live_output_read_error(
     status: "unavailable",
     terminal: true,
     retry_after_ms: 0,
-    error: Some({ code, message }),
+    error: Some({ code, message, }),
   }
 }
 

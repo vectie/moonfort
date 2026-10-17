@@ -48,7 +48,7 @@ async test "artifact browser exports a multi megabyte generated CSV with exact r
   assert_true(tail.eof)
   assert_eq(
     @base64.decode(tail.content_base64),
-    expected[expected.length() - 19:].to_bytes(),
+    expected[expected.length() - 19:].to_owned(),
   )
   if @env.get_env_var("MOONFORT_ARTIFACT_READER_CLI") is Some(executable) {
     let (config_path, binding_path) = write_artifact_cli_inputs(config, binding)

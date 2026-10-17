@@ -78,11 +78,21 @@ pub(all) struct CommandOutputArtifactRef {
   key_id : String
   signature : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn CommandOutputArtifactRef::equal(Self, Self) -> Bool
+pub fn CommandOutputArtifactRef::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CommandOutputArtifactRef::not_equal(Self, Self) -> Bool
+pub fn CommandOutputArtifactRef::to_json(Self) -> Json
+pub fn CommandOutputArtifactRef::to_repr(Self) -> @debug.Repr
 
 pub(all) struct LocalSandboxTool {
   capability_label : String
   executable_path : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn LocalSandboxTool::equal(Self, Self) -> Bool
+pub fn LocalSandboxTool::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn LocalSandboxTool::not_equal(Self, Self) -> Bool
+pub fn LocalSandboxTool::to_json(Self) -> Json
+pub fn LocalSandboxTool::to_repr(Self) -> @debug.Repr
 
 pub struct PreparedSandboxCommand {
   profile : SandboxProfile
@@ -94,14 +104,22 @@ pub struct PreparedSandboxCommand {
 pub fn PreparedSandboxCommand::capability_label(Self) -> String
 pub fn PreparedSandboxCommand::command(Self) -> SandboxCommand
 pub fn PreparedSandboxCommand::enforcement(Self) -> SandboxEnforcement
+pub fn PreparedSandboxCommand::equal(Self, Self) -> Bool
+pub fn PreparedSandboxCommand::not_equal(Self, Self) -> Bool
 pub fn PreparedSandboxCommand::profile(Self) -> SandboxProfile
 pub fn PreparedSandboxCommand::profile_digest(Self) -> String
+pub fn PreparedSandboxCommand::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxArtifact {
   relative_path : String
   size_bytes : Int64
   fingerprint : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxArtifact::equal(Self, Self) -> Bool
+pub fn SandboxArtifact::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxArtifact::not_equal(Self, Self) -> Bool
+pub fn SandboxArtifact::to_json(Self) -> Json
+pub fn SandboxArtifact::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxArtifactRefusal {
   UnsafeArtifactPath(String)
@@ -110,48 +128,88 @@ pub(all) enum SandboxArtifactRefusal {
   DuplicateArtifactPath(String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxArtifactRefusal::code(Self) -> String
+pub fn SandboxArtifactRefusal::equal(Self, Self) -> Bool
+pub fn SandboxArtifactRefusal::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxArtifactRefusal::not_equal(Self, Self) -> Bool
+pub fn SandboxArtifactRefusal::to_json(Self) -> Json
+pub fn SandboxArtifactRefusal::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxBackendKind {
   LocalOs
   MicroVm
   Unavailable
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxBackendKind::equal(Self, Self) -> Bool
+pub fn SandboxBackendKind::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxBackendKind::not_equal(Self, Self) -> Bool
+pub fn SandboxBackendKind::to_json(Self) -> Json
+pub fn SandboxBackendKind::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxBackendReadiness {
   BackendEnforced
   BackendDegraded(String)
   BackendUnavailable(String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxBackendReadiness::equal(Self, Self) -> Bool
+pub fn SandboxBackendReadiness::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SandboxBackendReadiness::label(Self) -> String
+pub fn SandboxBackendReadiness::not_equal(Self, Self) -> Bool
+pub fn SandboxBackendReadiness::to_json(Self) -> Json
+pub fn SandboxBackendReadiness::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxCommand {
   Exec(tool~ : String, args~ : Array[String])
   Shell(script~ : String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxCommand::equal(Self, Self) -> Bool
+pub fn SandboxCommand::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SandboxCommand::kind(Self) -> SandboxCommandKind
+pub fn SandboxCommand::not_equal(Self, Self) -> Bool
+pub fn SandboxCommand::to_json(Self) -> Json
+pub fn SandboxCommand::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxCommandKind {
   ExecCommand
   ShellCompatibilityCommand
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxCommandKind::equal(Self, Self) -> Bool
+pub fn SandboxCommandKind::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SandboxCommandKind::label(Self) -> String
+pub fn SandboxCommandKind::not_equal(Self, Self) -> Bool
+pub fn SandboxCommandKind::to_json(Self) -> Json
+pub fn SandboxCommandKind::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxDestinationObservation {
   DestinationAbsent
   DestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
   DestinationUnavailable
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxDestinationObservation::equal(Self, Self) -> Bool
+pub fn SandboxDestinationObservation::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxDestinationObservation::not_equal(Self, Self) -> Bool
+pub fn SandboxDestinationObservation::to_json(Self) -> Json
+pub fn SandboxDestinationObservation::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxEnforcement {
   Enforced
   Degraded
   Refused
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxEnforcement::equal(Self, Self) -> Bool
+pub fn SandboxEnforcement::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxEnforcement::not_equal(Self, Self) -> Bool
+pub fn SandboxEnforcement::to_json(Self) -> Json
+pub fn SandboxEnforcement::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxEnforcementRequirement {
   RequireEnforced
   AllowDegraded
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxEnforcementRequirement::equal(Self, Self) -> Bool
+pub fn SandboxEnforcementRequirement::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxEnforcementRequirement::not_equal(Self, Self) -> Bool
+pub fn SandboxEnforcementRequirement::to_json(Self) -> Json
+pub fn SandboxEnforcementRequirement::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxLifecycleRefusal {
   InvalidLifecycleProfile(String)
@@ -163,6 +221,11 @@ pub(all) enum SandboxLifecycleRefusal {
   ResetDidNotRestoreBaseline(ScratchDiff)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxLifecycleRefusal::code(Self) -> String
+pub fn SandboxLifecycleRefusal::equal(Self, Self) -> Bool
+pub fn SandboxLifecycleRefusal::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxLifecycleRefusal::not_equal(Self, Self) -> Bool
+pub fn SandboxLifecycleRefusal::to_json(Self) -> Json
+pub fn SandboxLifecycleRefusal::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxLifecycleState {
   Created
@@ -176,7 +239,12 @@ pub(all) enum SandboxLifecycleState {
   Resetting
   Failed
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxLifecycleState::equal(Self, Self) -> Bool
+pub fn SandboxLifecycleState::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SandboxLifecycleState::label(Self) -> String
+pub fn SandboxLifecycleState::not_equal(Self, Self) -> Bool
+pub fn SandboxLifecycleState::to_json(Self) -> Json
+pub fn SandboxLifecycleState::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxLimits {
   wall_clock_ms : Int
@@ -186,20 +254,33 @@ pub(all) struct SandboxLimits {
   processes : Int
   output_bytes : Int
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxLimits::equal(Self, Self) -> Bool
+pub fn SandboxLimits::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxLimits::not_equal(Self, Self) -> Bool
+pub fn SandboxLimits::to_json(Self) -> Json
+pub fn SandboxLimits::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxNetworkMode {
   Deny
   AllowList
   Unrestricted
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxNetworkMode::equal(Self, Self) -> Bool
+pub fn SandboxNetworkMode::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxNetworkMode::not_equal(Self, Self) -> Bool
+pub fn SandboxNetworkMode::to_json(Self) -> Json
+pub fn SandboxNetworkMode::to_repr(Self) -> @debug.Repr
 
 pub enum SandboxPreparation {
   Prepared(PreparedSandboxCommand)
   Refused(SandboxPreparationRefusal)
 } derive(Eq, @debug.Debug)
+pub fn SandboxPreparation::equal(Self, Self) -> Bool
 pub fn SandboxPreparation::is_prepared(Self) -> Bool
+pub fn SandboxPreparation::not_equal(Self, Self) -> Bool
 pub fn SandboxPreparation::prepared(Self) -> PreparedSandboxCommand?
 pub fn SandboxPreparation::refusal(Self) -> SandboxPreparationRefusal?
+pub fn SandboxPreparation::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxPreparationRefusal {
   InvalidProfile(String)
@@ -212,7 +293,12 @@ pub(all) enum SandboxPreparationRefusal {
   DegradedNotAllowed(backend~ : SandboxBackendKind, reason~ : String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxPreparationRefusal::code(Self) -> String
+pub fn SandboxPreparationRefusal::equal(Self, Self) -> Bool
+pub fn SandboxPreparationRefusal::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 pub fn SandboxPreparationRefusal::message(Self) -> String
+pub fn SandboxPreparationRefusal::not_equal(Self, Self) -> Bool
+pub fn SandboxPreparationRefusal::to_json(Self) -> Json
+pub fn SandboxPreparationRefusal::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxProfile {
   run_id : String
@@ -230,11 +316,21 @@ pub(all) struct SandboxProfile {
   live_output_id : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxProfile::allow_degraded(Self) -> Self
+pub fn SandboxProfile::equal(Self, Self) -> Bool
+pub fn SandboxProfile::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxProfile::not_equal(Self, Self) -> Bool
+pub fn SandboxProfile::to_json(Self) -> Json
+pub fn SandboxProfile::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxPromotionDestinationState {
   ReviewedDestinationAbsent
   ReviewedDestinationRegular(size_bytes~ : Int64, fingerprint~ : String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionDestinationState::equal(Self, Self) -> Bool
+pub fn SandboxPromotionDestinationState::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionDestinationState::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionDestinationState::to_json(Self) -> Json
+pub fn SandboxPromotionDestinationState::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxPromotionItem {
   source_relative_path : String
@@ -243,19 +339,32 @@ pub(all) struct SandboxPromotionItem {
   size_bytes : Int64
   expected_destination_state : SandboxPromotionDestinationState
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionItem::equal(Self, Self) -> Bool
+pub fn SandboxPromotionItem::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionItem::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionItem::to_json(Self) -> Json
+pub fn SandboxPromotionItem::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxPromotionOutcome {
   AppliedDurable(SandboxPromotionResult)
   NotApplied(SandboxPromotionRefusal)
   RecoveryRequired(destination_path~ : String, native_status~ : Int)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionOutcome::equal(Self, Self) -> Bool
+pub fn SandboxPromotionOutcome::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionOutcome::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionOutcome::to_json(Self) -> Json
+pub fn SandboxPromotionOutcome::to_repr(Self) -> @debug.Repr
 
 pub struct SandboxPromotionPlan {
   destination_root : String
   items : Array[SandboxPromotionItem]
 } derive(Eq, @debug.Debug)
 pub fn SandboxPromotionPlan::destination_root(Self) -> String
+pub fn SandboxPromotionPlan::equal(Self, Self) -> Bool
 pub fn SandboxPromotionPlan::items(Self) -> Array[SandboxPromotionItem]
+pub fn SandboxPromotionPlan::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionPlan::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxPromotionRefusal {
   EmptyPromotionPlan
@@ -276,15 +385,30 @@ pub(all) enum SandboxPromotionRefusal {
   DestinationIo(String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxPromotionRefusal::code(Self) -> String
+pub fn SandboxPromotionRefusal::equal(Self, Self) -> Bool
+pub fn SandboxPromotionRefusal::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionRefusal::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionRefusal::to_json(Self) -> Json
+pub fn SandboxPromotionRefusal::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxPromotionRequest {
   artifact_path : String
   destination_path : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionRequest::equal(Self, Self) -> Bool
+pub fn SandboxPromotionRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionRequest::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionRequest::to_json(Self) -> Json
+pub fn SandboxPromotionRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxPromotionResult {
   promoted_paths : Array[String]
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxPromotionResult::equal(Self, Self) -> Bool
+pub fn SandboxPromotionResult::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxPromotionResult::not_equal(Self, Self) -> Bool
+pub fn SandboxPromotionResult::to_json(Self) -> Json
+pub fn SandboxPromotionResult::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxReceipt {
   run_id : String
@@ -308,6 +432,11 @@ pub(all) struct SandboxReceipt {
   cleanup_verified : Bool
   retention_id : String?
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxReceipt::equal(Self, Self) -> Bool
+pub fn SandboxReceipt::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxReceipt::not_equal(Self, Self) -> Bool
+pub fn SandboxReceipt::to_json(Self) -> Json
+pub fn SandboxReceipt::to_repr(Self) -> @debug.Repr
 pub fn SandboxReceipt::with_approval_binding(Self, approval_id~ : String, approval_digest~ : String, command_digest~ : String, cleanup_verified~ : Bool, retention_id? : String) -> Self
 pub fn SandboxReceipt::with_output_artifact(Self, String, CommandOutputArtifactRef) -> Self
 
@@ -330,12 +459,15 @@ pub async fn SandboxRunContract::complete_reset(Self) -> Result[SandboxRunObserv
 pub async fn SandboxRunContract::complete_snapshot(Self) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
 pub async fn SandboxRunContract::complete_start(Self) -> Result[Self, SandboxLifecycleRefusal]
 pub async fn SandboxRunContract::complete_stop(Self) -> Result[SandboxRunObservation, SandboxLifecycleRefusal]
+pub fn SandboxRunContract::equal(Self, Self) -> Bool
 pub fn SandboxRunContract::latest(Self) -> ScratchInventory?
 pub fn SandboxRunContract::mark_failed(Self) -> Self
+pub fn SandboxRunContract::not_equal(Self, Self) -> Bool
 pub fn SandboxRunContract::profile(Self) -> SandboxProfile
 pub fn SandboxRunContract::profile_digest(Self) -> String
 pub fn SandboxRunContract::revision(Self) -> Int
 pub fn SandboxRunContract::state(Self) -> SandboxLifecycleState
+pub fn SandboxRunContract::to_repr(Self) -> @debug.Repr
 
 pub struct SandboxRunObservation {
   run : SandboxRunContract
@@ -343,8 +475,11 @@ pub struct SandboxRunObservation {
   diff_from_baseline : ScratchDiff
 } derive(Eq, @debug.Debug)
 pub fn SandboxRunObservation::diff_from_baseline(Self) -> ScratchDiff
+pub fn SandboxRunObservation::equal(Self, Self) -> Bool
+pub fn SandboxRunObservation::not_equal(Self, Self) -> Bool
 pub fn SandboxRunObservation::run(Self) -> SandboxRunContract
 pub fn SandboxRunObservation::snapshot(Self) -> SandboxScratchSnapshot
+pub fn SandboxRunObservation::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxRunStatus {
   Created
@@ -353,6 +488,11 @@ pub(all) enum SandboxRunStatus {
   Killed
   Failed
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxRunStatus::equal(Self, Self) -> Bool
+pub fn SandboxRunStatus::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxRunStatus::not_equal(Self, Self) -> Bool
+pub fn SandboxRunStatus::to_json(Self) -> Json
+pub fn SandboxRunStatus::to_repr(Self) -> @debug.Repr
 
 pub struct SandboxScratchSnapshot {
   run_id : String
@@ -360,11 +500,14 @@ pub struct SandboxScratchSnapshot {
   revision : Int
   inventory : ScratchInventory
 } derive(Eq, @debug.Debug)
+pub fn SandboxScratchSnapshot::equal(Self, Self) -> Bool
 pub fn SandboxScratchSnapshot::inventory(Self) -> ScratchInventory
 pub fn SandboxScratchSnapshot::manifest_json(Self) -> Json
+pub fn SandboxScratchSnapshot::not_equal(Self, Self) -> Bool
 pub fn SandboxScratchSnapshot::profile_digest(Self) -> String
 pub fn SandboxScratchSnapshot::revision(Self) -> Int
 pub fn SandboxScratchSnapshot::run_id(Self) -> String
+pub fn SandboxScratchSnapshot::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SandboxStorageRefusal {
   InvalidScratchRoot(String)
@@ -376,18 +519,33 @@ pub(all) enum SandboxStorageRefusal {
   StorageIo(String)
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn SandboxStorageRefusal::code(Self) -> String
+pub fn SandboxStorageRefusal::equal(Self, Self) -> Bool
+pub fn SandboxStorageRefusal::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxStorageRefusal::not_equal(Self, Self) -> Bool
+pub fn SandboxStorageRefusal::to_json(Self) -> Json
+pub fn SandboxStorageRefusal::to_repr(Self) -> @debug.Repr
 
 pub(all) enum ScratchChangeKind {
   Added
   Modified
   Removed
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchChangeKind::equal(Self, Self) -> Bool
+pub fn ScratchChangeKind::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchChangeKind::not_equal(Self, Self) -> Bool
+pub fn ScratchChangeKind::to_json(Self) -> Json
+pub fn ScratchChangeKind::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ScratchDiff {
   entries : Array[ScratchDiffEntry]
   before_bytes : Int64
   after_bytes : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchDiff::equal(Self, Self) -> Bool
+pub fn ScratchDiff::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchDiff::not_equal(Self, Self) -> Bool
+pub fn ScratchDiff::to_json(Self) -> Json
+pub fn ScratchDiff::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ScratchDiffEntry {
   relative_path : String
@@ -395,6 +553,11 @@ pub(all) struct ScratchDiffEntry {
   before : ScratchEntry?
   after : ScratchEntry?
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchDiffEntry::equal(Self, Self) -> Bool
+pub fn ScratchDiffEntry::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchDiffEntry::not_equal(Self, Self) -> Bool
+pub fn ScratchDiffEntry::to_json(Self) -> Json
+pub fn ScratchDiffEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ScratchEntry {
   relative_path : String
@@ -402,17 +565,32 @@ pub(all) struct ScratchEntry {
   size_bytes : Int64
   fingerprint : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchEntry::equal(Self, Self) -> Bool
+pub fn ScratchEntry::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchEntry::not_equal(Self, Self) -> Bool
+pub fn ScratchEntry::to_json(Self) -> Json
+pub fn ScratchEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) enum ScratchEntryKind {
   RegularFile
   DirectoryEntry
   SymbolicLink
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchEntryKind::equal(Self, Self) -> Bool
+pub fn ScratchEntryKind::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchEntryKind::not_equal(Self, Self) -> Bool
+pub fn ScratchEntryKind::to_json(Self) -> Json
+pub fn ScratchEntryKind::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ScratchInventory {
   entries : Array[ScratchEntry]
   total_bytes : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ScratchInventory::equal(Self, Self) -> Bool
+pub fn ScratchInventory::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ScratchInventory::not_equal(Self, Self) -> Bool
+pub fn ScratchInventory::to_json(Self) -> Json
+pub fn ScratchInventory::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

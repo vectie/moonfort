@@ -5,13 +5,17 @@ pub(all) struct RetentionHarTable {
   file : @sandbox.ScratchEntry
   entry_count : Int
   row_count : Int
-  method : String
+  http_method : String
   status : Int?
   minimum_ms : Double
   candidate_fingerprint : String
   candidate_size_bytes : Int
   csv : String
-} derive(Debug, ToJson, FromJson)
+} derive (
+  Debug,
+  ToJson(fields(http_method(rename="method"))),
+  FromJson(fields(http_method(rename="method"))),
+)
 
 ///|
 fn har_object(value : Json) -> Map[String, Json] raise {
@@ -154,12 +158,12 @@ fn har_number(
 ///|
 fn retained_har_csv(
   document : Json,
-  method? : String = "",
+  http_method? : String = "",
   status? : Int,
   minimum_ms? : Double = 0.0,
 ) -> (String, Int, Int) raise {
-  guard method.length() <= 16_384 &&
-    !method.contains("\u{0}") &&
+  guard http_method.length() <= 16_384 &&
+    !http_method.contains("\u{0}") &&
     !minimum_ms.is_nan() &&
     !minimum_ms.is_inf() &&
     minimum_ms >= 0.0 &&
@@ -249,7 +253,7 @@ fn retained_har_csv(
     )
     cells.push(har_number(content, "size", integer=true).0)
     // Validate every entry, including excluded entries, before emitting output.
-    if (method.is_empty() || request_method == method) &&
+    if (http_method.is_empty() || request_method == http_method) &&
       (
         status is None ||
         response_status.unwrap() == status.unwrap().to_double()
@@ -266,11 +270,12 @@ fn retained_har_csv(
 /// Inspect HAR 1.2 request timings without running requests or decoding bodies.
 /// Filters combine with AND; an empty method selects all methods. Status zero
 /// is retained as recorded, not interpreted as HTTP success or failure.
+#label_migration(http_method, alias=method)
 pub async fn tabulate_retained_har(
   binding : RetentionArtifactBinding,
   path : String,
   config : ExecutorConfig,
-  method? : String = "",
+  http_method? : String = "",
   status? : Int,
   minimum_ms? : Double = 0.0,
 ) -> RetentionHarTable {
@@ -288,7 +293,7 @@ pub async fn tabulate_retained_har(
   )
   let (csv, entry_count, row_count) = retained_har_csv(
     document,
-    method~,
+    http_method~,
     status?,
     minimum_ms~,
   )
@@ -301,7 +306,7 @@ pub async fn tabulate_retained_har(
     file,
     entry_count,
     row_count,
-    method,
+    http_method,
     status,
     minimum_ms,
     csv,
@@ -326,7 +331,7 @@ pub fn RetentionHarTable::context(self : RetentionHarTable) -> Json {
     "entry_count": self.entry_count.to_json(),
     "row_count": self.row_count.to_json(),
     "selection": {
-      "method": self.method.to_json(),
+      "method": self.http_method.to_json(),
       "status": match self.status {
         Some(value) => value.to_json()
         None => Json::null()
@@ -347,3 +352,12 @@ pub fn RetentionHarTable::context(self : RetentionHarTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionHarTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionHarTable with ToJson::{to_json}
+
+///|
+pub extend RetentionHarTable with @moonbitlang/core/json.FromJson::{from_json}

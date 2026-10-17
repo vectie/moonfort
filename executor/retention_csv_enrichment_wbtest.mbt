@@ -83,17 +83,14 @@ test "CSV enrichment rejects ambiguous lookup keys and unrepresentable selection
   let source = parse_retained_csv("id,name\n01,A\n")
   let lookup = parse_retained_csv("id,owner\n01,B\n")
   for text in ["id,owner\n01,A\n01,B\n", "id,owner\n,A\n"] {
-    assert_true(
-      (try? enrich_csv_records(
-        source,
-        parse_retained_csv(text),
-        1,
-        1,
-        [],
-        "lookup_",
-      ))
-      is Err(_),
-    )
+    try
+      enrich_csv_records(source, parse_retained_csv(text), 1, 1, [], "lookup_")
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for
     (source_key, lookup_key, columns) in [
@@ -105,43 +102,53 @@ test "CSV enrichment rejects ambiguous lookup keys and unrepresentable selection
       (1, 1, [3]),
       (1, 1, [2, 2]),
     ] {
-    assert_true(
-      (try? enrich_csv_records(
+    try
+      enrich_csv_records(
         source, lookup, source_key, lookup_key, columns, "lookup_",
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? enrich_csv_records(source, [["id"], ["01"]], 1, 1, [], "lookup_"))
-    is Err(_),
-  )
-  assert_true(
-    (try? enrich_csv_records(
-      [Array::make(64, "h")],
-      lookup,
-      1,
-      1,
-      [],
-      "lookup_",
-    ))
-    is Err(_),
-  )
+  try
+    enrich_csv_records(source, [["id"], ["01"]], 1, 1, [], "lookup_") |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    enrich_csv_records([Array::make(64, "h")], lookup, 1, 1, [], "lookup_")
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for prefix in ["x".repeat(129), "\u{0}"] {
-    assert_true(
-      (try? enrich_csv_records(source, lookup, 1, 1, [], prefix)) is Err(_),
-    )
+    try enrich_csv_records(source, lookup, 1, 1, [], prefix) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   // All inputs parse within their own bounds; the joined result can exceed its cap.
   let many = parse_retained_csv("id\n" + "01\n".repeat(100))
   let wide = parse_retained_csv("id,note\n01," + "x".repeat(16_000))
-  assert_true(
-    (try? enrich_csv_records(many, wide, 1, 1, [], "lookup_")) is Err(_),
-  )
+  try enrich_csv_records(many, wide, 1, 1, [], "lookup_") |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let large_header = parse_retained_csv("id," + "x".repeat(16_384) + "\n")
-  assert_true(
-    (try? enrich_csv_records(source, large_header, 1, 1, [], "x")) is Err(_),
-  )
+  try enrich_csv_records(source, large_header, 1, 1, [], "x") |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -197,44 +204,56 @@ async test "CSV enrichment binds local reference and candidate hashes without wr
       b"id,owner\n01,\xff\n",
       Bytes::make(1_048_577, 65),
     ] {
-    assert_true(
-      (try? enrich_retained_csv(
+    try
+      enrich_retained_csv(
         binding,
         "checks.csv",
         config,
         invalid,
         source_key=1,
         lookup_key=1,
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? enrich_retained_csv(
+  try
+    enrich_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       "checks.csv",
       config,
       lookup,
       source_key=1,
       lookup_key=1,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/table-results/checks.csv",
     b"id,status\n01,NOPE\n02,review\n",
   )
-  assert_true(
-    (try? enrich_retained_csv(
+  try
+    enrich_retained_csv(
       binding,
       "checks.csv",
       config,
       lookup,
       source_key=1,
       lookup_key=1,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

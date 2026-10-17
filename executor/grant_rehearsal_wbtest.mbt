@@ -36,7 +36,7 @@ async test "grant rehearsal rejects stale candidate expired grant changed bindin
   let checked = rehearse_grant(request, config)
   for
     changed in [
-      { ..grant, command: @sandbox.Exec(tool="true", args=["new"]), },
+      { ..grant, command: Exec(tool="true", args=["new"]), },
       { ..grant, limits: { ..grant.limits, memory_mib: 129, }, },
       { ..grant, expires_at_ms: 1L, },
       { ..grant, working_directory: "new", },

@@ -76,7 +76,7 @@ fn scratch_component_is_safe(component : String) -> Bool {
 
 ///|
 fn copy_scratch_inventory(inventory : ScratchInventory) -> ScratchInventory {
-  { entries: inventory.entries.copy(), total_bytes: inventory.total_bytes }
+  { entries: inventory.entries.copy(), total_bytes: inventory.total_bytes, }
 }
 
 ///|
@@ -131,7 +131,7 @@ async fn regular_file_entry(
     )
   }
   let hasher = @crypto.SHA256::new()
-  let observed : Ref[Int64] = { val: 0L }
+  let observed : Ref[Int64] = { val: 0L, }
   for ;; {
     guard file.read_some(max_len=64 * 1024) is Some(chunk) else { break }
     observed.val += chunk.length().to_int64()
@@ -267,15 +267,65 @@ pub async fn inventory_scratch(
       raise ScratchScanFailure(InvalidScratchRoot(scratch_root))
     }
     let entries : Array[ScratchEntry] = []
-    let used_bytes : Ref[Int64] = { val: 0L }
+    let used_bytes : Ref[Int64] = { val: 0L, }
     scan_scratch_directory(
       scratch_root, "", entries, used_bytes, disk_limit_bytes,
     )
     entries.sort_by_key(entry => entry.relative_path)
-    Ok({ entries, total_bytes: used_bytes.val })
+    Ok({ entries, total_bytes: used_bytes.val, })
   } catch {
     error if @async.is_being_cancelled() => raise error
     ScratchScanFailure(reason) => Err(reason)
     error => Err(StorageIo("\{error}"))
   }
+}
+
+///|
+pub extend ScratchEntryKind with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchEntryKind with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchEntryKind with ToJson::{to_json}
+
+///|
+pub extend ScratchEntryKind with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ScratchEntry with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchEntry with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchEntry with ToJson::{to_json}
+
+///|
+pub extend ScratchEntry with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ScratchInventory with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchInventory with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchInventory with ToJson::{to_json}
+
+///|
+pub extend ScratchInventory with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxStorageRefusal with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxStorageRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxStorageRefusal with ToJson::{to_json}
+
+///|
+pub extend SandboxStorageRefusal with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

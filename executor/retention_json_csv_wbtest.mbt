@@ -90,7 +90,11 @@ test "JSON CSV rejects malformed mappings traversal containers and oversized out
       json_csv_mapping("", [{ header: "x".repeat(16_385), pointer: "", }]),
       Bytes::make(65_537, 32),
     ] {
-    assert_true((try? retained_json_columns(mapping)) is Err(_))
+    try retained_json_columns(mapping) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for
     (source, pointer) in [
@@ -104,23 +108,33 @@ test "JSON CSV rejects malformed mappings traversal containers and oversized out
       ("[{\"v\":[1]}]", "/v/-"),
       ("[\"\\u0000\"]", ""),
     ] {
-    assert_true(
-      (try? retained_json_csv(parse_retained_json(source), [
-        { ..column, pointer, },
-      ]))
-      is Err(_),
-    )
+    try
+      retained_json_csv(parse_retained_json(source), [{ ..column, pointer, }])
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? retained_json_csv(Json::array(["x".repeat(16_385).to_json()]), [
+  try
+    retained_json_csv(Json::array(["x".repeat(16_385).to_json()]), [
       { ..column, pointer: "", },
-    ]))
-    is Err(_),
-  )
+    ])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let repeated = Json::array(Array::make(100, "x".repeat(16_000).to_json()))
-  assert_true(
-    (try? retained_json_csv(repeated, [{ ..column, pointer: "", }])) is Err(_),
-  )
+  try
+    retained_json_csv(repeated, [{ ..column, pointer: "", }]) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -159,36 +173,50 @@ async test "JSON CSV binds source mapping and candidate without changing retaine
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_json(
+  try
+    tabulate_retained_json(
       { ..binding, command_digest: "d".repeat(64), },
       "report.json",
       config,
       mapping,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? tabulate_retained_json(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    tabulate_retained_json(
       binding,
       "report.json",
       config,
       json_csv_mapping("/missing", [{ header: "ID", pointer: "/id", }]),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/json-results/report.json", b"[]")
-  assert_true(
-    (try? tabulate_retained_json(binding, "report.json", config, mapping))
-    is Err(_),
-  )
+  try
+    tabulate_retained_json(binding, "report.json", config, mapping) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for bad in [b"\xff", b"[{\"id\":1,\"id\":2}]", Bytes::make(1_048_577, 32)] {
     let (other, _) = test_executor_config()
     let selected = json_fixture(other, bad)
-    assert_true(
-      (try? tabulate_retained_json(selected, "report.json", other, mapping))
-      is Err(_),
-    )
+    try
+      tabulate_retained_json(selected, "report.json", other, mapping) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (base, _) = test_executor_config()
   let limited = {
@@ -196,15 +224,19 @@ async test "JSON CSV binds source mapping and candidate without changing retaine
     limits: { ..base.limits, max_protocol_bytes: 4096, },
   }
   let selected = json_fixture(limited, b"[]")
-  assert_true(
-    (try? tabulate_retained_json(
+  try
+    tabulate_retained_json(
       selected,
       "report.json",
       limited,
       json_csv_mapping("", [{ header: "h".repeat(5000), pointer: "", }]),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

@@ -165,3 +165,21 @@ pub async fn publish_reviewed_grant(
   }
   publish_grant(request, config)
 }
+
+///|
+pub extend GrantCorrection with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend GrantCorrection with Eq::{not_equal, equal}
+
+///|
+pub extend GrantCorrection with ToJson::{to_json}
+
+///|
+pub extend GrantRehearsal with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend GrantRehearsal with Eq::{not_equal, equal}
+
+///|
+pub extend GrantRehearsal with ToJson::{to_json}

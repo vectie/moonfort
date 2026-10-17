@@ -256,7 +256,7 @@ pub fn ConnectDecoder::new(
   guard max_frame_bytes > 0 else {
     abort("Connect frame limit must be positive")
   }
-  { pending: [], ended: false, max_frame_bytes }
+  { pending: [], ended: false, max_frame_bytes, }
 }
 
 ///|

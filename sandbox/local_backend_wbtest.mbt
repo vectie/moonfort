@@ -82,7 +82,7 @@ async test "strict local run refuses before probing or spawning" {
   let receipt = run_local_sandbox(
     local_profile("run-strict", "/does/not/exist", "/also/missing"),
     Exec(tool="moon", args=["check"]),
-    [{ capability_label: "moon", executable_path: "/does/not/matter" }],
+    [{ capability_label: "moon", executable_path: "/does/not/matter", }],
   )
   assert_true(receipt.enforcement is Refused)
   assert_true(receipt.status is Failed)
@@ -100,7 +100,7 @@ async test "local backend either enforces its profile or refuses without fallbac
     allowed_commands: ["true"],
   }
   let receipt = run_local_sandbox(profile, Exec(tool="true", args=[]), [
-    { capability_label: "true", executable_path: "/usr/bin/true" },
+    { capability_label: "true", executable_path: "/usr/bin/true", },
   ])
   match receipt.enforcement {
     Refused => {
@@ -276,7 +276,7 @@ async test "Linux backend behaviorally isolates host paths and network or is una
       let receipt = run_local_sandbox(
         profile,
         Exec(tool="sh", args=["-c", script, "moonfort", workspace]),
-        [{ capability_label: "sh", executable_path: shell }],
+        [{ capability_label: "sh", executable_path: shell, }],
       )
       assert_true(receipt.enforcement is Degraded)
       assert_true(receipt.status is Exited)
@@ -330,7 +330,7 @@ async test "macOS backend denies canonical and host-secret reads in a real run" 
           "moonfort",
           workspace + "/canonical.txt",
         ]),
-        [{ capability_label: "sh", executable_path: shell }],
+        [{ capability_label: "sh", executable_path: shell, }],
       )
       assert_true(receipt.enforcement is Degraded)
       assert_true(receipt.status is Exited)

@@ -255,3 +255,27 @@ pub fn RetentionCsvPage::to_csv(self : RetentionCsvPage) -> String {
   }
   output.to_string()
 }
+
+///|
+pub extend RetentionCsvRow with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvRow with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionCsvRow with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvRow with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionCsvPage with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvPage with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionCsvPage with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvPage with @moonbitlang/core/json.FromJson::{from_json}

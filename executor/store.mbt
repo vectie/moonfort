@@ -240,7 +240,7 @@ pub async fn publish_grant(
   } else if !safe_identifier(approval_id) {
     "invalid approval identity"
   } else {
-    validate_grant(grant, { protocol_version: 3, approval_id }, config)
+    validate_grant(grant, { protocol_version: 3, approval_id, }, config)
   }
   if refusal != "" {
     return {
@@ -248,7 +248,7 @@ pub async fn publish_grant(
       approval_id,
       approval_digest: "",
       published: false,
-      error: Some({ code: "grant-refused", message: refusal }),
+      error: Some({ code: "grant-refused", message: refusal, }),
     }
   }
   let pending_root = "\{config.approval_root}/pending"
@@ -618,7 +618,7 @@ pub async fn promote_retention(
       destination_outcome: "not-applied",
       uncertain_paths: [],
       completed: false,
-      error: Some({ code: "promotion-refused", message }),
+      error: Some({ code: "promotion-refused", message, }),
     }
   }
   if request.protocol_version != 4 ||

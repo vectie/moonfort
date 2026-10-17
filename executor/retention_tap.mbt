@@ -130,3 +130,12 @@ pub fn RetentionTapTable::context(self : RetentionTapTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionTapTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTapTable with ToJson::{to_json}
+
+///|
+pub extend RetentionTapTable with @moonbitlang/core/json.FromJson::{from_json}

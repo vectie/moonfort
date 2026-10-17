@@ -192,7 +192,7 @@ pub fn SandboxReceipt::with_output_artifact(
   output : String,
   artifact : CommandOutputArtifactRef,
 ) -> SandboxReceipt {
-  { ..self, output, output_artifact: Some(artifact) }
+  { ..self, output, output_artifact: Some(artifact), }
 }
 
 ///|
@@ -215,3 +215,55 @@ pub fn SandboxReceipt::with_approval_binding(
     retention_id,
   }
 }
+
+///|
+pub extend SandboxEnforcement with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxEnforcement with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxEnforcement with ToJson::{to_json}
+
+///|
+pub extend SandboxEnforcement with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxRunStatus with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxRunStatus with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxRunStatus with ToJson::{to_json}
+
+///|
+pub extend SandboxRunStatus with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend CommandOutputArtifactRef with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend CommandOutputArtifactRef with Eq::{not_equal, equal}
+
+///|
+pub extend CommandOutputArtifactRef with ToJson::{to_json}
+
+///|
+pub extend CommandOutputArtifactRef with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxReceipt with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxReceipt with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxReceipt with ToJson::{to_json}
+
+///|
+pub extend SandboxReceipt with @moonbitlang/core/json.FromJson::{from_json}

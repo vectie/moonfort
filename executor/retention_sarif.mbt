@@ -101,7 +101,7 @@ fn sarif_rule(
   }
   let id = sarif_string(result, "ruleId")
   let index = sarif_index(result, "ruleIndex", rules.length())
-  let mut descriptor : Map[String, Json] = {}
+  let mut descriptor : Map[String, Json] = Map([])
   if index is Some(i) {
     descriptor = sarif_object(rules[i])
     let indexed_id = sarif_string(descriptor, "id")
@@ -324,3 +324,12 @@ pub fn RetentionSarifTable::context(self : RetentionSarifTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionSarifTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionSarifTable with ToJson::{to_json}
+
+///|
+pub extend RetentionSarifTable with @moonbitlang/core/json.FromJson::{from_json}

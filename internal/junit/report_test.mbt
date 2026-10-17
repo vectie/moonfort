@@ -32,7 +32,7 @@ test "JUnit suites preserve cases diagnostics entities CDATA and observed outcom
   assert_eq(report.rows[1][10], "2")
   assert_eq(report.rows[2][1], "unit & smoke / inner")
   assert_eq(report.rows[2][4], "error")
-  assert_eq(report.rows[2][10:13].to_array(), ["1", "1", "0"])
+  assert_eq(report.rows[2][10:13].to_owned(), ["1", "1", "0"])
   assert_eq(report.rows[4][4], "skipped")
 }
 
@@ -82,32 +82,30 @@ test "JUnit refuses malformed XML and unsupported ambiguous outcome inputs" {
       "<testsuite><testcase name='x' status='unknown'/></testsuite>", "<testsuite><system-out><hidden/></system-out></testsuite>",
       "<testsuite><properties><unknown/></properties></testsuite>",
     ] {
-    guard (try? @junit.parse(bad)) is Err(_) else {
-      fail("accepted invalid XML: " + bad)
-    }
+    expect_junit_rejected(bad)
+  }
+}
+
+///|
+fn expect_junit_rejected(text : String) -> Unit raise {
+  try @junit.parse(text) catch {
+    _ => ()
+  } noraise {
+    _ => fail("accepted invalid XML: " + text)
   }
 }
 
 ///|
 test "JUnit input element nesting testcase attribute and cell bounds" {
-  assert_true((try? @junit.parse(" ".repeat(1_048_577))) is Err(_))
-  assert_true(
-    (try? @junit.parse("<testsuite>".repeat(33) + "</testsuite>".repeat(33)))
-    is Err(_),
+  expect_junit_rejected(" ".repeat(1_048_577))
+  expect_junit_rejected("<testsuite>".repeat(33) + "</testsuite>".repeat(33))
+  expect_junit_rejected(
+    "<testsuite><testcase name='x'><failure>" +
+    "x".repeat(16_385) +
+    "</failure></testcase></testsuite>",
   )
-  assert_true(
-    (try? @junit.parse(
-      "<testsuite><testcase name='x'><failure>" +
-      "x".repeat(16_385) +
-      "</failure></testcase></testsuite>",
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? @junit.parse(
-      "<testsuite><testcase name='" + "x".repeat(16_385) + "'/></testsuite>",
-    ))
-    is Err(_),
+  expect_junit_rejected(
+    "<testsuite><testcase name='" + "x".repeat(16_385) + "'/></testsuite>",
   )
   assert_eq(
     @junit.parse(
@@ -115,22 +113,16 @@ test "JUnit input element nesting testcase attribute and cell bounds" {
     ).rows.length(),
     10_000,
   )
-  assert_true(
-    (try? @junit.parse(
-      "<testsuite>" + "<testcase name='x'/>".repeat(10_001) + "</testsuite>",
-    ))
-    is Err(_),
+  expect_junit_rejected(
+    "<testsuite>" + "<testcase name='x'/>".repeat(10_001) + "</testsuite>",
   )
-  assert_true(
-    (try? @junit.parse(
-      "<testsuite><properties>" +
-      "<property/>".repeat(20_000) +
-      "</properties></testsuite>",
-    ))
-    is Err(_),
+  expect_junit_rejected(
+    "<testsuite><properties>" +
+    "<property/>".repeat(20_000) +
+    "</properties></testsuite>",
   )
   let attrs = Array::makei(65, index => " a" + index.to_string() + "='x'").join(
     "",
   )
-  assert_true((try? @junit.parse("<testsuite" + attrs + "/>")) is Err(_))
+  expect_junit_rejected("<testsuite" + attrs + "/>")
 }

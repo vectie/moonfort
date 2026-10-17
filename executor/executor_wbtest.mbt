@@ -105,7 +105,7 @@ test "trusted AEN binding digest rejects runtime and repository substitution" {
   let config = test_aen_config()
   let expected = trusted_aen_binding_digest(config)
   let substitutions = [
-    { ..config, workspace_registry_repository: "registry.evil/workspaces" },
+    { ..config, workspace_registry_repository: "registry.evil/workspaces", },
     {
       ..config,
       executor_root_digest: "0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -133,10 +133,10 @@ test "trusted AEN config requires exact runtime digests and repository" {
   let config = test_aen_config()
   assert_true(trusted_aen_config_is_valid(config))
   assert_false(
-    trusted_aen_config_is_valid({ ..config, executor_root_digest: "ABC" }),
+    trusted_aen_config_is_valid({ ..config, executor_root_digest: "ABC", }),
   )
   assert_false(
-    trusted_aen_config_is_valid({ ..config, guest_attester_digest: "" }),
+    trusted_aen_config_is_valid({ ..config, guest_attester_digest: "", }),
   )
   assert_false(
     trusted_aen_config_is_valid({
@@ -178,15 +178,15 @@ async fn cleanup_test_roots(roots : Array[String]) -> Unit {
 ///|
 async test "single-use grants reject replay before backend execution" {
   let (config, roots) = test_executor_config()
-  let grant = { ..test_grant("approval-replay"), workspace_id: "missing" }
+  let grant = { ..test_grant("approval-replay"), workspace_id: "missing", }
   install_grant(config, grant)
   let first = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(first.error() is Some(error) && error.code == "grant-refused")
   let replay = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(replay.error() is Some(error) && error.code == "approval-refused")
@@ -203,17 +203,17 @@ async test "single-use grants reject replay before backend execution" {
 async test "grant publisher validates registry policy and refuses duplicate IDs" {
   let (config, roots) = test_executor_config()
   let grant = test_grant("approval-publisher")
-  let published = publish_grant({ protocol_version: 3, grant }, config)
+  let published = publish_grant({ protocol_version: 3, grant, }, config)
   assert_true(published.published)
   assert_eq(published.approval_digest, grant_digest(grant))
   assert_true(published.error is None)
-  let duplicate = publish_grant({ protocol_version: 3, grant }, config)
+  let duplicate = publish_grant({ protocol_version: 3, grant, }, config)
   assert_false(duplicate.published)
   assert_true(duplicate.error is Some(error) && error.code == "grant-conflict")
   let refused = publish_grant(
     {
       protocol_version: 3,
-      grant: { ..grant, approval_id: "approval-bad", workspace_id: "unknown" },
+      grant: { ..grant, approval_id: "approval-bad", workspace_id: "unknown", },
     },
     config,
   )
@@ -231,7 +231,7 @@ async test "caller cannot supply workspace command or executable substitutions" 
   }
   install_grant(config, grant)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(response.error() is Some(error) && error.code == "grant-refused")
@@ -244,11 +244,11 @@ async test "oversized limits are refused before scratch allocation" {
   let (config, roots) = test_executor_config()
   let grant = {
     ..test_grant("approval-limits"),
-    limits: { ..test_grant("unused").limits, output_bytes: 128 * 1024 },
+    limits: { ..test_grant("unused").limits, output_bytes: 128 * 1024, },
   }
   install_grant(config, grant)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(response.error() is Some(error) && error.code == "grant-refused")
@@ -261,11 +261,11 @@ async test "process ceilings are deployment bounded" {
   let (config, roots) = test_executor_config()
   let grant = {
     ..test_grant("approval-process-limit"),
-    limits: { ..test_grant("unused").limits, processes: 33 },
+    limits: { ..test_grant("unused").limits, processes: 33, },
   }
   install_grant(config, grant)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(response.error() is Some(error) && error.code == "grant-refused")
@@ -282,7 +282,7 @@ async test "working directory traversal is refused before scratch allocation" {
   }
   install_grant(config, grant)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(response.error() is Some(error) && error.code == "grant-refused")
@@ -296,7 +296,7 @@ async test "receipt binds consumed approval and complete command manifest" {
   let grant = test_grant("approval-binding")
   install_grant(config, grant)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   guard response.receipt() is Some(receipt) else {
@@ -352,7 +352,7 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
   )
   @fs.write_file(
     metadata,
-    { ..record, expires_at_ms: 0L }.to_json().stringify(),
+    { ..record, expires_at_ms: 0L, }.to_json().stringify(),
     create_mode=CreateOrTruncate,
   )
   assert_eq(sweep_expired_retentions(config), 1)
@@ -405,13 +405,13 @@ async test "promotion requires matching retained execution digests" {
       },
     ],
   }
-  let legacy = promote_retention({ ..base, protocol_version: 3 }, config)
+  let legacy = promote_retention({ ..base, protocol_version: 3, }, config)
   assert_false(legacy.completed)
   assert_eq(legacy.protocol_version, 4)
   assert_eq(legacy.destination_outcome, "not-applied")
   assert_true(@fs.exists("\{config.retention_root}/\{retention_id}.json"))
   let mismatch = promote_retention(
-    { ..base, command_digest: "substituted" },
+    { ..base, command_digest: "substituted", },
     config,
   )
   assert_false(mismatch.completed)
@@ -468,7 +468,7 @@ fn exported_aen_receipt(
     ),
     changed_paths: [relative_path],
     changes: [
-      { relative_path, change: Added, before: None, after: Some(entry) },
+      { relative_path, change: Added, before: None, after: Some(entry), },
     ],
     artifacts: artifacts.unwrap_or([relative_path]),
     cleanup_verified: true,
@@ -620,7 +620,7 @@ async test "retention refuses oversized encoding and tampered manifest order" {
   let (base_config, roots) = test_executor_config()
   let small_config : ExecutorConfig = {
     ..base_config,
-    limits: { ..base_config.limits, max_protocol_bytes: 128 },
+    limits: { ..base_config.limits, max_protocol_bytes: 128, },
   }
   let (oversized_scratch, oversized_id) = allocate_scratch(
     "request-oversized-record", small_config,
@@ -687,7 +687,7 @@ async test "retention refuses oversized encoding and tampered manifest order" {
   )
   @fs.write_file(
     metadata,
-    { ..record, reviewable_files: [files[1], files[0]] }.to_json().stringify(),
+    { ..record, reviewable_files: [files[1], files[0]], }.to_json().stringify(),
     create_mode=CreateOrTruncate,
     permission=0o600,
   )
@@ -709,7 +709,7 @@ async test "retention write refuses expiration overflow" {
   let (base_config, roots) = test_executor_config()
   let config : ExecutorConfig = {
     ..base_config,
-    limits: { ..base_config.limits, retention_ms: 9_223_372_036_854_775_807L },
+    limits: { ..base_config.limits, retention_ms: 9_223_372_036_854_775_807L, },
   }
   assert_false(retention_window_is_valid(config.limits.retention_ms))
   let (scratch, retention_id) = allocate_scratch(
@@ -780,7 +780,7 @@ async test "promotion claim durably binds the exact reviewed item" {
   let plan = @sandbox.plan_sandbox_promotion(
     inventory,
     config.workspaces["book"].root,
-    [{ artifact_path: "artifact", destination_path: "reviewed/result" }],
+    [{ artifact_path: "artifact", destination_path: "reviewed/result", }],
   ).unwrap()
   let record = load_retention_record(retention_id, config)
   let item = plan.items()[0]
@@ -857,9 +857,9 @@ async test "recovery inspection is read-only and classifies confined content" {
   )
   @fs.mkdir("\{workspace}/reviewed", permission=0o700)
   let plan = @sandbox.plan_sandbox_promotion(
-    { entries: [entry], total_bytes: 8L },
+    { entries: [entry], total_bytes: 8L, },
     workspace,
-    [{ artifact_path: "artifact", destination_path: "reviewed/result" }],
+    [{ artifact_path: "artifact", destination_path: "reviewed/result", }],
   ).unwrap()
   let record = load_retention_record(retention_id, config)
   let claimed = claim_retention_for_promotion(
@@ -963,9 +963,9 @@ async test "recovery inspection refuses legacy and remapped workspace roots" {
     ),
   )
   let plan = @sandbox.plan_sandbox_promotion(
-    { entries: [entry], total_bytes: 8L },
+    { entries: [entry], total_bytes: 8L, },
     workspace,
-    [{ artifact_path: "artifact", destination_path: "result" }],
+    [{ artifact_path: "artifact", destination_path: "result", }],
   ).unwrap()
   let record = load_retention_record(retention_id, config)
   let claimed = claim_retention_for_promotion(
@@ -1004,7 +1004,7 @@ async test "recovery inspection refuses legacy and remapped workspace roots" {
   )
   @fs.write_file(
     claim_path,
-    { ..claim, workspace_root_binding: None }.to_json().stringify(),
+    { ..claim, workspace_root_binding: None, }.to_json().stringify(),
     create_mode=CreateOrTruncate,
     permission=0o600,
     sync=Full,
@@ -1051,9 +1051,9 @@ async test "recovery inspection rejects a mismatched claim pair" {
     ),
   )
   let plan = @sandbox.plan_sandbox_promotion(
-    { entries: [entry], total_bytes: 8L },
+    { entries: [entry], total_bytes: 8L, },
     workspace,
-    [{ artifact_path: "artifact", destination_path: "result" }],
+    [{ artifact_path: "artifact", destination_path: "result", }],
   ).unwrap()
   let record = load_retention_record(retention_id, config)
   let claimed = claim_retention_for_promotion(
@@ -1075,7 +1075,7 @@ async test "recovery inspection rejects a mismatched claim pair" {
     sync=Full,
   )
   let response = inspect_retention_recovery(
-    { protocol_version: 4, retention_id },
+    { protocol_version: 4, retention_id, },
     config,
   )
   assert_eq(response.outcome, "unavailable")
@@ -1141,7 +1141,7 @@ async test "proven pre-rename claim rollback permits a clean retry" {
   let plan = @sandbox.plan_sandbox_promotion(
     inventory,
     config.workspaces["book"].root,
-    [{ artifact_path: "artifact", destination_path: "result" }],
+    [{ artifact_path: "artifact", destination_path: "result", }],
   ).unwrap()
   let retry_claimed = claim_retention_for_promotion(
     record,
@@ -1193,8 +1193,8 @@ async test "multi-item promotion refuses before claiming or writing" {
       approval_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       command_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       items: [
-        { artifact_path: "a", destination_path: "a" },
-        { artifact_path: "b", destination_path: "b" },
+        { artifact_path: "a", destination_path: "a", },
+        { artifact_path: "b", destination_path: "b", },
       ],
     },
     config,

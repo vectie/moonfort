@@ -234,3 +234,12 @@ pub fn RetentionTextDraft::context(self : RetentionTextDraft) -> Json {
     "addressing": "original-one-based-half-open-lines-excluding-leading-BOM",
   }
 }
+
+///|
+pub extend RetentionTextDraft with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTextDraft with ToJson::{to_json}
+
+///|
+pub extend RetentionTextDraft with @moonbitlang/core/json.FromJson::{from_json}

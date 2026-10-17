@@ -77,19 +77,25 @@ async test "retained text diff verifies changed added removed and identical arti
     path in [
       "data/measurement.bin", "missing.txt", "../outside", "not-in-receipt.txt",
     ] {
-    assert_true(
-      (try? diff_retained_artifact(left, right, path, config)) is Err(_),
-    )
+    try diff_retained_artifact(left, right, path, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? diff_retained_artifact(
+  try
+    diff_retained_artifact(
       { ..left, approval_digest: "f".repeat(64), },
       right,
       "reports/checks.csv",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let before_record = @fs.read_file(
     config.retention_root + "/maple-results.json",
   ).binary()
@@ -100,10 +106,13 @@ async test "retained text diff verifies changed added removed and identical arti
     config.scratch_root + "/maple-results/reports/checks.csv",
     "changed\n",
   )
-  assert_true(
-    (try? diff_retained_artifact(left, right, "reports/checks.csv", config))
-    is Err(_),
-  )
+  try
+    diff_retained_artifact(left, right, "reports/checks.csv", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(
     @fs.read_file(config.retention_root + "/maple-results.json").binary(),
     before_record,

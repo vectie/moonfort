@@ -71,12 +71,18 @@ test "CSV frequency filters before grouping and preserves original logical row p
 test "CSV frequency validates groups filters width and complete candidate bound" {
   let source = parse_retained_csv("a,b\nx,y\n")
   for columns in [[], [0], [-1], [3], [1, 1]] {
-    assert_true((try? summarize_csv_records(source, columns, 0, "")) is Err(_))
+    try summarize_csv_records(source, columns, 0, "") |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for (column, value) in [(-1, ""), (3, ""), (0, "x"), (1, "x".repeat(16385))] {
-    assert_true(
-      (try? summarize_csv_records(source, [1], column, value)) is Err(_),
-    )
+    try summarize_csv_records(source, [1], column, value) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let wide = [Array::make(64, "h"), Array::make(64, "v")]
   let (accepted, _, _) = summarize_csv_records(
@@ -88,10 +94,13 @@ test "CSV frequency validates groups filters width and complete candidate bound"
     "",
   )
   assert_eq(parse_retained_csv(accepted)[0].length(), 64)
-  assert_true(
-    (try? summarize_csv_records(wide, [ for i in 1..<=63 => i ], 0, ""))
-    is Err(_),
-  )
+  try
+    summarize_csv_records(wide, [ for i in 1..<=63 => i ], 0, "") |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let repeated = [["key"]] + Array::make(20000, ["same"])
   let (counted, count, groups) = summarize_csv_records(repeated, [1], 0, "")
   assert_eq((count, groups), (20000, 1))
@@ -105,9 +114,11 @@ test "CSV frequency validates groups filters width and complete candidate bound"
     [
       for i in 1..<=20000 => ["x".repeat(40) + i.to_string()]
     ]
-  guard (try? summarize_csv_records(oversized, [1], 0, ""))
-    is Err(Failure(message)) else {
-    fail("expected candidate size refusal")
+  let message = try summarize_csv_records(oversized, [1], 0, "") catch {
+    Failure(message) => message
+    _ => fail("expected candidate size refusal")
+  } noraise {
+    _ => fail("expected candidate size refusal")
   }
   assert_true(message.contains("candidate exceeds 1 MiB"))
 }
@@ -162,39 +173,54 @@ async test "retained CSV summary refuses stale expired malformed and over-budget
   let (config, _) = test_executor_config()
   let bytes = b"area,status\ndocs,error\n"
   let binding = csv_fixture(config, bytes)
-  assert_true(
-    (try? summarize_retained_csv(
+  try
+    summarize_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       "checks.csv",
       config,
       group_by=[1],
-    ))
-    is Err(_),
-  )
-  for path in ["missing.csv", "../outside"] {
-    assert_true(
-      (try? summarize_retained_csv(binding, path, config, group_by=[1]))
-      is Err(_),
     )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  for path in ["missing.csv", "../outside"] {
+    try
+      summarize_retained_csv(binding, path, config, group_by=[1]) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   @fs.write_file(
     config.scratch_root + "/table-results/checks.csv",
     b"area,status\ndocs,ERROR\n",
   )
-  assert_true(
-    (try? summarize_retained_csv(binding, "checks.csv", config, group_by=[1]))
-    is Err(_),
-  )
+  try
+    summarize_retained_csv(binding, "checks.csv", config, group_by=[1])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/table-results/checks.csv", bytes)
   let record = load_retention_record(binding.retention_id, config)
   @fs.write_file(
     config.retention_root + "/table-results.json",
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true(
-    (try? summarize_retained_csv(binding, "checks.csv", config, group_by=[1]))
-    is Err(_),
-  )
+  try
+    summarize_retained_csv(binding, "checks.csv", config, group_by=[1])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for
     invalid in [
       b"h\n\xff",
@@ -205,24 +231,32 @@ async test "retained CSV summary refuses stale expired malformed and over-budget
     ] {
     let (other, _) = test_executor_config()
     let selected = csv_fixture(other, invalid)
-    assert_true(
-      (try? summarize_retained_csv(selected, "checks.csv", other, group_by=[1]))
-      is Err(_),
-    )
+    try
+      summarize_retained_csv(selected, "checks.csv", other, group_by=[1])
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (base, _) = test_executor_config()
   let small = { ..base, limits: { ..base.limits, max_protocol_bytes: 4096, }, }
   let selected = csv_fixture(small, b"h\nv\n")
-  guard (try? summarize_retained_csv(
+  let message = try
+    summarize_retained_csv(
       selected,
       "checks.csv",
       small,
       group_by=[1],
       where_column=1,
       equals="x".repeat(5000),
-    ))
-    is Err(Failure(message)) else {
-    fail("expected summary context budget refusal")
+    )
+  catch {
+    Failure(message) => message
+    _ => fail("expected summary context budget refusal")
+  } noraise {
+    _ => fail("expected summary context budget refusal")
   }
   assert_true(message.contains("context exceeds protocol budget"))
 }

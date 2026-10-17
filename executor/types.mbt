@@ -294,7 +294,7 @@ pub fn ExecutorResponse::with_live_output(
   self : ExecutorResponse,
   reference : LiveOutputReference,
 ) -> ExecutorResponse {
-  { ..self, live_output: Some(reference) }
+  { ..self, live_output: Some(reference), }
 }
 
 ///|
@@ -307,7 +307,207 @@ pub fn rejected_response(
     protocol_version: 3,
     approval_id,
     receipt: None,
-    error: Some({ code, message }),
+    error: Some({ code, message, }),
     live_output: None,
   }
 }
+
+///|
+pub extend SandboxInvocation with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxInvocation with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxInvocation with ToJson::{to_json}
+
+///|
+pub extend SandboxInvocation with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend LiveOutputReadRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LiveOutputReadRequest with Eq::{not_equal, equal}
+
+///|
+pub extend LiveOutputReadRequest with ToJson::{to_json}
+
+///|
+pub extend LiveOutputReadRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend LiveOutputReference with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LiveOutputReference with Eq::{not_equal, equal}
+
+///|
+pub extend LiveOutputReference with ToJson::{to_json}
+
+///|
+pub extend LiveOutputReference with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend LiveOutputReadResponse with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LiveOutputReadResponse with Eq::{not_equal, equal}
+
+///|
+pub extend LiveOutputReadResponse with ToJson::{to_json}
+
+///|
+pub extend GrantPublicationRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend GrantPublicationRequest with Eq::{not_equal, equal}
+
+///|
+pub extend GrantPublicationRequest with ToJson::{to_json}
+
+///|
+pub extend GrantPublicationRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend GrantPublicationResponse with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend GrantPublicationResponse with Eq::{not_equal, equal}
+
+///|
+pub extend GrantPublicationResponse with ToJson::{to_json}
+
+///|
+pub extend RetentionPromotionRequest with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionPromotionRequest with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionPromotionRequest with ToJson::{to_json}
+
+///|
+pub extend RetentionPromotionRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionPromotionResponse with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionPromotionResponse with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionPromotionResponse with ToJson::{to_json}
+
+///|
+pub extend ExecutionGrant with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ExecutionGrant with Eq::{not_equal, equal}
+
+///|
+pub extend ExecutionGrant with ToJson::{to_json}
+
+///|
+pub extend ExecutionGrant with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ExecutorLimits with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend WorkspacePolicy with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend TrustedAenConfig with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ExecutorConfig with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend CommandOutputArtifactRecord with ToJson::{to_json}
+
+///|
+pub extend CommandOutputArtifactRecord with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend LiveOutputRecord with ToJson::{to_json}
+
+///|
+pub extend LiveOutputRecord with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionRecord with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionRecord with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionRecord with ToJson::{to_json}
+
+///|
+pub extend RetentionRecord with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend PromotionClaim with ToJson::{to_json}
+
+///|
+pub extend PromotionClaim with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionRecoveryInspectionRequest with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionRecoveryInspectionRequest with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionRecoveryInspectionRequest with ToJson::{to_json}
+
+///|
+pub extend RetentionRecoveryInspectionRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionRecoveryInspectionResponse with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionRecoveryInspectionResponse with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionRecoveryInspectionResponse with ToJson::{to_json}
+
+///|
+pub extend ExecutorProtocolError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ExecutorProtocolError with Eq::{not_equal, equal}
+
+///|
+pub extend ExecutorProtocolError with ToJson::{to_json}
+
+///|
+pub extend ExecutorResponse with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ExecutorResponse with Eq::{not_equal, equal}
+
+///|
+pub extend ExecutorResponse with ToJson::{to_json}

@@ -169,3 +169,9 @@ pub fn parse(text : String) -> Report raise {
     skipped: rows.filter(row => row[4] == "skipped").length(),
   }
 }
+
+///|
+pub extend Report with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Report with Eq::{not_equal, equal}

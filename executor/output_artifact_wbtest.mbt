@@ -1,4 +1,20 @@
 ///|
+// Convenience projection used only by artifact regression fixtures.
+async fn retain_command_output_artifact(
+  run_id : String,
+  output : String,
+  output_limit : Int,
+  approval_digest : String,
+  command_digest : String,
+  config : ExecutorConfig,
+) -> @sandbox.CommandOutputArtifactRef {
+  let bytes = @utf8.encode(output)
+  retain_command_output_bytes(
+    run_id, bytes, output_limit, approval_digest, command_digest, config,
+  )
+}
+
+///|
 async test "complete output artifact is signed, digest checked, and projected" {
   let (config, roots) = test_executor_config()
   let approval_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -26,7 +42,7 @@ async test "complete output artifact is signed, digest checked, and projected" {
   )
   assert_true(
     output_artifact_required(
-      { ..small_receipt, output_truncated: true },
+      { ..small_receipt, output_truncated: true, },
       config.limits.max_model_output_bytes,
     ),
   )
@@ -91,7 +107,7 @@ async test "output artifact refuses binding forgery and substituted bytes" {
     _ => false
   }
   assert_true(wrong_run_refused)
-  let forged = { ..reference, sha256: command_digest }
+  let forged = { ..reference, sha256: command_digest, }
   let forged_refused = try {
     ignore(
       read_command_output_artifact(
@@ -144,7 +160,7 @@ async test "output artifact refuses binding forgery and substituted bytes" {
     _ => false
   }
   assert_true(linked_refused)
-  let traversal = { ..reference, artifact_id: "../escape" }
+  let traversal = { ..reference, artifact_id: "../escape", }
   let traversal_refused = try {
     ignore(
       read_command_output_artifact(
@@ -166,7 +182,7 @@ async test "output artifact enforces byte limit and expires with bounded cleanup
   let (base, roots) = test_executor_config()
   let config : ExecutorConfig = {
     ..base,
-    limits: { ..base.limits, retention_ms: 1L },
+    limits: { ..base.limits, retention_ms: 1L, },
   }
   let approval_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   let command_digest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

@@ -88,24 +88,18 @@ async fn AenHttpTransport::open(
   request : AenRequest,
 ) -> (@http.Response, @http.Client) {
   let client = @http.Client(self.base_url)
-  try {
-    client.request(
-      http_method(request.verb),
-      request.path,
-      extra_headers=request_headers(request.headers),
-    )
-    let bytes = request_bytes(request.body)
-    if bytes.length() > 0 {
-      client.write(bytes)
-    }
-    let response = client.end_request()
-    (response, client)
-  } catch {
-    error => {
-      client.close()
-      raise error
-    }
+  errdefer client.close()
+  client.request(
+    http_method(request.verb),
+    request.path,
+    extra_headers=request_headers(request.headers),
+  )
+  let bytes = request_bytes(request.body)
+  if bytes.length() > 0 {
+    client.write(bytes)
   }
+  let response = client.end_request()
+  (response, client)
 }
 
 ///|
@@ -135,7 +129,7 @@ pub impl AenTransport for AenHttpTransport with fn request(self, request) {
       let (response, client) = self.open(request)
       defer client.close()
       let body = read_capped(client, request.response_bytes)
-      { status: response.code, body }
+      { status: response.code, body, }
     }) {
     Some(response) => response
     None => raise TransportFailure("AgentENV request timed out")
@@ -174,3 +168,6 @@ pub impl AenTransport for AenHttpTransport with fn stream(
     raise TransportFailure("AgentENV stream timed out")
   }
 }
+
+///|
+pub extend AenHttpTransport with AenTransport::{request, stream}

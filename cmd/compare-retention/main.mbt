@@ -6,7 +6,7 @@ let usage = "Usage: compare-retention [--prefix PATH] [--after PATH] [--limit 1.
 
 ///|
 async fn run(args : Array[String]) -> Unit {
-  let options : Map[String, String] = {}
+  let options : Map[String, String] = Map([])
   let mut json = false
   let mut unchanged = false
   for i = 1; i < args.length(); {
@@ -56,7 +56,7 @@ async fn run(args : Array[String]) -> Unit {
     @stdio.stdout.write(result.to_json().stringify() + "\n")
     return
   }
-  let output = StringBuilder::new()
+  let output = StringBuilder()
   output.write_string(
     "Saved manifest comparison: " +
     result.baseline.retention_id.to_json().stringify() +

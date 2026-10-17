@@ -91,11 +91,17 @@ test "LCOV refuses incomplete, contradictory and ambiguous coverage" {
       "SF:a\nDA:1,0\nLF:2\nend_of_record\n", "SF:a\nDA:1,0\nLH:1\nend_of_record\n",
       "SF:a\nSF:b\nend_of_record\n", "SF:a\nUNKNOWN:value\nend_of_record\n", "SF:a\nTN:wrong\nend_of_record\n",
     ] {
-    assert_true((try? retained_lcov_csv(bad, true)) is Err(_))
+    try retained_lcov_csv(bad, true) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? retained_lcov_csv("SF:a\n" + "x".repeat(1048576), false)) is Err(_),
-  )
+  try retained_lcov_csv("SF:a\n" + "x".repeat(1048576), false) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let (_, _, _, _, zero) = retained_lcov_csv(
     "SF:a\nDA:1,1\nend_of_record", true,
   )
@@ -141,14 +147,18 @@ async test "LCOV API binds exact source and output without touching retained evi
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_lcov(
+  try
+    tabulate_retained_lcov(
       { ..binding, command_digest: "d".repeat(64), },
       "coverage.info",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -178,7 +188,12 @@ async test "compiled LCOV command filters uncovered observations with atomic ref
     retained_json_at(context, "/candidate_fingerprint"),
     @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
   )
-  let (all_code, all_output, all_context) = @process.collect_output(executable, ["lcov-csv", "coverage.info"], extra_env~, stdin=@process.redirect_from_file(binding_path))
+  let (all_code, all_output, all_context) = @process.collect_output(
+    executable,
+    ["lcov-csv", "coverage.info"],
+    extra_env~,
+    stdin=@process.redirect_from_file(binding_path),
+  )
   assert_eq(all_code, 0)
   assert_eq(parse_retained_csv(all_output.text()).length(), 4)
   let (again, repeated, repeated_context) = @process.collect_output(
@@ -222,7 +237,9 @@ async test "compiled LCOV command filters uncovered observations with atomic ref
   if @env.get_env_var("MOONFORT_LCOV_EVIDENCE") is Some(root) {
     for
       (name, bytes) in [
-        ("coverage.info", @utf8.encode(lcov_example)), ("all.csv", all_output.binary()), ("all.context.json", all_context.binary()),
+        ("coverage.info", @utf8.encode(lcov_example)),
+        ("all.csv", all_output.binary()),
+        ("all.context.json", all_context.binary()),
         ("uncovered.csv", output.binary()),
         ("uncovered.context.json", errors.binary()),
         ("binding.json", @utf8.encode(binding.to_json().stringify())),

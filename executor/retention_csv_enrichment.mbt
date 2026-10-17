@@ -68,7 +68,7 @@ fn enrich_csv_records(
     }
     headers.push(header)
   }
-  let index : Map[String, Array[String]] = {}
+  let index : Map[String, Array[String]] = Map([])
   for row in lookup[1:] {
     let key = row[lookup_key - 1]
     guard !key.is_empty() && !index.contains(key) else {
@@ -76,7 +76,7 @@ fn enrich_csv_records(
     }
     index[key] = row
   }
-  let used : Map[String, Bool] = {}
+  let used : Map[String, Bool] = Map([])
   let output = StringBuilder()
   let mut size = 0
   let write = fn(cells : Array[String]) -> Unit raise {
@@ -195,4 +195,15 @@ pub fn RetentionCsvEnrichment::context(self : RetentionCsvEnrichment) -> Json {
     "candidate_fingerprint": self.candidate_fingerprint.to_json(),
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
+}
+
+///|
+pub extend RetentionCsvEnrichment with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvEnrichment with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvEnrichment with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

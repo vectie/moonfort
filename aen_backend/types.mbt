@@ -111,3 +111,54 @@ pub(all) enum AenExecEvent {
   ProcessExited(Int, String)
   ConnectEnded(String?)
 } derive(Debug, Eq)
+
+///|
+pub extend AenBackendError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenBackendError with ToJson::{to_json}
+
+///|
+pub extend AenHttpMethod with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenHttpMethod with Eq::{not_equal, equal}
+
+///|
+pub extend AenHeader with Eq::{not_equal, equal}
+
+///|
+pub extend AenStreamControl with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenStreamControl with Eq::{not_equal, equal}
+
+///|
+pub extend AenLifecycleState with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenLifecycleState with Eq::{not_equal, equal}
+
+///|
+pub extend AenArtifactResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenForkResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenWorkspaceLease with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenWorkspaceLease with Eq::{not_equal, equal}
+
+///|
+pub extend AenWorkspaceLease with ToJson::{to_json}
+
+///|
+pub extend AenWorkspaceLease with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend AenExecEvent with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend AenExecEvent with Eq::{not_equal, equal}

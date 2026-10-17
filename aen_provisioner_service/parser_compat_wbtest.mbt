@@ -10,8 +10,8 @@ test "typed provisioner parsers preserve signed widths and request errors" {
     guard @json.parse(request_body()) is Object(fields) else {
       fail("Expected request")
     }
-    fields["maxBytes"] = text.to_json()
-    try request_from_json(fields.to_json()) catch {
+    fields["maxBytes"] = ToJson::to_json(text)
+    try request_from_json(ToJson::to_json(fields)) catch {
       InvalidRequest(message) => assert_eq(message, "maxBytes is invalid")
       _ => fail("Parser changed request error type")
     } noraise {

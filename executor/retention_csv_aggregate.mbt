@@ -100,7 +100,7 @@ fn aggregate_csv_records(
     }
   }
   let groups : Array[RetainedNumericGroup] = []
-  let index : Map[String, Int] = {}
+  let index : Map[String, Int] = Map([])
   for row in 1..<records.length() {
     let cells = group_by.map(column => records[row][column - 1])
     let identity = cells.to_json().stringify()
@@ -279,4 +279,15 @@ pub fn RetentionCsvAggregate::context(self : RetentionCsvAggregate) -> Json {
     "candidate_fingerprint": self.candidate_fingerprint.to_json(),
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
+}
+
+///|
+pub extend RetentionCsvAggregate with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvAggregate with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvAggregate with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

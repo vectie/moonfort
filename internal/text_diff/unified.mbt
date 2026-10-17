@@ -21,7 +21,7 @@ fn lines(text : String) -> Array[String] raise {
   if text.is_empty() {
     return []
   }
-  let parts = text.split("\n").map(part => part.to_string()).collect()
+  let parts = text.split("\n").map(part => part.to_owned()).collect()
   let result : Array[String] = []
   for index = 0; index < parts.length(); index = index + 1 {
     if index < parts.length() - 1 {
@@ -102,7 +102,7 @@ pub fn unified(
   if added_lines + removed_lines == 0 {
     return { patch: "", added_lines, removed_lines, }
   }
-  let output = StringBuilder::new()
+  let output = StringBuilder()
   // The tab terminates the filename unambiguously, including names with spaces.
   output.write_string("--- \{old_label}\t\n+++ \{new_label}\t\n")
   let mut old_line = 1
@@ -176,3 +176,9 @@ pub fn unified(
   }
   { patch: output.to_string(), added_lines, removed_lines, }
 }
+
+///|
+pub extend TextDiff with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend TextDiff with Eq::{not_equal, equal}

@@ -22,12 +22,15 @@ pub(all) suberror AenBackendError {
   TransportFailure(String)
   ProtocolFailure(String)
 } derive(ToJson, @debug.Debug)
+pub fn AenBackendError::to_json(Self) -> Json
+pub fn AenBackendError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct AenArtifactResult {
   artifact_id : String?
   receipt : @sandbox.SandboxReceipt
 } derive(@debug.Debug)
+pub fn AenArtifactResult::to_repr(Self) -> @debug.Repr
 
 pub struct AenBackend[T] {
   // private fields
@@ -51,6 +54,9 @@ pub(all) enum AenExecEvent {
   ProcessExited(Int, String)
   ConnectEnded(String?)
 } derive(Eq, @debug.Debug)
+pub fn AenExecEvent::equal(Self, Self) -> Bool
+pub fn AenExecEvent::not_equal(Self, Self) -> Bool
+pub fn AenExecEvent::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AenExecutionConfig {
   base_url : String
@@ -75,16 +81,21 @@ pub(all) struct AenExecutionConfig {
   tool_registry_digest : String
   guest_tools : Map[String, String]
 } derive(Eq)
+pub fn AenExecutionConfig::equal(Self, Self) -> Bool
+pub fn AenExecutionConfig::not_equal(Self, Self) -> Bool
 
 pub(all) struct AenForkResult {
   sandbox_ids : Array[String]
   receipt : @sandbox.SandboxReceipt
 } derive(@debug.Debug)
+pub fn AenForkResult::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AenHeader {
   name : String
   value : String
 } derive(Eq)
+pub fn AenHeader::equal(Self, Self) -> Bool
+pub fn AenHeader::not_equal(Self, Self) -> Bool
 
 pub(all) enum AenHttpMethod {
   Get
@@ -92,11 +103,16 @@ pub(all) enum AenHttpMethod {
   Put
   Delete
 } derive(Eq, @debug.Debug)
+pub fn AenHttpMethod::equal(Self, Self) -> Bool
+pub fn AenHttpMethod::not_equal(Self, Self) -> Bool
+pub fn AenHttpMethod::to_repr(Self) -> @debug.Repr
 
 pub struct AenHttpTransport {
   base_url : String
 }
 pub fn AenHttpTransport::new(String) -> Self raise AenBackendError
+pub async fn AenHttpTransport::request(Self, AenRequest) -> AenResponse
+pub async fn AenHttpTransport::stream(Self, AenRequest, consume~ : (Bytes) -> AenStreamControl) -> Unit
 pub impl AenTransport for AenHttpTransport
 
 pub(all) enum AenLifecycleState {
@@ -106,6 +122,9 @@ pub(all) enum AenLifecycleState {
   Stopped
   Refused
 } derive(Eq, @debug.Debug)
+pub fn AenLifecycleState::equal(Self, Self) -> Bool
+pub fn AenLifecycleState::not_equal(Self, Self) -> Bool
+pub fn AenLifecycleState::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AenRequest {
   verb : AenHttpMethod
@@ -132,6 +151,9 @@ pub(all) enum AenStreamControl {
   ContinueStream
   StopStream
 } derive(Eq, @debug.Debug)
+pub fn AenStreamControl::equal(Self, Self) -> Bool
+pub fn AenStreamControl::not_equal(Self, Self) -> Bool
+pub fn AenStreamControl::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AenWorkspaceLease {
   protocol_version : Int
@@ -147,6 +169,11 @@ pub(all) struct AenWorkspaceLease {
   receipt_key_id : String
   receipt_mac : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn AenWorkspaceLease::equal(Self, Self) -> Bool
+pub fn AenWorkspaceLease::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn AenWorkspaceLease::not_equal(Self, Self) -> Bool
+pub fn AenWorkspaceLease::to_json(Self) -> Json
+pub fn AenWorkspaceLease::to_repr(Self) -> @debug.Repr
 
 pub struct ConnectDecoder {
   // private fields

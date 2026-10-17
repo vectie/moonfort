@@ -110,7 +110,7 @@ test "deployment validation pins fixed canary guest paths" {
   try
     validate_deployment(
       config,
-      test_executor({ ..backend, guest_scratch: "/different-scratch" }),
+      test_executor({ ..backend, guest_scratch: "/different-scratch", }),
     )
   catch {
     _ => ()
@@ -122,7 +122,7 @@ test "deployment validation pins fixed canary guest paths" {
   try
     validate_deployment(
       config,
-      test_executor({ ..backend, guest_tools: substituted_tools }),
+      test_executor({ ..backend, guest_tools: substituted_tools, }),
     )
   catch {
     _ => ()

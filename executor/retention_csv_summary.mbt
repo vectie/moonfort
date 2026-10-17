@@ -47,7 +47,7 @@ fn summarize_csv_records(
     fail("invalid CSV summary filter")
   }
   let groups : Array[RetainedCsvGroup] = []
-  let index : Map[String, Int] = {}
+  let index : Map[String, Int] = Map([])
   let mut matching_rows = 0
   for row in 1..<records.length() {
     let cells = records[row]
@@ -164,3 +164,12 @@ pub fn RetentionCsvSummary::context(self : RetentionCsvSummary) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionCsvSummary with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvSummary with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvSummary with @moonbitlang/core/json.FromJson::{from_json}

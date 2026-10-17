@@ -131,3 +131,17 @@ pub async fn export_retained_bundle(
   }
   bundle_zip(entries)
 }
+
+///|
+pub extend RetentionBundleManifest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionBundleManifest with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionBundleManifest with ToJson::{to_json}
+
+///|
+pub extend RetentionBundleManifest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}

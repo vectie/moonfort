@@ -243,9 +243,11 @@ async test "run search records oversized omissions and rejects oversized corpora
       for n in 0..<129 => (n.to_string() + ".txt", b"")
     ],
   )
-  guard (try? search_retained_run(many, "error", many_config))
-    is Err(Failure(message)) else {
-    fail("expected file count refusal")
+  let message = try search_retained_run(many, "error", many_config) catch {
+    Failure(message) => message
+    _ => fail("expected file count refusal")
+  } noraise {
+    _ => fail("expected file count refusal")
   }
   assert_true(message.contains("more than 128 files"))
   assert_eq(
@@ -259,9 +261,11 @@ async test "run search records oversized omissions and rejects oversized corpora
       for n in 0..<9 => (n.to_string() + ".txt", Bytes::make(1_048_576, 65))
     ],
   )
-  guard (try? search_retained_run(large, "error", large_config))
-    is Err(Failure(message)) else {
-    fail("expected corpus byte refusal")
+  let message = try search_retained_run(large, "error", large_config) catch {
+    Failure(message) => message
+    _ => fail("expected corpus byte refusal")
+  } noraise {
+    _ => fail("expected corpus byte refusal")
   }
   assert_true(message.contains("more than 8 MiB"))
 }
@@ -280,7 +284,11 @@ async test "run search validates query cursors and only searches the selected ma
   )
   assert_eq(search_retained_run(binding, "error", config).selected_files, 2)
   for query in ["", "x".repeat(129), "a\nb", "a\rb", "\u{0}"] {
-    assert_true((try? search_retained_run(binding, query, config)) is Err(_))
+    try search_retained_run(binding, query, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for
     (path, line) in [
@@ -290,32 +298,42 @@ async test "run search validates query cursors and only searches the selected ma
       ("logs/one.txt", -1),
       ("skip.bin", 0),
     ] {
-    assert_true(
-      (try? search_retained_run(
+    try
+      search_retained_run(
         binding,
         "error",
         config,
         after_path=path,
         after_line=line,
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for limit in [0, 101] {
-    assert_true(
-      (try? search_retained_run(binding, "error", config, limit~)) is Err(_),
-    )
+    try search_retained_run(binding, "error", config, limit~) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? search_retained_run(
+  try
+    search_retained_run(
       binding,
       "error",
       config,
       prefix="no-match",
       after_path="logs/one.txt",
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(
     search_retained_run(
       binding,
@@ -345,16 +363,24 @@ async test "run search refuses changed missing expired or mismatched evidence wi
     ("one.txt", b"error\n"),
     ("skip.bin", b"\xff"),
   ])
-  assert_true(
-    (try? search_retained_run(
+  try
+    search_retained_run(
       { ..binding, command_digest: "d".repeat(64), },
       "error",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/run-search/skip.bin", b"\xfe")
-  assert_true((try? search_retained_run(binding, "error", config)) is Err(_))
+  try search_retained_run(binding, "error", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   // Explicitly narrowing to the unchanged text file remains useful.
   assert_eq(
     search_retained_run(binding, "error", config, contains=".txt").matching_lines,
@@ -362,18 +388,30 @@ async test "run search refuses changed missing expired or mismatched evidence wi
   )
   @fs.write_file(config.scratch_root + "/run-search/skip.bin", b"\xff")
   @fs.write_file(config.scratch_root + "/run-search/one.txt", b"ERROR\n")
-  assert_true((try? search_retained_run(binding, "error", config)) is Err(_))
+  try search_retained_run(binding, "error", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/run-search/one.txt", b"error\n")
   let file_path = config.scratch_root + "/run-search/one.txt"
   @fs.rename(file_path, file_path + ".moved", replace=false)
-  assert_true((try? search_retained_run(binding, "error", config)) is Err(_))
+  try search_retained_run(binding, "error", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.rename(file_path + ".moved", file_path, replace=false)
   let record = load_retention_record(binding.retention_id, config)
   @fs.write_file(
     config.retention_root + "/run-search.json",
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true((try? search_retained_run(binding, "error", config)) is Err(_))
+  try search_retained_run(binding, "error", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -486,14 +524,14 @@ async test "compiled run search locates unknown logs and reopens paged JSON with
 ///|
 async test "run search does not silently drop omission metadata to fit a page" {
   let (base, _) = test_executor_config()
-  let files = [
-    for n in 0..<20 => (n.to_string() + ".bin", b"\xff")
-  ]
+  let files = [ for n in 0..<20 => (n.to_string() + ".bin", b"\xff") ]
   let binding = run_search_fixture(base, files)
   let small = { ..base, limits: { ..base.limits, max_protocol_bytes: 4096, }, }
-  guard (try? search_retained_run(binding, "error", small))
-    is Err(Failure(message)) else {
-    fail("expected omission metadata refusal")
+  let message = try search_retained_run(binding, "error", small) catch {
+    Failure(message) => message
+    _ => fail("expected omission metadata refusal")
+  } noraise {
+    _ => fail("expected omission metadata refusal")
   }
   assert_true(message.contains("metadata exceeds response budget"))
   let narrowed = search_retained_run(binding, "error", small, prefix="0.")

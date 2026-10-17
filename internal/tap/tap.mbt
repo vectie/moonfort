@@ -203,3 +203,15 @@ pub fn parse(text : String) -> Report raise {
   }
   { points, plan, skip_reason, bailout, bailout_line, }
 }
+
+///|
+pub extend Point with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Point with Eq::{not_equal, equal}
+
+///|
+pub extend Report with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Report with Eq::{not_equal, equal}

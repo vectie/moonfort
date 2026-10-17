@@ -18,7 +18,11 @@ test "decimal aggregation is exact and rounds mean halfway away from zero" {
       "1..0", "--1", "9000000000000.000001", "-9000000000001", "999999999999999999999999",
       "月",
     ] {
-    assert_true((try? retained_decimal(invalid)) is Err(_))
+    try retained_decimal(invalid) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let records = parse_retained_csv(
     "area,value\nA,0.1\nA,0.2\nB,-0.000001\nB,0\nC,0.000001\nC,0\n",
@@ -65,22 +69,37 @@ test "numeric groups preserve exact keys blanks ties and logical row drillback" 
 test "numeric aggregation refuses invalid columns late numbers overflow and oversized output" {
   let records = parse_retained_csv("key,value\nx,1\ny,nope\n")
   for groups in [[0], [3], [1, 1]] {
-    assert_true((try? aggregate_csv_records(records, groups, 2)) is Err(_))
+    try aggregate_csv_records(records, groups, 2) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for value in [0, -1, 3] {
-    assert_true((try? aggregate_csv_records(records, [], value)) is Err(_))
+    try aggregate_csv_records(records, [], value) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  guard (try? aggregate_csv_records(records, [1], 2)) is Err(Failure(message)) else {
-    fail("expected late value refusal")
+  let message = try aggregate_csv_records(records, [1], 2) catch {
+    Failure(message) => message
+    _ => fail("expected late value refusal")
+  } noraise {
+    _ => fail("expected late value refusal")
   }
   assert_true(message.contains("source data row 2, column 2"))
   for
     values in [
       "value\n9000000000000\n0.000001\n", "value\n-9000000000000\n-0.000001\n",
     ] {
-    assert_true(
-      (try? aggregate_csv_records(parse_retained_csv(values), [], 1)) is Err(_),
-    )
+    try
+      aggregate_csv_records(parse_retained_csv(values), [], 1) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (safe, _) = aggregate_csv_records(
     parse_retained_csv("v\n9000000000000\n-9000000000000\n"),
@@ -95,16 +114,23 @@ test "numeric aggregation refuses invalid columns late numbers overflow and over
     )[0].length(),
     64,
   )
-  assert_true(
-    (try? aggregate_csv_records(wide, [ for i in 1..<=57 => i ], 64)) is Err(_),
-  )
+  try
+    aggregate_csv_records(wide, [ for i in 1..<=57 => i ], 64) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let repeated = [["v"]] + Array::make(20000, ["0.000001"])
   assert_eq(parse_retained_csv(aggregate_csv_records(repeated, [], 1).0)[1], [
     "20000", "20000", "0", "0.020000", "0.000001", "0.000001", "0.000001", "1",
   ])
   let large = [["key", "v"]] + [ for i in 1..<=20000 => [i.to_string(), "1"] ]
-  guard (try? aggregate_csv_records(large, [1], 2)) is Err(Failure(message)) else {
-    fail("expected full output refusal")
+  let message = try aggregate_csv_records(large, [1], 2) catch {
+    Failure(message) => message
+    _ => fail("expected full output refusal")
+  } noraise {
+    _ => fail("expected full output refusal")
   }
   assert_true(message.contains("candidate exceeds 1 MiB"))
 }
@@ -142,33 +168,45 @@ async test "retained decimal aggregation binds source output and leaves receipts
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? aggregate_retained_csv(
+  try
+    aggregate_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       "checks.csv",
       config,
       value_column=2,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/table-results/checks.csv",
     b"area,seconds\ncore,9.9\n",
   )
-  assert_true(
-    (try? aggregate_retained_csv(binding, "checks.csv", config, value_column=2))
-    is Err(_),
-  )
+  try
+    aggregate_retained_csv(binding, "checks.csv", config, value_column=2)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/table-results/checks.csv", bytes)
   let record = load_retention_record(binding.retention_id, config)
   @fs.write_file(
     receipt_path,
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true(
-    (try? aggregate_retained_csv(binding, "checks.csv", config, value_column=2))
-    is Err(_),
-  )
+  try
+    aggregate_retained_csv(binding, "checks.csv", config, value_column=2)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

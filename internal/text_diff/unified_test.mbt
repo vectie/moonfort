@@ -62,9 +62,11 @@ test "unified explicit size line and text limits" {
       ("", "", -1),
       ("", "", 21),
     ] {
-    assert_true(
-      (try? @text_diff.unified(before, after, "a/x", "b/x", context~)) is Err(_),
-    )
+    try @text_diff.unified(before, after, "a/x", "b/x", context~) catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected unsupported text diff input to raise")
+    }
   }
   assert_eq(
     @text_diff.unified("a".repeat(262_144), "a".repeat(262_144), "a/x", "b/x").patch,

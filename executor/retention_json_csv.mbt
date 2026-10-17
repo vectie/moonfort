@@ -42,7 +42,7 @@ fn retained_json_columns(
   guard columns.length() >= 1 && columns.length() <= 64 else {
     fail("JSON table mapping requires 1..64 columns")
   }
-  let names : Map[String, Bool] = {}
+  let names : Map[String, Bool] = Map([])
   let selected = columns.map(column => {
     guard column is Object(fields) &&
       fields.length() == 2 &&
@@ -224,3 +224,24 @@ pub fn RetentionJsonTable::context(self : RetentionJsonTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionJsonColumn with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonColumn with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionJsonColumn with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonColumn with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionJsonTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonTable with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonTable with @moonbitlang/core/json.FromJson::{from_json}

@@ -36,7 +36,7 @@ fn retained_csv_key_index(
   columns : Array[Int],
   side : String,
 ) -> Map[String, Int] raise {
-  let index : Map[String, Int] = {}
+  let index : Map[String, Int] = Map([])
   for row in 1..<records.length() {
     let key = columns.map(column => records[row][column - 1])
     for position, value in key {
@@ -82,7 +82,7 @@ fn compare_retained_csv_records(
   }
   let old = retained_csv_key_index(left, columns, "baseline")
   let new = retained_csv_key_index(right, columns, "candidate")
-  let keys : Map[String, Array[String]] = {}
+  let keys : Map[String, Array[String]] = Map([])
   for (records, index) in [(left, old), (right, new)] {
     for identity, row in index {
       keys[identity] = columns.map(column => records[row][column - 1])
@@ -275,4 +275,30 @@ pub fn RetentionCsvComparison::context(self : RetentionCsvComparison) -> Json {
     "changed": self.changed.to_json(),
     "unchanged": self.unchanged.to_json(),
   }
+}
+
+///|
+pub extend RetentionCsvChange with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvChange with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionCsvChange with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvChange with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionCsvComparison with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvComparison with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionCsvComparison with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvComparison with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

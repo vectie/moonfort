@@ -81,10 +81,11 @@ test "CSV draft rejects malformed recipes and non-string or ambiguous coordinate
       valid.replace_all(old="set-cell", new="rename-column"),
       valid.replace_all(old="source_fingerprint", new="wrong_field"),
     ] {
-    assert_true(
-      (try? retained_csv_edits(@utf8.encode(invalid))) is Err(_),
-      msg=invalid,
-    )
+    try retained_csv_edits(@utf8.encode(invalid)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail(invalid)
+    }
   }
   let invalid_operations : Array[Array[Json]] = [
     [],
@@ -101,12 +102,24 @@ test "CSV draft rejects malformed recipes and non-string or ambiguous coordinate
     Array::make(101, Json::object({ "op": "remove-row", "row": 1 })),
   ]
   for operations in invalid_operations {
-    assert_true(
-      (try? retained_csv_edits(csv_draft_recipe(source, operations))) is Err(_),
-    )
+    try
+      retained_csv_edits(csv_draft_recipe(source, operations)) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true((try? retained_csv_edits(Bytes::make(65_537, 32))) is Err(_))
-  assert_true((try? retained_csv_edits(b"\xff")) is Err(_))
+  try retained_csv_edits(Bytes::make(65_537, 32)) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try retained_csv_edits(b"\xff") |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -121,16 +134,23 @@ test "CSV draft refuses invalid sequential edits without mutating source" {
       [RemoveRow(0)],
       [AppendRow(["too", "many", "cells"])],
     ] {
-    assert_true((try? apply_retained_csv_edits(source, edits)) is Err(_))
+    try apply_retained_csv_edits(source, edits) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
     assert_eq(source, [["id", "status"], ["01", "open"]])
   }
-  assert_true(
-    (try? apply_retained_csv_edits(
-      parse_retained_csv("h\n" + "a\n".repeat(20_000)),
-      [AppendRow(["b"])],
-    ))
-    is Err(_),
-  )
+  try
+    apply_retained_csv_edits(parse_retained_csv("h\n" + "a\n".repeat(20_000)), [
+      AppendRow(["b"]),
+    ])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   // A bounded table remains reusable after many sequential edits.
   let large = parse_retained_csv("h,h,h,h\n" + "a,a,a,a\n".repeat(19_999))
   let edits = Array::make(64, SetCell(1, 1, "small"))
@@ -141,12 +161,16 @@ test "CSV draft refuses invalid sequential edits without mutating source" {
     "h\n" +
     ("a,".repeat(19) + "a\n").repeat(14_000)
   assert_true(@utf8.encode(dense_source).length() < 1_048_576)
-  assert_true(
-    (try? apply_retained_csv_edits(parse_retained_csv(dense_source), [
+  try
+    apply_retained_csv_edits(parse_retained_csv(dense_source), [
       SetCell(1, 1, "a"),
-    ]))
-    is Err(_),
-  )
+    ])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -192,18 +216,24 @@ async test "CSV draft binds source recipe candidate and preserves receipts grant
   let wrong = csv_draft_recipe(b"another source", [
     { "op": "remove-row", "row": 1 },
   ])
-  assert_true(
-    (try? draft_retained_csv(binding, "checks.csv", config, wrong)) is Err(_),
-  )
-  assert_true(
-    (try? draft_retained_csv(
+  try draft_retained_csv(binding, "checks.csv", config, wrong) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    draft_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       "checks.csv",
       config,
       recipe,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(@fs.read_file(receipt_path).binary(), receipt)
   assert_eq(
     @fs.read_file(config.scratch_root + "/table-results/checks.csv").binary(),
@@ -215,9 +245,13 @@ async test "CSV draft binds source recipe candidate and preserves receipts grant
     config.scratch_root + "/table-results/checks.csv",
     b"id,status\n01,tampered\n",
   )
-  assert_true(
-    (try? draft_retained_csv(binding, "checks.csv", config, recipe)) is Err(_),
-  )
+  try
+    draft_retained_csv(binding, "checks.csv", config, recipe) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

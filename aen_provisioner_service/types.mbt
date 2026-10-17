@@ -81,3 +81,68 @@ pub(all) struct ProvisionerHttpResult {
   reason : String
   body : String
 } derive(Debug, Eq)
+
+///|
+pub extend ProvisionerError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ProvisionerError with ToJson::{to_json}
+
+///|
+pub extend ProvisionerWorkspace with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend ProvisionerLimits with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ProvisionerConfig with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ProvisionWorkspaceRequest with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend ProvisionWorkspaceRequest with Eq::{not_equal, equal}
+
+///|
+pub extend ProvisionWorkspaceRequest with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend ProvisionWorkspaceRequest with ToJson::{to_json}
+
+///|
+pub extend ProvisionedWorkspace with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ProvisionedWorkspace with Eq::{not_equal, equal}
+
+///|
+pub extend ProvisionedWorkspace with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend ProvisionedWorkspace with ToJson::{to_json}
+
+///|
+pub extend ProvisionerLease with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ProvisionerLease with Eq::{not_equal, equal}
+
+///|
+pub extend ProvisionerLease with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ProvisionerLease with ToJson::{to_json}
+
+///|
+pub extend ProvisionerHttpResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ProvisionerHttpResult with Eq::{not_equal, equal}

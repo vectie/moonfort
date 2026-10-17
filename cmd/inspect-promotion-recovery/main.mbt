@@ -29,7 +29,7 @@ fn refused_response(
     desired_state_digest: "",
     observed_state_digest: "",
     outcome: "unavailable",
-    error: Some({ code, message }),
+    error: Some({ code, message, }),
   }
 }
 

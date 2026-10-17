@@ -266,3 +266,45 @@ pub fn prepare_sandbox_command(
     }
   }
 }
+
+///|
+pub extend SandboxBackendReadiness with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxBackendReadiness with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxBackendReadiness with ToJson::{to_json}
+
+///|
+pub extend SandboxBackendReadiness with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxPreparationRefusal with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend SandboxPreparationRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPreparationRefusal with ToJson::{to_json}
+
+///|
+pub extend SandboxPreparationRefusal with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend PreparedSandboxCommand with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend PreparedSandboxCommand with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxPreparation with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxPreparation with Eq::{not_equal, equal}

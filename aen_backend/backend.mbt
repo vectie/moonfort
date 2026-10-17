@@ -229,7 +229,7 @@ fn tool_bindings_digest(bindings : Map[String, String]) -> String {
     for label in labels => { "label": label, "path": bindings[label] }
   ]
   @crypto.bytes_to_hex_string(
-    @crypto.sha256(@utf8.encode(rows.to_json().stringify())),
+    @crypto.sha256(@utf8.encode(ToJson::to_json(rows).stringify())),
   )
 }
 
@@ -723,7 +723,7 @@ pub async fn[T : AenTransport] AenBackend::stop(
     self.create_in_flight = false
     self.sandbox_id = None
     self.state = Stopped
-    { ..self.base_receipt(Killed), cleanup_verified: true, retention_id: None }
+    { ..self.base_receipt(Killed), cleanup_verified: true, retention_id: None, }
   } catch {
     error => {
       self.raise_after_cleanup("stop", error)
@@ -929,8 +929,8 @@ async fn[T : AenTransport] AenBackend::snapshot_checked(
   guard safe_provider_identifier(artifact) else {
     raise self.refuse("AEN snapshot returned an invalid artifact ID")
   }
-  let receipt = { ..self.base_receipt(Running), artifacts: [artifact] }
-  { artifact_id: Some(artifact), receipt }
+  let receipt = { ..self.base_receipt(Running), artifacts: [artifact], }
+  { artifact_id: Some(artifact), receipt, }
 }
 
 ///|
@@ -1020,7 +1020,7 @@ async fn[T : AenTransport] AenBackend::fork_checked(
   self.pending_child_ids.clear()
   {
     sandbox_ids: ids,
-    receipt: { ..self.base_receipt(Running), artifacts: ids },
+    receipt: { ..self.base_receipt(Running), artifacts: ids, },
   }
 }
 

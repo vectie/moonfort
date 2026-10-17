@@ -14,6 +14,10 @@ pub(all) suberror SupervisorError {
   InvalidRequest(String)
   NativeProtocol(String)
 } derive(Eq, ToJson, @debug.Debug)
+pub fn SupervisorError::equal(Self, Self) -> Bool
+pub fn SupervisorError::not_equal(Self, Self) -> Bool
+pub fn SupervisorError::to_json(Self) -> Json
+pub fn SupervisorError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct Limits {
@@ -25,6 +29,11 @@ pub(all) struct Limits {
   processes : Int64
   aggregate_disk_bytes : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Limits::equal(Self, Self) -> Bool
+pub fn Limits::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn Limits::not_equal(Self, Self) -> Bool
+pub fn Limits::to_json(Self) -> Json
+pub fn Limits::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Request {
   argv : Array[String]
@@ -35,6 +44,11 @@ pub(all) struct Request {
   output_bytes : Int64
   limits : Limits
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Request::equal(Self, Self) -> Bool
+pub fn Request::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn Request::not_equal(Self, Self) -> Bool
+pub fn Request::to_json(Self) -> Json
+pub fn Request::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Result {
   kind : String
@@ -46,6 +60,11 @@ pub(all) struct Result {
   elapsed_ms : Int64
   applied_limits : Int
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Result::equal(Self, Self) -> Bool
+pub fn Result::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn Result::not_equal(Self, Self) -> Bool
+pub fn Result::to_json(Self) -> Json
+pub fn Result::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

@@ -83,7 +83,7 @@ fn error_result(
   {
     status,
     reason,
-    body: Json::object({ "error": code.to_json() }).stringify(),
+    body: Json::object({ "error": ToJson::to_json(code) }).stringify(),
   }
 }
 

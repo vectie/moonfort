@@ -92,7 +92,7 @@ async fn[T : AenTransport] AenBackend::terminate_and_finish_manifest(
           if self.require_guest_attestation {
             self.inventory_guest_changes(sandbox_id)
           } else {
-            { entries: [], before_bytes: 0L, after_bytes: 0L }
+            { entries: [], before_bytes: 0L, after_bytes: 0L, }
           },
         ),
       ) catch {
@@ -274,7 +274,7 @@ pub async fn[T : AenTransport] AenBackend::exec(
     if self.require_guest_attestation {
       self.inventory_guest_changes(id)
     } else {
-      { entries: [], before_bytes: 0L, after_bytes: 0L }
+      { entries: [], before_bytes: 0L, after_bytes: 0L, }
     }
   } catch {
     _ => {

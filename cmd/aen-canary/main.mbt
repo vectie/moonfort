@@ -1,6 +1,6 @@
 ///|
 async fn emit_report(report : CanaryReport) -> Unit {
-  @stdio.stdout.write(report.to_json().stringify() + "\n")
+  @stdio.stdout.write(ToJson::to_json(report).stringify() + "\n")
 }
 
 ///|

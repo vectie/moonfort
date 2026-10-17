@@ -1,5 +1,4 @@
 import {
-  "moonbitlang/core/json",
   "vectie/moonfort/sandbox",
 }
 

@@ -2,7 +2,7 @@
 fn lifecycle_test_profile(
   workspace : String,
   scratch : String,
-) -> SandboxProfile {
+) -> @sandbox.SandboxProfile {
   {
     run_id: "run-lifecycle-test",
     workspace_root: workspace,
@@ -13,7 +13,7 @@ fn lifecycle_test_profile(
     read_only_roots: [workspace],
     allowed_egress: [],
     allowed_commands: ["moon"],
-    limits: { ..default_limits(), disk_mib: 1 },
+    limits: { ..@sandbox.default_limits(), disk_mib: 1, },
     read_only_workspace: true,
     executor_evidence_root: "",
     live_output_id: "",
@@ -26,7 +26,7 @@ async test "inventory records symlinks without following them" {
   let outside = @fs.realpath(@fs.tmpdir(prefix="moonfort-outside-"))
   @fs.write_file("\{outside}/secret", "outside secret", create_mode=CreateNew)
   @fs.symlink("\{scratch}/escape", target="\{outside}/secret")
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
   assert_eq(inventory.total_bytes, 0L)
   assert_eq(inventory.entries.length(), 1)
   assert_true(inventory.entries[0].kind is SymbolicLink)
@@ -39,7 +39,7 @@ async test "inventory records symlinks without following them" {
 async test "inventory enforces its disk bound" {
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-disk-"))
   @fs.write_file("\{scratch}/large", "12345", create_mode=CreateNew)
-  let result = inventory_scratch(scratch, 4L)
+  let result = @sandbox.inventory_scratch(scratch, 4L)
   guard result is Err(reason) else { fail("expected disk refusal") }
   assert_eq(reason.code(), "disk-limit-exceeded")
   ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
@@ -50,7 +50,7 @@ async test "materialization refuses workspace symlinks" {
   let workspace = @fs.realpath(@fs.tmpdir(prefix="moonfort-source-link-"))
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-copy-link-"))
   @fs.symlink("\{workspace}/escape", target="/etc/passwd")
-  let result = materialize_workspace_snapshot(workspace, scratch)
+  let result = @sandbox.materialize_workspace_snapshot(workspace, scratch)
   guard result is Err(reason) else { fail("expected symlink refusal") }
   assert_eq(reason.code(), "unsupported-entry")
   ignore(@fs.rmdir(workspace, recursive=true) catch { _ => () })
@@ -63,11 +63,11 @@ async test "lifecycle materializes, diffs, snapshots, stops, and resets" {
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-scratch-"))
   @fs.write_file("\{workspace}/original", "one", create_mode=CreateNew)
   let profile = lifecycle_test_profile(workspace, scratch)
-  let created = new_sandbox_run(profile).unwrap()
+  let created = @sandbox.new_sandbox_run(profile).unwrap()
   let starting = created.begin_start().unwrap()
   let ready = starting.complete_start().unwrap()
   assert_eq(@fs.read_file("\{scratch}/original").text(), "one")
-  let prepared = prepare_sandbox_command(
+  let prepared = @sandbox.prepare_sandbox_command(
       profile,
       Exec(tool="moon", args=["check"]),
       BackendEnforced,
@@ -77,11 +77,11 @@ async test "lifecycle materializes, diffs, snapshots, stops, and resets" {
   let executing = ready.begin_exec(prepared).unwrap()
   @fs.write_file("\{scratch}/original", "two", create_mode=CreateOrTruncate)
   @fs.write_file("\{scratch}/added", "new", create_mode=CreateNew)
-  let receipt = exited_receipt(
+  let receipt = @sandbox.exited_receipt(
     profile.run_id,
     MicroVm,
     Enforced,
-    profile_digest(profile),
+    @sandbox.profile_digest(profile),
     0,
     "",
   )
@@ -109,7 +109,7 @@ async test "lifecycle materializes, diffs, snapshots, stops, and resets" {
 
 ///|
 test "artifact declarations reject traversal and symlinks" {
-  let inventory : ScratchInventory = {
+  let inventory : @sandbox.ScratchInventory = {
     entries: [
       {
         relative_path: "link",
@@ -120,13 +120,15 @@ test "artifact declarations reject traversal and symlinks" {
     ],
     total_bytes: 0L,
   }
-  assert_true(declare_sandbox_artifacts(inventory, ["../escape"]) is Err(_))
-  assert_true(declare_sandbox_artifacts(inventory, ["link"]) is Err(_))
+  assert_true(
+    @sandbox.declare_sandbox_artifacts(inventory, ["../escape"]) is Err(_),
+  )
+  assert_true(@sandbox.declare_sandbox_artifacts(inventory, ["link"]) is Err(_))
 }
 
 ///|
 test "diff preserves added modified removed and symlink entry kinds" {
-  let before : ScratchInventory = {
+  let before : @sandbox.ScratchInventory = {
     entries: [
       {
         relative_path: "gone",
@@ -143,7 +145,7 @@ test "diff preserves added modified removed and symlink entry kinds" {
     ],
     total_bytes: 2L,
   }
-  let after : ScratchInventory = {
+  let after : @sandbox.ScratchInventory = {
     entries: [
       {
         relative_path: "changed",
@@ -160,7 +162,7 @@ test "diff preserves added modified removed and symlink entry kinds" {
     ],
     total_bytes: 1L,
   }
-  let diff = diff_scratch(before, after)
+  let diff = @sandbox.diff_scratch(before, after)
   assert_eq(diff.entries.length(), 3)
   assert_true(diff.entries.any(item => item.change is Modified))
   assert_true(diff.entries.any(item => item.change is Removed))
@@ -176,21 +178,21 @@ test "diff preserves added modified removed and symlink entry kinds" {
 ///|
 test "receipt binding keeps identity and uses relative paths" {
   let profile = lifecycle_test_profile("/workspace", "/scratch")
-  let receipt = exited_receipt(
+  let receipt = @sandbox.exited_receipt(
     profile.run_id,
     MicroVm,
     Enforced,
-    profile_digest(profile),
+    @sandbox.profile_digest(profile),
     0,
     "ok",
   )
-  let entry : ScratchEntry = {
+  let entry : @sandbox.ScratchEntry = {
     relative_path: "out/result",
     kind: RegularFile,
     size_bytes: 2L,
     fingerprint: "digest",
   }
-  let diff : ScratchDiff = {
+  let diff : @sandbox.ScratchDiff = {
     entries: [
       {
         relative_path: "out/result",
@@ -202,11 +204,11 @@ test "receipt binding keeps identity and uses relative paths" {
     before_bytes: 0L,
     after_bytes: 2L,
   }
-  let bound = bind_receipt_scratch_result(receipt, diff, [
-    { relative_path: "out/result", size_bytes: 2L, fingerprint: "digest" },
+  let bound = @sandbox.bind_receipt_scratch_result(receipt, diff, [
+    { relative_path: "out/result", size_bytes: 2L, fingerprint: "digest", },
   ]).unwrap()
   assert_eq(bound.run_id, profile.run_id)
-  assert_eq(bound.profile_digest, profile_digest(profile))
+  assert_eq(bound.profile_digest, @sandbox.profile_digest(profile))
   assert_eq(bound.changed_paths, ["out/result"])
   assert_eq(bound.changes.length(), 1)
   assert_true(
@@ -224,18 +226,18 @@ async test "promotion refuses symlink destinations and applies regular files" {
   let destination = @fs.realpath(@fs.tmpdir(prefix="moonfort-promote-dest-"))
   let outside = @fs.realpath(@fs.tmpdir(prefix="moonfort-promote-outside-"))
   @fs.write_file("\{scratch}/artifact", "payload", create_mode=CreateNew)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
   @fs.symlink("\{destination}/escape", target=outside)
-  let rejected = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "escape/file" },
+  let rejected = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "escape/file", },
   ])
   guard rejected is Err(reason) else { fail("expected destination refusal") }
   assert_eq(reason.code(), "destination-symlink")
   @fs.mkdir("\{destination}/safe", permission=0o700)
-  let plan = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "safe/file" },
+  let plan = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "safe/file", },
   ]).unwrap()
-  let promoted = apply_sandbox_promotion(scratch, plan)
+  let promoted = @sandbox.apply_sandbox_promotion(scratch, plan)
   guard promoted is AppliedDurable(result) else {
     fail("expected durable promotion")
   }
@@ -258,16 +260,16 @@ async test "promotion pins destination ancestry after reviewed plan" {
   )
   @fs.write_file("\{scratch}/artifact", "payload", create_mode=CreateNew)
   @fs.mkdir("\{destination}/parent", permission=0o700)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
-  let plan = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "parent/file" },
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
+  let plan = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "parent/file", },
   ]).unwrap()
   // Model an attacker swapping the reviewed parent before the apply operation.
   // The fd-relative implementation must refuse the symlink and never touch its
   // target, even though all path-based planning checks already passed.
   @fs.rename("\{destination}/parent", "\{destination}/reviewed-parent")
   @fs.symlink("\{destination}/parent", target=outside)
-  let result = apply_sandbox_promotion(scratch, plan)
+  let result = @sandbox.apply_sandbox_promotion(scratch, plan)
   guard result is NotApplied(reason) else {
     fail("expected swapped parent refusal")
   }
@@ -287,15 +289,15 @@ async test "promotion refuses destination created after absent review" {
     @fs.tmpdir(prefix="moonfort-promote-created-dest-"),
   )
   @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
-  let plan = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "result" },
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
+  let plan = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result", },
   ]).unwrap()
   assert_true(
     plan.items()[0].expected_destination_state is ReviewedDestinationAbsent,
   )
   @fs.write_file("\{destination}/result", "attacker", create_mode=CreateNew)
-  let applied = apply_sandbox_promotion(scratch, plan)
+  let applied = @sandbox.apply_sandbox_promotion(scratch, plan)
   guard applied is NotApplied(reason) else {
     fail("expected created destination refusal")
   }
@@ -316,9 +318,9 @@ async test "promotion refuses same-size destination replacement after review" {
   )
   @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
   @fs.write_file("\{destination}/result", "before!", create_mode=CreateNew)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
-  let plan = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "result" },
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
+  let plan = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result", },
   ]).unwrap()
   guard plan.items()[0].expected_destination_state
     is ReviewedDestinationRegular(
@@ -333,7 +335,7 @@ async test "promotion refuses same-size destination replacement after review" {
   )
   @fs.write_file("\{destination}/replacement", "after!!", create_mode=CreateNew)
   @fs.rename("\{destination}/replacement", "\{destination}/result")
-  let applied = apply_sandbox_promotion(scratch, plan)
+  let applied = @sandbox.apply_sandbox_promotion(scratch, plan)
   guard applied is NotApplied(reason) else {
     fail("expected replaced destination refusal")
   }
@@ -354,11 +356,11 @@ async test "promotion atomically exchanges an unchanged reviewed destination" {
   )
   @fs.write_file("\{scratch}/artifact", "reviewed", create_mode=CreateNew)
   @fs.write_file("\{destination}/result", "before!", create_mode=CreateNew)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
-  let plan = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "artifact", destination_path: "result" },
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
+  let plan = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "artifact", destination_path: "result", },
   ]).unwrap()
-  let applied = apply_sandbox_promotion(scratch, plan)
+  let applied = @sandbox.apply_sandbox_promotion(scratch, plan)
   guard applied is AppliedDurable(result) else {
     fail("expected durable promotion")
   }
@@ -380,20 +382,20 @@ async test "promotion requires exactly one item and existing parents" {
   )
   @fs.write_file("\{scratch}/one", "one", create_mode=CreateNew)
   @fs.write_file("\{scratch}/two", "two", create_mode=CreateNew)
-  let inventory = inventory_scratch(scratch, 1024L).unwrap()
-  let empty = plan_sandbox_promotion(inventory, destination, [])
+  let inventory = @sandbox.inventory_scratch(scratch, 1024L).unwrap()
+  let empty = @sandbox.plan_sandbox_promotion(inventory, destination, [])
   guard empty is Err(empty_reason) else { fail("expected empty refusal") }
   assert_eq(empty_reason.code(), "empty-promotion-plan")
-  let multiple = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "one", destination_path: "one" },
-    { artifact_path: "two", destination_path: "two" },
+  let multiple = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "one", destination_path: "one", },
+    { artifact_path: "two", destination_path: "two", },
   ])
   guard multiple is Err(multiple_reason) else {
     fail("expected multiple-item refusal")
   }
   assert_eq(multiple_reason.code(), "multiple-promotion-items")
-  let missing_parent = plan_sandbox_promotion(inventory, destination, [
-    { artifact_path: "one", destination_path: "missing/result" },
+  let missing_parent = @sandbox.plan_sandbox_promotion(inventory, destination, [
+    { artifact_path: "one", destination_path: "missing/result", },
   ])
   guard missing_parent is Err(parent_reason) else {
     fail("expected missing-parent refusal")
@@ -418,7 +420,7 @@ async test "discard refuses a swapped root without touching symlink target" {
   // Model a scratch-root replacement between allocation/validation and cleanup.
   @fs.rename(scratch, moved)
   @fs.symlink(scratch, target=outside)
-  let result = discard_scratch_tree(scratch)
+  let result = @sandbox.discard_scratch_tree(scratch)
   guard result is Err(_) else { fail("expected swapped scratch refusal") }
   assert_eq(@fs.read_file("\{outside}/sentinel").text(), "outside")
   assert_eq(@fs.read_file("\{moved}/artifact").text(), "payload")

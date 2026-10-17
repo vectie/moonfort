@@ -28,11 +28,14 @@ test "HAR exact integer lexemes refuse fractions hidden by binary64 rounding" {
         "9007199254740992",
       ] {
       let input = har_example.replace_all(old~, new=key + ":" + literal)
-      assert_true(
-        (try? retained_har_csv(parse_retained_json(input), method="excluded"))
-        is Err(_),
-        msg=key + ":" + literal,
-      )
+      try
+        retained_har_csv(parse_retained_json(input), http_method="excluded")
+        |> ignore
+      catch {
+        _ => ()
+      } noraise {
+        _ => fail(key + ":" + literal)
+      }
     }
   }
   for literal in ["-1.00000000000000001", "-0.99999999999999999", "-1e-9999"] {
@@ -46,10 +49,11 @@ test "HAR exact integer lexemes refuse fractions hidden by binary64 rounding" {
         old~,
         new="\"" + key + "\":" + literal,
       )
-      assert_true(
-        (try? retained_har_csv(parse_retained_json(input))) is Err(_),
-        msg=key + ":" + literal,
-      )
+      try retained_har_csv(parse_retained_json(input)) |> ignore catch {
+        _ => ()
+      } noraise {
+        _ => fail(key + ":" + literal)
+      }
     }
   }
   for
@@ -117,15 +121,15 @@ test "HAR exact filters combine inclusively and empty results retain a header" {
   let document = parse_retained_json(har_example)
   let (csv, total, count) = retained_har_csv(
     document,
-    method="POST",
+    http_method="POST",
     status=503,
     minimum_ms=170.0,
   )
   assert_eq((total, count), (3, 1))
   assert_eq(parse_retained_csv(csv)[1][0], "/log/entries/1")
-  assert_eq(retained_har_csv(document, method="post").2, 0)
+  assert_eq(retained_har_csv(document, http_method="post").2, 0)
   assert_eq(retained_har_csv(document, minimum_ms=170.001).2, 0)
-  assert_eq(retained_har_csv(document, method="GET").2, 2)
+  assert_eq(retained_har_csv(document, http_method="GET").2, 2)
   assert_eq(
     parse_retained_csv(retained_har_csv(document, status=404).0).length(),
     1,
@@ -135,12 +139,18 @@ test "HAR exact filters combine inclusively and empty results retain a header" {
   )
   assert_eq(retained_har_csv(empty).1, 0)
   for threshold in [-1.0, 1.0 / 0.0, 0.0 / 0.0] {
-    assert_true(
-      (try? retained_har_csv(document, minimum_ms=threshold)) is Err(_),
-    )
+    try retained_har_csv(document, minimum_ms=threshold) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for status in [-1, 1000] {
-    assert_true((try? retained_har_csv(document, status~)) is Err(_))
+    try retained_har_csv(document, status~) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let zero_status = parse_retained_json(
     har_example.replace_all(old="\"status\":304", new="\"status\":0"),
@@ -168,18 +178,25 @@ test "HAR validates excluded entries and refuses malformed or unbounded metrics"
       ("\"url\":\"https://example.test/cached\"", "\"url\":\"\""),
     ] {
     let input = har_example.replace_all(old~, new=replacement)
-    assert_true(
-      (try? retained_har_csv(parse_retained_json(input), method="absent"))
-      is Err(_),
-      msg=replacement,
-    )
+    try
+      retained_har_csv(parse_retained_json(input), http_method="absent")
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail(replacement)
+    }
   }
-  assert_true(
-    (try? parse_retained_json(
+  try
+    parse_retained_json(
       har_example.replace_all(old="\"time\":85", new="\"time\":85,\"time\":85"),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let entry = retained_json_at(
     parse_retained_json(har_example),
     "/log/entries/0",
@@ -187,7 +204,11 @@ test "HAR validates excluded entries and refuses malformed or unbounded metrics"
   let wrap = fn(entries : Array[Json]) -> Json {
     { "log": { "version": "1.2", "entries": entries.to_json() } }
   }
-  assert_true((try? retained_har_csv(wrap(Array::make(5001, entry)))) is Err(_))
+  try retained_har_csv(wrap(Array::make(5001, entry))) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let large = parse_retained_json(
     har_example.replace_all(
       old="https://example.test/summary?q=moon",
@@ -195,13 +216,19 @@ test "HAR validates excluded entries and refuses malformed or unbounded metrics"
     ),
   )
   let large_entry = retained_json_at(large, "/log/entries/0")
-  assert_true(
-    (try? retained_har_csv(wrap(Array::make(70, large_entry)))) is Err(_),
-  )
+  try retained_har_csv(wrap(Array::make(70, large_entry))) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let overflow = har_example
     .replace_all(old="\"connect\":20", new="\"connect\":1e308")
     .replace_all(old="\"wait\":60", new="\"wait\":1e308")
-  assert_true((try? retained_har_csv(parse_retained_json(overflow))) is Err(_))
+  try retained_har_csv(parse_retained_json(overflow)) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -239,24 +266,36 @@ async test "HAR retained API binds exact bytes and selection without changing au
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_har(
+  try
+    tabulate_retained_har(
       { ..binding, command_digest: "d".repeat(64), },
       "logs/session.har",
       config,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? tabulate_retained_har(binding, "missing.har", config)) is Err(_),
-  )
-  assert_true(
-    (try? tabulate_retained_har(binding, "../session.har", config)) is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try tabulate_retained_har(binding, "missing.har", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try tabulate_retained_har(binding, "../session.har", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/run-search/logs/session.har", b"{}")
-  assert_true(
-    (try? tabulate_retained_har(binding, "logs/session.har", config)) is Err(_),
-  )
+  try
+    tabulate_retained_har(binding, "logs/session.har", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -381,9 +420,11 @@ async test "HAR retained reader refuses oversized input and provenance context" 
     ("large.har", Bytes::make(1_048_577, 32)),
     ("small.har", @utf8.encode(har_example)),
   ])
-  assert_true(
-    (try? tabulate_retained_har(binding, "large.har", config)) is Err(_),
-  )
+  try tabulate_retained_har(binding, "large.har", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let limited = {
     ..config,
     limits: { ..config.limits, max_protocol_bytes: 4096, },
@@ -393,7 +434,7 @@ async test "HAR retained reader refuses oversized input and provenance context" 
       binding,
       "small.har",
       limited,
-      method="x".repeat(4000),
+      http_method="x".repeat(4000),
     )
   catch {
     error =>

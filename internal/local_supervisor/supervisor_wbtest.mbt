@@ -102,7 +102,7 @@ test "native supervisor enforces CPU and file size limits" {
   let cpu_base = test_request(["/bin/sh", "-c", "while :; do :; done"], 30000L)
   let cpu_request = {
     ..cpu_base,
-    limits: { ..cpu_base.limits, cpu_seconds: 1L },
+    limits: { ..cpu_base.limits, cpu_seconds: 1L, },
   }
   unlink_file(@utf8.encode(cpu_request.output_path))
   let cpu = run(cpu_request)
@@ -117,7 +117,7 @@ test "native supervisor enforces CPU and file size limits" {
   )
   let file_request = {
     ..file_base,
-    limits: { ..file_base.limits, file_size_bytes: 1024L },
+    limits: { ..file_base.limits, file_size_bytes: 1024L, },
     output_path: "/tmp/moonfort-supervisor-output-file-\{native_pid()}.log",
   }
   unlink_file(@utf8.encode(file_request.output_path))
@@ -130,7 +130,7 @@ test "native supervisor enforces CPU and file size limits" {
 ///|
 test "native supervisor enforces merged output cap" {
   let base = test_request(["/usr/bin/yes", "overflow"], 5000L)
-  let request = { ..base, output_bytes: 4096L }
+  let request = { ..base, output_bytes: 4096L, }
   unlink_file(@utf8.encode(request.output_path))
   let result = run(request)
   inspect(result.kind, content="limit_exceeded")
@@ -152,7 +152,7 @@ test "native supervisor enforces aggregate disk bytes across many files" {
   let request = {
     ..base,
     disk_root,
-    limits: { ..base.limits, aggregate_disk_bytes: 64L * 1024L },
+    limits: { ..base.limits, aggregate_disk_bytes: 64L * 1024L, },
     output_path: "/tmp/moonfort-supervisor-disk-output-\{native_pid()}.log",
   }
   unlink_file(@utf8.encode(request.output_path))
@@ -174,7 +174,7 @@ test "native supervisor enforces process group count" {
   )
   let request = {
     ..base,
-    limits: { ..base.limits, processes: 3L },
+    limits: { ..base.limits, processes: 3L, },
     output_path: "/tmp/moonfort-supervisor-process-output-\{native_pid()}.log",
   }
   unlink_file(@utf8.encode(request.output_path))
@@ -197,7 +197,7 @@ test "Linux process ceiling follows descendants after setsid" {
   )
   let request = {
     ..base,
-    limits: { ..base.limits, processes: 2L },
+    limits: { ..base.limits, processes: 2L, },
     output_path: "/tmp/moonfort-supervisor-linux-setsid-\{native_pid()}.log",
   }
   unlink_file(@utf8.encode(request.output_path))

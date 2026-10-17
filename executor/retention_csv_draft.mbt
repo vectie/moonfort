@@ -253,3 +253,12 @@ pub fn RetentionCsvDraft::context(self : RetentionCsvDraft) -> Json {
     "addressing": "sequential-current-one-based-data-rows-and-columns",
   }
 }
+
+///|
+pub extend RetentionCsvDraft with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvDraft with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvDraft with @moonbitlang/core/json.FromJson::{from_json}

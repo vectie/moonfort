@@ -90,7 +90,11 @@ test "JSONL supports empty files scalar records and explicit blank handling" {
     assert_eq((count, total, blanks), (0, expected_lines, expected_blanks))
   }
   for blank in ["\n", " ", "1\n\n2", "1\n\n"] {
-    assert_true((try? retained_jsonl_rows(blank, false)) is Err(_))
+    try retained_jsonl_rows(blank, false) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (rows, source_lines, total, blanks) = retained_jsonl_rows(
     "\"01\"\nnull\ntrue\r\n-0", false,
@@ -133,32 +137,45 @@ test "JSONL rejects malformed later records duplicates pretty JSON and invalid p
       "\u{a0}",
       "[".repeat(65) + "0" + "]".repeat(65),
     ] {
-    guard (try? retained_jsonl_rows("{}\n\n" + bad, true)) is Err(error) else {
-      fail("expected bad later record")
+    let error = try retained_jsonl_rows("{}\n\n" + bad, true) catch {
+      error => error
+    } noraise {
+      _ => fail("expected bad later record")
     }
     assert_true(error.to_string().contains("source line 3"))
   }
-  assert_true((try? retained_jsonl_rows("{\n\"id\":1\n}\n", false)) is Err(_))
+  try retained_jsonl_rows("{\n\"id\":1\n}\n", false) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let columns : Array[RetentionJsonColumn] = [
     { header: "Value", pointer: "/v/0", },
   ]
   let (rows, source_lines, _, _) = retained_jsonl_rows(
     "{\"v\":[1]}\n\n{\"v\":null}", true,
   )
-  guard (try? retained_json_csv(Json::array(rows), columns, source_lines~))
-    is Err(error) else {
-    fail("expected scalar traversal error")
+  let error = try
+    retained_json_csv(Json::array(rows), columns, source_lines~)
+  catch {
+    error => error
+  } noraise {
+    _ => fail("expected scalar traversal error")
   }
   assert_true(error.to_string().contains("source line 3 column 1"))
   let (containers, lines, _, _) = retained_jsonl_rows("{\"v\":{}}\n", false)
-  assert_true(
-    (try? retained_json_csv(
+  try
+    retained_json_csv(
       Json::array(containers),
       [{ header: "Value", pointer: "/v", }],
       source_lines=lines,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -178,7 +195,11 @@ test "JSONL mapping and aggregate value line candidate budgets remain bounded" {
       ),
       Bytes::make(65_537, 32),
     ] {
-    assert_true((try? retained_jsonl_columns(mapping)) is Err(_))
+    try retained_jsonl_columns(mapping) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   assert_eq(
     retained_jsonl_columns(
@@ -196,25 +217,39 @@ test "JSONL mapping and aggregate value line candidate budgets remain bounded" {
     (rows.length(), lines[19_999], total, blanks),
     (20_000, 20_000, 20_000, 0),
   )
-  assert_true((try? retained_jsonl_rows("0\n".repeat(20_001), false)) is Err(_))
-  assert_true((try? retained_jsonl_rows("\n".repeat(20_001), true)) is Err(_))
+  try retained_jsonl_rows("0\n".repeat(20_001), false) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try retained_jsonl_rows("\n".repeat(20_001), true) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let (objects, _, _, _) = retained_jsonl_rows(
     "{\"v\":0}\n".repeat(10_000),
     false,
   )
   assert_eq(objects.length(), 10_000)
-  assert_true(
-    (try? retained_jsonl_rows("{\"v\":0}\n".repeat(10_001), false)) is Err(_),
-  )
+  try retained_jsonl_rows("{\"v\":0}\n".repeat(10_001), false) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let repeated = Json::array(Array::make(100, "x".repeat(16_000).to_json()))
-  assert_true(
-    (try? retained_json_csv(
+  try
+    retained_json_csv(
       repeated,
       [column],
       source_lines=Array::makei(100, i => i + 1),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -271,34 +306,46 @@ async test "JSONL API binds exact source mapping candidate and leaves originals 
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_jsonl(binding, "diagnostics.jsonl", config, mapping))
-    is Err(_),
-  )
-  assert_true(
-    (try? tabulate_retained_jsonl(
+  try
+    tabulate_retained_jsonl(binding, "diagnostics.jsonl", config, mapping)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    tabulate_retained_jsonl(
       { ..binding, command_digest: "d".repeat(64), },
       "diagnostics.jsonl",
       config,
       mapping,
       skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/jsonl-results/diagnostics.jsonl",
     b"{}\n",
   )
-  assert_true(
-    (try? tabulate_retained_jsonl(
+  try
+    tabulate_retained_jsonl(
       binding,
       "diagnostics.jsonl",
       config,
       mapping,
       skip_blank_lines=true,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -307,12 +354,14 @@ async test "JSONL API refuses invalid UTF8 oversized source expired receipt and 
   for source in [b"{}\n\xff", b"{}\n\xef\xbb\xbf{}", Bytes::make(1_048_577, 32)] {
     let (config, _) = test_executor_config()
     let binding = jsonl_fixture(config, source)
-    assert_true(
-      (try? tabulate_retained_jsonl(
-        binding, "diagnostics.jsonl", config, mapping,
-      ))
-      is Err(_),
-    )
+    try
+      tabulate_retained_jsonl(binding, "diagnostics.jsonl", config, mapping)
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (base, _) = test_executor_config()
   let limited = {
@@ -320,22 +369,30 @@ async test "JSONL API refuses invalid UTF8 oversized source expired receipt and 
     limits: { ..base.limits, max_protocol_bytes: 4096, },
   }
   let binding = jsonl_fixture(limited, b"{}\n")
-  assert_true(
-    (try? tabulate_retained_jsonl(
+  try
+    tabulate_retained_jsonl(
       binding,
       "diagnostics.jsonl",
       limited,
       jsonl_csv_mapping([{ header: "h".repeat(5000), pointer: "/id", }]),
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let path = base.retention_root + "/jsonl-results.json"
   let saved = load_retention_record(binding.retention_id, base)
   @fs.write_file(path, { ..saved, expires_at_ms: 1L, }.to_json().stringify())
-  assert_true(
-    (try? tabulate_retained_jsonl(binding, "diagnostics.jsonl", base, mapping))
-    is Err(_),
-  )
+  try
+    tabulate_retained_jsonl(binding, "diagnostics.jsonl", base, mapping)
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

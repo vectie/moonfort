@@ -27,6 +27,8 @@ pub(all) suberror ProvisionerError {
   WorkspaceRefused(String)
   StorageFailure(String)
 } derive(ToJson, @debug.Debug)
+pub fn ProvisionerError::to_json(Self) -> Json
+pub fn ProvisionerError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct ProvisionWorkspaceRequest {
@@ -38,6 +40,11 @@ pub(all) struct ProvisionWorkspaceRequest {
   reject_symlinks : Bool
   require_immutable_image_digest : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ProvisionWorkspaceRequest::equal(Self, Self) -> Bool
+pub fn ProvisionWorkspaceRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ProvisionWorkspaceRequest::not_equal(Self, Self) -> Bool
+pub fn ProvisionWorkspaceRequest::to_json(Self) -> Json
+pub fn ProvisionWorkspaceRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ProvisionedWorkspace {
   workspace_digest : String
@@ -47,6 +54,11 @@ pub(all) struct ProvisionedWorkspace {
   total_bytes : Int64
   staging_cleanup_verified : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ProvisionedWorkspace::equal(Self, Self) -> Bool
+pub fn ProvisionedWorkspace::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ProvisionedWorkspace::not_equal(Self, Self) -> Bool
+pub fn ProvisionedWorkspace::to_json(Self) -> Json
+pub fn ProvisionedWorkspace::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ProvisionerConfig {
   bind_address : String
@@ -60,12 +72,16 @@ pub(all) struct ProvisionerConfig {
   workspaces : Map[String, ProvisionerWorkspace]
   limits : ProvisionerLimits
 } derive(@json.FromJson)
+pub fn ProvisionerConfig::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 pub(all) struct ProvisionerHttpResult {
   status : Int
   reason : String
   body : String
 } derive(Eq, @debug.Debug)
+pub fn ProvisionerHttpResult::equal(Self, Self) -> Bool
+pub fn ProvisionerHttpResult::not_equal(Self, Self) -> Bool
+pub fn ProvisionerHttpResult::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ProvisionerLease {
   protocol_version : Int
@@ -81,6 +97,11 @@ pub(all) struct ProvisionerLease {
   receipt_key_id : String
   receipt_mac : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ProvisionerLease::equal(Self, Self) -> Bool
+pub fn ProvisionerLease::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ProvisionerLease::not_equal(Self, Self) -> Bool
+pub fn ProvisionerLease::to_json(Self) -> Json
+pub fn ProvisionerLease::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ProvisionerLimits {
   max_request_bytes : Int
@@ -89,6 +110,7 @@ pub(all) struct ProvisionerLimits {
   snapshot_timeout_ms : Int
   max_connections : Int
 } derive(@json.FromJson)
+pub fn ProvisionerLimits::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 pub(all) struct ProvisionerWorkspace {
   root : String
@@ -96,6 +118,7 @@ pub(all) struct ProvisionerWorkspace {
   max_entries : Int
   max_file_bytes : Int64
 } derive(@json.FromJson)
+pub fn ProvisionerWorkspace::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 // Type aliases
 

@@ -12,7 +12,13 @@ fn FakeTransport::new(
   responses : Array[AenResponse],
   stream_chunks? : Array[Bytes] = [],
 ) -> FakeTransport {
-  { responses, stream_chunks, requests: [], response_index: 0, stream_index: 0 }
+  {
+    responses,
+    stream_chunks,
+    requests: [],
+    response_index: 0,
+    stream_index: 0,
+  }
 }
 
 ///|
@@ -85,10 +91,10 @@ impl AenTransport for CancellationTransport with fn request(self, request) {
   }
   if request.verb is Get && request.path == "/sandboxes/sbx-cancel" {
     @async.sleep(60_000)
-    return { status: 500, body: b"unreachable" }
+    return { status: 500, body: b"unreachable", }
   }
   if request.verb is Delete && request.path == "/sandboxes/sbx-cancel" {
-    return { status: 204, body: b"" }
+    return { status: 204, body: b"", }
   }
   raise TransportFailure("unexpected cancellation-test request")
 }
@@ -131,7 +137,7 @@ fn test_profile(output_bytes? : Int = 256) -> @sandbox.SandboxProfile {
 
 ///|
 fn export_profile(scratch : String) -> @sandbox.SandboxProfile {
-  { ..test_profile(), scratch_root: scratch }
+  { ..test_profile(), scratch_root: scratch, }
 }
 
 ///|
@@ -172,7 +178,7 @@ fn export_backend(
 
 ///|
 fn json_response(status : Int, value : Json) -> AenResponse {
-  { status, body: @utf8.encode(value.stringify()) }
+  { status, body: @utf8.encode(value.stringify()), }
 }
 
 ///|
@@ -217,7 +223,7 @@ fn attested_detail_for(
   let value = attested_detail(profile)
   match value {
     Object(object) => {
-      object["sandboxID"] = sandbox_id.to_json()
+      object["sandboxID"] = ToJson::to_json(sandbox_id)
       value
     }
     _ => abort("test fixture detail must be an object")
@@ -329,15 +335,15 @@ async test "trusted provisioner request uses workspace identity and verifies its
   guard transport.requests[0].body is JsonBody(Object(body)) else {
     fail("provision request must be JSON")
   }
-  assert_eq(body.get("workspaceID"), Some("workspace-main".to_json()))
-  assert_eq(body.get("runID"), Some(profile.run_id.to_json()))
+  assert_eq(body.get("workspaceID"), Some(ToJson::to_json("workspace-main")))
+  assert_eq(body.get("runID"), Some(ToJson::to_json(profile.run_id)))
   assert_false(body.contains("workspaceRoot"))
-  assert_eq(body.get("rejectSymlinks"), Some(true.to_json()))
+  assert_eq(body.get("rejectSymlinks"), Some(ToJson::to_json(true)))
 }
 
 ///|
 async test "workspace lease release is bounded and idempotent" {
-  let transport = FakeTransport::new([{ status: 404, body: b"" }])
+  let transport = FakeTransport::new([{ status: 404, body: b"", }])
   assert_true(
     release_workspace(transport, api_key="secret", lease_id="lease-1"),
   )
@@ -353,7 +359,7 @@ test "workspace lease rejects tampering and mutable image references" {
   let lease = test_workspace_lease(profile, key)
   try
     validate_workspace_lease(
-      { ..lease, total_bytes: 43L },
+      { ..lease, total_bytes: 43L, },
       key,
       "test-key-1",
       "registry.test/workspace",
@@ -369,7 +375,7 @@ test "workspace lease rejects tampering and mutable image references" {
   }
   try
     validate_workspace_lease(
-      { ..lease, image_ref: "registry.test/workspace:latest" },
+      { ..lease, image_ref: "registry.test/workspace:latest", },
       key,
       "test-key-1",
       "registry.test/workspace",
@@ -456,7 +462,7 @@ async test "stock AEN cold start attaches the provisioned workspace read-only an
     [
       json_response(201, { "sandboxID": "sbx-strong" }),
       json_response(200, detail),
-      { status: 204, body: b"" },
+      { status: 204, body: b"", },
     ],
     stream_chunks=exec_stream(@utf8.encode(guest.stringify()), 0),
   )
@@ -479,12 +485,12 @@ async test "stock AEN cold start attaches the provisioned workspace read-only an
   guard transport.requests[0].body is JsonBody(Object(body)) else {
     fail("cold start must use JSON")
   }
-  assert_eq(body.get("image"), Some(executor_image.to_json()))
+  assert_eq(body.get("image"), Some(ToJson::to_json(executor_image)))
   guard body.get("attachedDrives") is Some(Array([Object(drive)])) else {
     fail("cold start must attach exactly one workspace drive")
   }
-  assert_eq(drive.get("readOnly"), Some(true.to_json()))
-  assert_eq(drive.get("mountPath"), Some("/workspace".to_json()))
+  assert_eq(drive.get("readOnly"), Some(ToJson::to_json(true)))
+  assert_eq(drive.get("mountPath"), Some(ToJson::to_json("/workspace")))
   assert_true(backend.discard())
 }
 
@@ -537,7 +543,7 @@ async test "guest attestation mismatch deletes the cold-start VM" {
     [
       json_response(201, { "sandboxID": "sbx-mismatch" }),
       json_response(200, detail),
-      { status: 204, body: b"" },
+      { status: 204, body: b"", },
     ],
     stream_chunks=exec_stream(@utf8.encode(guest.stringify()), 0),
   )
@@ -564,7 +570,7 @@ async test "guest attestation mismatch deletes the cold-start VM" {
 fn watcher_created(id : String) -> AenResponse {
   let body = @buffer.Buffer()
   write_string_field(body, 1, id)
-  { status: 200, body: body.to_bytes() }
+  { status: 200, body: body.to_bytes(), }
 }
 
 ///|
@@ -577,7 +583,7 @@ fn watcher_events(paths : Array[String]) -> AenResponse {
     write_varint(event, 2)
     write_length_delimited(body, 1, event.to_bytes())
   }
-  { status: 200, body: body.to_bytes() }
+  { status: 200, body: body.to_bytes(), }
 }
 
 ///|
@@ -589,7 +595,7 @@ async test "attested AEN start and envd exec keep the live lifecycle non-termina
       json_response(200, attested_detail(profile)),
       watcher_created("watcher-1"),
       watcher_events(["result.txt"]),
-      { status: 200, body: b"" },
+      { status: 200, body: b"", },
     ],
     stream_chunks=exec_stream(b"ok\n", 0),
   )
@@ -628,7 +634,7 @@ async test "caller-echoed metadata cannot upgrade standard AEN to Enforced" {
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, echoed_detail(profile)),
-    { status: 204, body: b"" },
+    { status: 204, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -652,10 +658,10 @@ async test "output limit closes stream, sends SIGKILL, and returns killed receip
       json_response(201, { "sandboxID": "sbx-1" }),
       json_response(200, attested_detail(profile)),
       watcher_created("watcher-1"),
-      { status: 200, body: b"" },
+      { status: 200, body: b"", },
       watcher_events([]),
-      { status: 200, body: b"" },
-      { status: 204, body: b"" },
+      { status: 200, body: b"", },
+      { status: 204, body: b"", },
     ],
     stream_chunks=exec_stream(b"abcdef", 0),
   )
@@ -690,7 +696,7 @@ async test "pause and deprecated explicit resume re-attest before Running" {
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, attested_detail(profile)),
-    { status: 204, body: b"" },
+    { status: 204, body: b"", },
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, attested_detail(profile)),
   ])
@@ -874,7 +880,7 @@ async test "host rehash rejects forged guest export bytes" {
 async test "oversized AEN export refuses before guest execution" {
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-large-export-"))
   let profile = export_profile(scratch)
-  let transport : ExportTransport = { sequences: [], requests: [], index: 0 }
+  let transport : ExportTransport = { sequences: [], requests: [], index: 0, }
   let backend = export_backend(transport, profile)
   let refused = try {
     ignore(
@@ -905,7 +911,7 @@ async test "oversized AEN export refuses before guest execution" {
 async test "guest export cannot promote removals symlinks or directories" {
   let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-aen-nonfile-export-"))
   let profile = export_profile(scratch)
-  let transport : ExportTransport = { sequences: [], requests: [], index: 0 }
+  let transport : ExportTransport = { sequences: [], requests: [], index: 0, }
   let backend = export_backend(transport, profile)
   let paths = backend.materialize_guest_changes("sbx-export", [
     {
@@ -1040,8 +1046,8 @@ async test "start failure after receiving a sandbox ID verifies VM deletion" {
   let profile = test_profile()
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
-    { status: 503, body: b"remote-secret-body" },
-    { status: 204, body: b"" },
+    { status: 503, body: b"remote-secret-body", },
+    { status: 204, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -1068,7 +1074,7 @@ async test "start failure after receiving a sandbox ID verifies VM deletion" {
 async test "failed create without a sandbox ID never claims cleanup verified" {
   let profile = test_profile()
   let transport = FakeTransport::new([
-    { status: 503, body: b"provider-detail-must-not-reflect" },
+    { status: 503, body: b"provider-detail-must-not-reflect", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -1094,8 +1100,8 @@ async test "unverified start cleanup returns an explicit retained VM ID" {
   let profile = test_profile()
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
-    { status: 503, body: b"" },
-    { status: 500, body: b"" },
+    { status: 503, body: b"", },
+    { status: 500, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -1115,7 +1121,7 @@ async test "unverified start cleanup returns an explicit retained VM ID" {
 ///|
 async test "cancellation during post-create attestation waits for VM deletion" {
   let profile = test_profile()
-  let transport : CancellationTransport = { requests: [] }
+  let transport : CancellationTransport = { requests: [], }
   let backend = AenBackend::new(
     transport,
     api_key="test-key",
@@ -1149,8 +1155,8 @@ async test "watcher setup refusal deletes the already-attested VM" {
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, attested_detail(profile)),
-    { status: 500, body: b"" },
-    { status: 204, body: b"" },
+    { status: 500, body: b"", },
+    { status: 204, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -1182,8 +1188,8 @@ async test "terminal diff failure deletes the VM and cannot return Enforced" {
       json_response(201, { "sandboxID": "sbx-1" }),
       json_response(200, attested_detail(profile)),
       watcher_created("watcher-1"),
-      { status: 500, body: b"" },
-      { status: 204, body: b"" },
+      { status: 500, body: b"", },
+      { status: 204, body: b"", },
     ],
     stream_chunks=exec_stream(b"ok", 0),
   )
@@ -1215,10 +1221,10 @@ async test "resume attestation failure deletes the VM" {
   let transport = FakeTransport::new([
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, attested_detail(profile)),
-    { status: 204, body: b"" },
+    { status: 204, body: b"", },
     json_response(201, { "sandboxID": "sbx-1" }),
     json_response(200, echoed_detail(profile)),
-    { status: 204, body: b"" },
+    { status: 204, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,
@@ -1251,9 +1257,9 @@ async test "fork child attestation failure deletes every child and parent VM" {
     ]),
     json_response(200, attested_detail_for(profile, "child-1")),
     json_response(200, echoed_detail(profile)),
-    { status: 204, body: b"" },
-    { status: 204, body: b"" },
-    { status: 204, body: b"" },
+    { status: 204, body: b"", },
+    { status: 204, body: b"", },
+    { status: 204, body: b"", },
   ])
   let backend = AenBackend::new(
     transport,

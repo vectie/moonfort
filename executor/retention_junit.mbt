@@ -86,3 +86,12 @@ pub fn RetentionJunitTable::context(self : RetentionJunitTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionJunitTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJunitTable with ToJson::{to_json}
+
+///|
+pub extend RetentionJunitTable with @moonbitlang/core/json.FromJson::{from_json}

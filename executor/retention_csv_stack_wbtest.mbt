@@ -63,10 +63,11 @@ test "CSV stack manifests require explicit unique fingerprint bound paths and re
       ),
       valid.replace_all(old="fingerprint", new="wrong"),
     ] {
-    assert_true(
-      (try? retained_csv_stack_manifest(@utf8.encode(invalid))) is Err(_),
-      msg=invalid,
-    )
+    try retained_csv_stack_manifest(@utf8.encode(invalid)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail(invalid)
+    }
   }
   for
     invalid in [
@@ -77,7 +78,11 @@ test "CSV stack manifests require explicit unique fingerprint bound paths and re
       b"\xff",
       Bytes::make(65_537, 32),
     ] {
-    assert_true((try? retained_csv_stack_manifest(invalid)) is Err(_))
+    try retained_csv_stack_manifest(invalid) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for
     path in [
@@ -92,12 +97,16 @@ test "CSV stack manifests require explicit unique fingerprint bound paths and re
       "a\u{0}b",
       "x".repeat(4097),
     ] {
-    assert_true(
-      (try? retained_csv_stack_manifest(
+    try
+      retained_csv_stack_manifest(
         csv_stack_manifest([(path, b"h"), ("b", b"h")]),
-      ))
-      is Err(_),
-    )
+      )
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let digest = selected[0].1
   for fingerprint in ["", "A".repeat(64), "g".repeat(64), "f".repeat(63)] {
@@ -105,9 +114,11 @@ test "CSV stack manifests require explicit unique fingerprint bound paths and re
       old=digest,
       new=fingerprint,
     )
-    assert_true(
-      (try? retained_csv_stack_manifest(@utf8.encode(altered))) is Err(_),
-    )
+    try retained_csv_stack_manifest(@utf8.encode(altered)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -148,7 +159,11 @@ test "CSV stack handles empty shards and rejects incompatible or colliding heade
       [("a", [["__source_row"]]), ("b", [["__source_row"]])],
       [("a", [Array::make(63, "h")]), ("b", [Array::make(63, "h")])],
     ] {
-    assert_true((try? stack_retained_csv_records(tables)) is Err(_))
+    try stack_retained_csv_records(tables) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (wide, _) = stack_retained_csv_records([
     ("a", [Array::make(62, "h")]),
@@ -163,22 +178,32 @@ test "CSV stack validates full row and serialized byte limits without truncation
   let (csv, count) = stack_retained_csv_records([("a", full), ("b", [["h"]])])
   assert_eq(count, 20_000)
   assert_eq(parse_retained_csv(csv).length(), 20_001)
-  assert_true(
-    (try? stack_retained_csv_records([("a", full), ("b", [["h"], ["b"]])]))
-    is Err(_),
-  )
+  try
+    stack_retained_csv_records([("a", full), ("b", [["h"], ["b"]])]) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let dense = parse_retained_csv(
     "h,".repeat(19) + "h\n" + ("a,".repeat(19) + "a\n").repeat(14_000),
   )
-  assert_true(
-    (try? stack_retained_csv_records([("a", dense), ("b", [dense[0]])]))
-    is Err(_),
-  )
+  try
+    stack_retained_csv_records([("a", dense), ("b", [dense[0]])]) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   let long_header = [Array::make(62, "月".repeat(16_384))]
-  assert_true(
-    (try? stack_retained_csv_records([("a", long_header), ("b", long_header)]))
-    is Err(_),
-  )
+  try
+    stack_retained_csv_records([("a", long_header), ("b", long_header)])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -227,28 +252,44 @@ async test "CSV stack verifies all originals and exact output metadata without a
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
   let stale = csv_stack_manifest([(files[0].0, b"stale"), files[2]])
-  assert_true((try? stack_retained_csv(binding, config, stale)) is Err(_))
-  assert_true(
-    (try? stack_retained_csv(
+  try stack_retained_csv(binding, config, stale) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    stack_retained_csv(
       binding,
       config,
       csv_stack_manifest([files[0], ("missing.csv", b"h\n")]),
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? stack_retained_csv(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    stack_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       config,
       manifest,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/run-search/" + files[2].0,
     b"id,area,seconds,note\n01,docs,9,tampered\n",
   )
-  assert_true((try? stack_retained_csv(binding, config, manifest)) is Err(_))
+  try stack_retained_csv(binding, config, manifest) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -264,20 +305,26 @@ async test "CSV stack rejects a malformed later shard and cumulative source limi
     let (config, _) = test_executor_config()
     let files = [("a.csv", b"h\nok\n"), ("b.csv", invalid)]
     let binding = run_search_fixture(config, files)
-    assert_true(
-      (try? stack_retained_csv(binding, config, csv_stack_manifest(files)))
-      is Err(_),
-    )
+    try
+      stack_retained_csv(binding, config, csv_stack_manifest(files)) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (config, _) = test_executor_config()
   let files = Array::makei(5, index => {
     (index.to_string() + ".csv", Bytes::make(900_000, 32))
   })
   let binding = run_search_fixture(config, files)
-  assert_true(
-    (try? stack_retained_csv(binding, config, csv_stack_manifest(files)))
-    is Err(_),
-  )
+  try
+    stack_retained_csv(binding, config, csv_stack_manifest(files)) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -360,7 +407,7 @@ async test "compiled CSV stack connects inventory consolidation downstream rollu
   assert_eq(drill_code, 0)
   let page : RetentionCsvPage = @json.from_json(@json.parse(drillback.text()))
   assert_eq(page.rows[0].row.to_string(), rows[3][1])
-  assert_eq(page.rows[0].cells, rows[3][2:].to_array())
+  assert_eq(page.rows[0].cells, rows[3][2:].to_owned())
   let (again, repeat, repeat_context) = @process.collect_output(
     executable,
     args,
@@ -476,8 +523,11 @@ async test "CSV stack accepts maximum shard count and refuses oversized provenan
       max_protocol_bytes: @utf8.encode(result.context().stringify()).length(),
     },
   }
-  let refused = try? stack_retained_csv(binding, bounded, manifest)
-  guard refused is Err(error) else { fail("expected context refusal") }
+  let error = try stack_retained_csv(binding, bounded, manifest) catch {
+    error => error
+  } noraise {
+    _ => fail("expected context refusal")
+  }
   assert_true(
     error.to_string().contains("context exceeds protocol budget"),
     msg=error.to_string(),

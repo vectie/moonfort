@@ -119,40 +119,56 @@ test "keyed CSV handles header-only tables and duplicate header names by positio
 test "keyed CSV refuses ambiguous keys with side and row diagnostics and schema changes" {
   let valid = parse_retained_csv("id,part\na,x\n")
   for columns in [[], [0], [3], [1, 1]] {
-    assert_true(
-      (try? compare_retained_csv_records(valid, valid, columns)) is Err(_),
-    )
+    try compare_retained_csv_records(valid, valid, columns) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let duplicate = parse_retained_csv("id,part\na,x\na,y\n")
-  guard (try? compare_retained_csv_records(duplicate, valid, [1]))
-    is Err(Failure(message)) else {
-    fail("expected duplicate-key refusal")
+  let message = try compare_retained_csv_records(duplicate, valid, [1]) catch {
+    Failure(message) => message
+    _ => fail("expected duplicate-key refusal")
+  } noraise {
+    _ => fail("expected duplicate-key refusal")
   }
   assert_true(
     message.contains("baseline CSV data row 2 repeats the key of data row 1"),
   )
-  guard (try? compare_retained_csv_records(valid, duplicate, [1]))
-    is Err(Failure(message)) else {
-    fail("expected candidate duplicate-key refusal")
+  let message = try compare_retained_csv_records(valid, duplicate, [1]) catch {
+    Failure(message) => message
+    _ => fail("expected candidate duplicate-key refusal")
+  } noraise {
+    _ => fail("expected candidate duplicate-key refusal")
   }
   assert_true(
     message.contains("candidate CSV data row 2 repeats the key of data row 1"),
   )
   let missing = parse_retained_csv("id,part\na,\n")
-  guard (try? compare_retained_csv_records(valid, missing, [1, 2]))
-    is Err(Failure(message)) else {
-    fail("expected empty-key refusal")
+  let message = try compare_retained_csv_records(valid, missing, [1, 2]) catch {
+    Failure(message) => message
+    _ => fail("expected empty-key refusal")
+  } noraise {
+    _ => fail("expected empty-key refusal")
   }
   assert_true(
     message.contains("candidate CSV data row 1 has an empty key in column 2"),
   )
-  assert_true(
-    (try? compare_retained_csv_records(valid, [["part", "id"], ["x", "a"]], [1]))
-    is Err(_),
-  )
-  assert_true(
-    (try? compare_retained_csv_records(valid, [["id"], ["a"]], [1])) is Err(_),
-  )
+  try
+    compare_retained_csv_records(valid, [["part", "id"], ["x", "a"]], [1])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    compare_retained_csv_records(valid, [["id"], ["a"]], [1]) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -232,52 +248,67 @@ async test "retained keyed CSV rejects unreadable invalid oversized or changed e
     let (config, _) = test_executor_config()
     let left = keyed_csv_fixture(config, "valid", b"id,state\na,pass\n")
     let right = keyed_csv_fixture(config, "invalid", invalid)
-    assert_true(
-      (try? compare_retained_csv(left, right, "checks.csv", config, key_columns=[
-        1,
-      ]))
-      is Err(_),
-    )
+    try
+      compare_retained_csv(left, right, "checks.csv", config, key_columns=[1])
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let (config, _) = test_executor_config()
   let left = keyed_csv_fixture(config, "before", b"id,state\na,pass\n")
   let right = keyed_csv_fixture(config, "after", b"id,state\na,open\n")
-  assert_true(
-    (try? compare_retained_csv(
+  try
+    compare_retained_csv(
       { ..left, command_digest: "d".repeat(64), },
       right,
       "checks.csv",
       config,
       key_columns=[1],
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? compare_retained_csv(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    compare_retained_csv(
       left,
       { ..right, approval_digest: "e".repeat(64), },
       "checks.csv",
       config,
       key_columns=[1],
-    ))
-    is Err(_),
-  )
-  for path in ["missing.csv", "../checks.csv"] {
-    assert_true(
-      (try? compare_retained_csv(left, right, path, config, key_columns=[1]))
-      is Err(_),
     )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  for path in ["missing.csv", "../checks.csv"] {
+    try
+      compare_retained_csv(left, right, path, config, key_columns=[1]) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   @fs.write_file(
     config.scratch_root + "/after/checks.csv",
     "id,state\na,NOPE\n",
   )
-  assert_true(
-    (try? compare_retained_csv(left, right, "checks.csv", config, key_columns=[
-      1,
-    ]))
-    is Err(_),
-  )
+  try
+    compare_retained_csv(left, right, "checks.csv", config, key_columns=[1])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -296,8 +327,11 @@ async test "keyed CSV comparison bounds amplified exports and full JSON reports"
   let comparison = compare_retained_csv(left, right, "checks.csv", config, key_columns=[
     1,
   ])
-  guard (try? comparison.to_csv()) is Err(Failure(message)) else {
-    fail("expected amplified CSV size refusal")
+  let message = try comparison.to_csv() catch {
+    Failure(message) => message
+    _ => fail("expected amplified CSV size refusal")
+  } noraise {
+    _ => fail("expected amplified CSV size refusal")
   }
   assert_true(message.contains("CSV comparison export exceeds 4 MiB"))
   // Compact source cells expand to many explicit JSON entries and field indices.
@@ -310,11 +344,13 @@ async test "keyed CSV comparison bounds amplified exports and full JSON reports"
   let empty = keyed_csv_fixture(config, "empty", @utf8.encode(header))
   let large = keyed_csv_fixture(config, "many", @utf8.encode(many.to_string()))
   assert_true(@utf8.encode(many.to_string()).length() <= 1_048_576)
-  guard (try? compare_retained_csv(empty, large, "checks.csv", config, key_columns=[
-      1,
-    ]))
-    is Err(Failure(message)) else {
-    fail("expected JSON size refusal")
+  let message = try
+    compare_retained_csv(empty, large, "checks.csv", config, key_columns=[1])
+  catch {
+    Failure(message) => message
+    _ => fail("expected JSON size refusal")
+  } noraise {
+    _ => fail("expected JSON size refusal")
   }
   assert_true(message.contains("CSV comparison JSON report exceeds 4 MiB"))
   let long_headers = "a".repeat(2000) +
@@ -332,15 +368,15 @@ async test "keyed CSV comparison bounds amplified exports and full JSON reports"
     ..config,
     limits: { ..config.limits, max_protocol_bytes: 4096, },
   }
-  guard (try? compare_retained_csv(
-      contextual,
-      contextual,
-      "checks.csv",
-      small,
-      key_columns=[1],
-    ))
-    is Err(Failure(message)) else {
-    fail("expected context budget refusal")
+  let message = try
+    compare_retained_csv(contextual, contextual, "checks.csv", small, key_columns=[
+      1,
+    ])
+  catch {
+    Failure(message) => message
+    _ => fail("expected context budget refusal")
+  } noraise {
+    _ => fail("expected context budget refusal")
   }
   assert_true(
     message.contains("CSV comparison context exceeds protocol budget"),

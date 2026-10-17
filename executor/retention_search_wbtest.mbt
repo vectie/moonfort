@@ -160,79 +160,105 @@ async test "retained search refuses invalid selections binary stale bytes and ex
   let (config, _roots) = test_executor_config()
   let binding = search_fixture(config, b"error\n")
   for query in ["", "x".repeat(129), "a\nb", "a\rb", "\u{0}"] {
-    assert_true(
-      (try? search_retained_artifact(binding, "build.log", query, config))
-      is Err(_),
-    )
+    try
+      search_retained_artifact(binding, "build.log", query, config) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? search_retained_artifact(
+  try
+    search_retained_artifact(
       binding,
       "build.log",
       "error",
       config,
       after_line=-1,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? search_retained_artifact(
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    search_retained_artifact(
       binding,
       "build.log",
       "error",
       config,
       after_line=2,
-    ))
-    is Err(_),
-  )
-  for limit in [0, 101] {
-    assert_true(
-      (try? search_retained_artifact(
-        binding,
-        "build.log",
-        "error",
-        config,
-        limit~,
-      ))
-      is Err(_),
     )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
   }
-  assert_true(
-    (try? search_retained_artifact(
+  for limit in [0, 101] {
+    try
+      search_retained_artifact(binding, "build.log", "error", config, limit~)
+      |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
+  }
+  try
+    search_retained_artifact(
       { ..binding, command_digest: "d".repeat(64), },
       "build.log",
       "error",
       config,
-    ))
-    is Err(_),
-  )
-  for path in ["../outside", "missing.txt"] {
-    assert_true(
-      (try? search_retained_artifact(binding, path, "error", config)) is Err(_),
     )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  for path in ["../outside", "missing.txt"] {
+    try
+      search_retained_artifact(binding, path, "error", config) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   @fs.write_file(config.scratch_root + "/search-results/build.log", b"ERROR\n")
-  assert_true(
-    (try? search_retained_artifact(binding, "build.log", "error", config))
-    is Err(_),
-  )
+  try
+    search_retained_artifact(binding, "build.log", "error", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/search-results/build.log", b"error\n")
   let record = load_retention_record(binding.retention_id, config)
   @fs.write_file(
     config.retention_root + "/search-results.json",
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true(
-    (try? search_retained_artifact(binding, "build.log", "error", config))
-    is Err(_),
-  )
+  try
+    search_retained_artifact(binding, "build.log", "error", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for bytes in [b"error\x00", b"error\xff", Bytes::make(1_048_577, 65)] {
     let (other, _roots) = test_executor_config()
     let selected = search_fixture(other, bytes)
-    assert_true(
-      (try? search_retained_artifact(selected, "build.log", "error", other))
-      is Err(_),
-    )
+    try
+      search_retained_artifact(selected, "build.log", "error", other) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 

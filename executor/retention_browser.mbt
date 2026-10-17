@@ -238,3 +238,47 @@ pub async fn export_retained_artifact(
   let (_, _, bytes) = verified_retained_artifact(binding, path, config)
   bytes
 }
+
+///|
+pub extend RetentionArtifactBinding with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend RetentionArtifactBinding with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionArtifactBinding with ToJson::{to_json}
+
+///|
+pub extend RetentionArtifactBinding with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionArtifactList with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionArtifactList with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionArtifactList with ToJson::{to_json}
+
+///|
+pub extend RetentionArtifactList with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionArtifactPage with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionArtifactPage with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionArtifactPage with ToJson::{to_json}
+
+///|
+pub extend RetentionArtifactPage with @moonbitlang/core/json.FromJson::{
+  from_json,
+}

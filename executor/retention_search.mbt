@@ -28,7 +28,7 @@ fn retained_search_excerpt(
 ) -> RetentionTextMatch {
   let start = (position - 40).max(0)
   let end = (position + width + 80).min(line.length())
-  let out = StringBuilder::new()
+  let out = StringBuilder()
   let mut offset = 0
   for character in line {
     let next = offset + (if character.to_int() > 65535 { 2 } else { 1 })
@@ -118,7 +118,7 @@ pub async fn search_retained_artifact(
     let line = lines[index]
       .strip_suffix("\r")
       .unwrap_or(lines[index])
-      .to_string()
+      .to_owned()
     let searchable = if ignore_ascii_case { line.to_lower() } else { line }
     if searchable.find(needle) is Some(position) {
       matching_lines += 1
@@ -152,3 +152,27 @@ pub async fn search_retained_artifact(
   }
   result
 }
+
+///|
+pub extend RetentionTextMatch with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTextMatch with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionTextMatch with ToJson::{to_json}
+
+///|
+pub extend RetentionTextMatch with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend RetentionTextSearch with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTextSearch with Eq::{not_equal, equal}
+
+///|
+pub extend RetentionTextSearch with ToJson::{to_json}
+
+///|
+pub extend RetentionTextSearch with @moonbitlang/core/json.FromJson::{from_json}

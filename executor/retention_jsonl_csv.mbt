@@ -81,7 +81,7 @@ fn retained_jsonl_rows_counted(
   let mut values = initial_values
   let mut blanks = 0
   for index = 0; index < total_lines; index = index + 1 {
-    let line = lines[index].to_string()
+    let line = lines[index].to_owned()
     let blank = line.iter().all(ch => ch == ' ' || ch == '\t' || ch == '\r')
     if blank {
       guard skip_blank_lines else {
@@ -96,7 +96,7 @@ fn retained_jsonl_rows_counted(
       // Standard validation comes first. The retained reader then preserves
       // numeric lexemes and rejects duplicate decoded keys. Its counter spans
       // all records, so splitting a document never resets the value budget.
-      @json.parse(line, max_nesting_depth=64) |> ignore
+      validate_retained_json_syntax(line)
       let reader : RetainedJsonReader = {
         chars: line.iter().collect(),
         position: 0,
@@ -190,4 +190,15 @@ pub fn RetentionJsonLinesTable::context(self : RetentionJsonLinesTable) -> Json 
     "candidate_fingerprint": self.candidate_fingerprint.to_json(),
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
+}
+
+///|
+pub extend RetentionJsonLinesTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonLinesTable with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonLinesTable with @moonbitlang/core/json.FromJson::{
+  from_json,
 }

@@ -50,7 +50,7 @@ test "profile digest is stable and covers policy changes" {
   assert_eq(digest.length(), 64)
   assert_eq(profile_digest(profile), digest)
   assert_not_eq(profile_digest(profile.allow_degraded()), digest)
-  let reordered = { ..profile, allowed_commands: ["git", "moon"] }
+  let reordered = { ..profile, allowed_commands: ["git", "moon"], }
   assert_eq(profile_digest(reordered), digest)
 }
 
@@ -71,7 +71,10 @@ test "profile rejects nonpositive process ceilings" {
     "run-1", "/suite/books/demo", "/suite/scratch/run-1",
   )
   assert_eq(
-    profile_rejection({ ..profile, limits: { ..profile.limits, processes: 0 } }),
+    profile_rejection({
+      ..profile,
+      limits: { ..profile.limits, processes: 0, },
+    }),
     "processes must be positive",
   )
 }

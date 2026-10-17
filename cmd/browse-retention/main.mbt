@@ -76,7 +76,7 @@ async fn binding_stdin(limit : Int) -> @executor.RetentionArtifactBinding {
 
 ///|
 fn preview_text(text : String) -> String {
-  let result = StringBuilder::new()
+  let result = StringBuilder()
   for character in text {
     if (character < ' ' && character != '\n' && character != '\t') ||
       character == '\u{7f}' ||
@@ -93,7 +93,7 @@ fn preview_text(text : String) -> String {
 
 ///|
 fn list_text(list : @executor.RetentionArtifactList) -> String {
-  let output = StringBuilder::new()
+  let output = StringBuilder()
   output.write_string("Retained artifacts: " + list.binding.retention_id + "\n")
   output.write_string(
     "Matched \{list.matched_files} files / \{list.matched_bytes} bytes; total \{list.total_files} files / \{list.total_bytes} bytes\n",
@@ -147,7 +147,7 @@ async fn run(args : Array[String]) -> Unit {
     guard args.length() >= 3 else { fail("artifact path required") }
     args[2]
   }
-  let options : Map[String, String] = {}
+  let options : Map[String, String] = Map([])
   let mut json_output = false
   let mut csv_output = false
   let mut value_output = false
@@ -266,7 +266,7 @@ async fn run(args : Array[String]) -> Unit {
         binding,
         path,
         config,
-        method=options.get("--method").unwrap_or(""),
+        http_method=options.get("--method").unwrap_or(""),
         status?,
         minimum_ms~,
       )
@@ -664,7 +664,7 @@ async fn run(args : Array[String]) -> Unit {
       if json_output {
         @stdio.stdout.write(result.to_json().stringify() + "\n")
       } else {
-        let output = StringBuilder::new()
+        let output = StringBuilder()
         output.write_string(
           "Search: " +
           preview_text(path.to_json().stringify()) +

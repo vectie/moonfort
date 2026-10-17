@@ -225,7 +225,7 @@ pub async fn execute_aen_sandbox(
         )
       }
     }
-    { ..receipt, artifacts, retention_id: None }
+    { ..receipt, artifacts, retention_id: None, }
   } else {
     receipt
   }
@@ -258,3 +258,6 @@ pub async fn execute_aen_sandbox(
     )
   }
 }
+
+///|
+pub extend AenExecutionConfig with Eq::{not_equal, equal}

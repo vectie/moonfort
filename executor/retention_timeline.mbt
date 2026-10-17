@@ -59,7 +59,7 @@ fn retained_timeline_mapping(
   guard files.length() >= 1 && files.length() <= 32 else {
     fail("timeline requires 1..32 exact retained file paths")
   }
-  let seen : Map[String, Bool] = {}
+  let seen : Map[String, Bool] = Map([])
   let paths = files.map(file => {
     guard file is String(path) &&
       !path.is_empty() &&
@@ -289,3 +289,23 @@ pub fn RetentionTimeline::context(self : RetentionTimeline) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionTimelineSource with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTimelineSource with ToJson::{to_json}
+
+///|
+pub extend RetentionTimelineSource with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionTimeline with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionTimeline with ToJson::{to_json}
+
+///|
+pub extend RetentionTimeline with @moonbitlang/core/json.FromJson::{from_json}

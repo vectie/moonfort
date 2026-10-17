@@ -347,7 +347,7 @@ async fn canonical_local_profile(profile : SandboxProfile) -> SandboxProfile {
   for root in profile.read_only_roots {
     read_only_roots.push(@fs.realpath(root))
   }
-  let canonical = { ..profile, workspace_root, scratch_root, read_only_roots }
+  let canonical = { ..profile, workspace_root, scratch_root, read_only_roots, }
   let rejection = profile_rejection(canonical)
   if rejection != "" {
     fail(rejection)
@@ -727,3 +727,15 @@ fn sbpl_escape(text : String) -> String {
 fn shell_quote(text : String) -> String {
   "'\{text.replace_all(old="'", new="'\\''")}'"
 }
+
+///|
+pub extend LocalSandboxTool with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LocalSandboxTool with Eq::{not_equal, equal}
+
+///|
+pub extend LocalSandboxTool with ToJson::{to_json}
+
+///|
+pub extend LocalSandboxTool with @moonbitlang/core/json.FromJson::{from_json}

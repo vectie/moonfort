@@ -212,3 +212,12 @@ pub fn RetentionJsonDraft::context(self : RetentionJsonDraft) -> Json {
     "operation_count": self.operation_count.to_json(),
   }
 }
+
+///|
+pub extend RetentionJsonDraft with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionJsonDraft with ToJson::{to_json}
+
+///|
+pub extend RetentionJsonDraft with @moonbitlang/core/json.FromJson::{from_json}

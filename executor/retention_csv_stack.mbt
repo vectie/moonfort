@@ -36,7 +36,7 @@ fn retained_csv_stack_manifest(
     files.length() <= 32 else {
     fail("CSV stack manifest requires version 1 and 2..32 files")
   }
-  let seen : Map[String, Bool] = {}
+  let seen : Map[String, Bool] = Map([])
   files.map(file => {
     guard file is Object(fields) &&
       fields.length() == 2 &&
@@ -210,3 +210,23 @@ pub fn RetentionCsvStack::context(self : RetentionCsvStack) -> Json {
     "duplicates": "preserved",
   }
 }
+
+///|
+pub extend RetentionCsvStackSource with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvStackSource with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvStackSource with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend RetentionCsvStack with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionCsvStack with ToJson::{to_json}
+
+///|
+pub extend RetentionCsvStack with @moonbitlang/core/json.FromJson::{from_json}

@@ -35,7 +35,7 @@ async fn copy_snapshot_file(
     permission=0o600,
   )
   defer destination.close()
-  let observed : Ref[Int64] = { val: 0L }
+  let observed : Ref[Int64] = { val: 0L, }
   for ;; {
     guard source.read_some(max_len=64 * 1024) is Some(chunk) else { break }
     observed.val += chunk.length().to_int64()
@@ -143,7 +143,7 @@ pub async fn materialize_workspace_snapshot(
       !directory_is_empty(scratch_root) {
       raise ScratchScanFailure(InvalidScratchRoot(scratch_root))
     }
-    let used_bytes : Ref[Int64] = { val: 0L }
+    let used_bytes : Ref[Int64] = { val: 0L, }
     copy_snapshot_directory(
       workspace_root, scratch_root, "", used_bytes, disk_limit_bytes,
     )

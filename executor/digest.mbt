@@ -13,7 +13,7 @@ fn grant_digest(grant : ExecutionGrant) -> String {
   let allowed_commands = grant.allowed_commands.copy()
   allowed_egress.sort()
   allowed_commands.sort()
-  let canonical = { ..grant, allowed_egress, allowed_commands }
+  let canonical = { ..grant, allowed_egress, allowed_commands, }
   @crypto.bytes_to_hex_string(
     @crypto.sha256(@utf8.encode(canonical.to_json().stringify())),
   )

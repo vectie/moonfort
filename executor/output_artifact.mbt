@@ -189,21 +189,6 @@ fn output_artifact_required(
 }
 
 ///|
-async fn retain_command_output_artifact(
-  run_id : String,
-  output : String,
-  output_limit : Int,
-  approval_digest : String,
-  command_digest : String,
-  config : ExecutorConfig,
-) -> @sandbox.CommandOutputArtifactRef {
-  let bytes = @utf8.encode(output)
-  retain_command_output_bytes(
-    run_id, bytes, output_limit, approval_digest, command_digest, config,
-  )
-}
-
-///|
 async fn retain_command_output_bytes(
   run_id : String,
   bytes : Bytes,
@@ -406,3 +391,14 @@ async fn sweep_expired_output_artifacts(config : ExecutorConfig) -> Int {
   }
   removed
 }
+
+///|
+pub extend CommandOutputArtifactRefusal with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend CommandOutputArtifactRefusal with Eq::{not_equal, equal}
+
+///|
+pub extend CommandOutputArtifactRefusal with ToJson::{to_json}

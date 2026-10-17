@@ -53,7 +53,7 @@ fn retained_lcov_csv(
   let mut record_covered = 0
   let mut found : Int? = None
   let mut hit : Int? = None
-  let seen : Map[Int, Bool] = {}
+  let seen : Map[Int, Bool] = Map([])
   let lines = text.split("\n").to_array()
   for index, raw in lines {
     let line = raw.to_owned().trim_end(chars="\r").to_owned()
@@ -216,3 +216,12 @@ pub fn RetentionLcovTable::context(self : RetentionLcovTable) -> Json {
     "candidate_size_bytes": self.candidate_size_bytes.to_json(),
   }
 }
+
+///|
+pub extend RetentionLcovTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RetentionLcovTable with ToJson::{to_json}
+
+///|
+pub extend RetentionLcovTable with @moonbitlang/core/json.FromJson::{from_json}

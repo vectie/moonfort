@@ -111,16 +111,22 @@ test "SARIF reports unsupported or unresolved evidence and bounds repeated rows"
       "{\"rule\":{},\"message\":{\"text\":\"extension\"}}", "{\"message\":{\"id\":\"external-message\"}}",
       "{\"message\":{\"text\":\"bad artifact\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"index\":0}}}]}",
     ] {
-    assert_true((try? retained_sarif_csv(wrap(result))) is Err(_))
+    try retained_sarif_csv(wrap(result)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for
     document in [
       "{\"version\":\"2.0.0\",\"runs\":[]}", "{\"version\":\"2.1.0\",\"runs\":null}",
       "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"test\"}}}]}",
     ] {
-    assert_true(
-      (try? retained_sarif_csv(parse_retained_json(document))) is Err(_),
-    )
+    try retained_sarif_csv(parse_retained_json(document)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   let oversized : Json = {
     "version": "2.1.0",
@@ -136,7 +142,11 @@ test "SARIF reports unsupported or unresolved evidence and bounds repeated rows"
       },
     ],
   }
-  assert_true((try? retained_sarif_csv(oversized)) is Err(_))
+  try retained_sarif_csv(oversized) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -165,18 +175,26 @@ async test "SARIF API binds CSV and original receipt while leaving artifacts unt
   )
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
-  assert_true(
-    (try? tabulate_retained_sarif(
+  try
+    tabulate_retained_sarif(
       { ..binding, command_digest: "d".repeat(64), },
       "findings.sarif",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(config.scratch_root + "/sarif-results/findings.sarif", b"{}")
-  assert_true(
-    (try? tabulate_retained_sarif(binding, "findings.sarif", config)) is Err(_),
-  )
+  try
+    tabulate_retained_sarif(binding, "findings.sarif", config) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|

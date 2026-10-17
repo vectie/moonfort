@@ -4,7 +4,7 @@ async fn local_e2e_config(
   executable : String,
 ) -> (ExecutorConfig, Array[String]) {
   let (base, roots) = test_executor_config()
-  let policy = { ..base.workspaces["book"], allowed_commands: [tool_label] }
+  let policy = { ..base.workspaces["book"], allowed_commands: [tool_label], }
   (
     {
       ..base,
@@ -55,14 +55,14 @@ async test "published grant executes only in private local snapshot and binds ev
   let grant = local_e2e_grant("approval-local-e2e", "request-local-e2e", "sh", [
     "-c", script, "moonfort-e2e", workspace,
   ])
-  let published = publish_grant({ protocol_version: 3, grant }, config)
+  let published = publish_grant({ protocol_version: 3, grant, }, config)
   assert_true(published.published)
   assert_eq(published.approval_digest, grant_digest(grant))
   assert_true(
     @fs.exists("\{config.approval_root}/pending/\{grant.approval_id}.json"),
   )
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   guard response.receipt() is Some(receipt) else {
@@ -177,7 +177,7 @@ async test "published grant executes only in private local snapshot and binds ev
     Enforced => fail("local executor must never claim full enforcement")
   }
   let replay = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(replay.error() is Some(error) && error.code == "approval-refused")
@@ -196,10 +196,10 @@ async test "real local executor enforces bounded output or refuses closed" {
     ["-c", "while :; do printf 0123456789abcdef; done"],
     output_bytes=256,
   )
-  let published = publish_grant({ protocol_version: 3, grant }, config)
+  let published = publish_grant({ protocol_version: 3, grant, }, config)
   assert_true(published.published)
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   guard response.receipt() is Some(receipt) else {
@@ -256,14 +256,14 @@ async test "unavailable backend publication never falls back to a host process" 
     request_id: "request-unavailable-e2e",
     backend: Unavailable,
   }
-  let published = publish_grant({ protocol_version: 3, grant }, config)
+  let published = publish_grant({ protocol_version: 3, grant, }, config)
   assert_false(published.published)
   assert_true(published.error is Some(error) && error.code == "grant-refused")
   assert_false(
     @fs.exists("\{config.approval_root}/pending/\{grant.approval_id}.json"),
   )
   let response = execute_invocation(
-    { protocol_version: 3, approval_id: grant.approval_id },
+    { protocol_version: 3, approval_id: grant.approval_id, },
     config,
   )
   assert_true(

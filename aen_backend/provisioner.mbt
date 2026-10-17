@@ -162,8 +162,8 @@ async fn[T : AenTransport] provision_workspace(
     verb: Post,
     path: "/v1/workspaces",
     headers: [
-      { name: "X-API-Key", value: api_key },
-      { name: "Content-Type", value: "application/json" },
+      { name: "X-API-Key", value: api_key, },
+      { name: "Content-Type", value: "application/json", },
     ],
     body: JsonBody({
       "protocolVersion": ProvisionerProtocolVersion,
@@ -209,7 +209,7 @@ async fn[T : AenTransport] release_workspace(
   let response = transport.request({
     verb: Delete,
     path: "/v1/workspaces/\{url_segment(lease_id)}",
-    headers: [{ name: "X-API-Key", value: api_key }],
+    headers: [{ name: "X-API-Key", value: api_key, }],
     body: EmptyBody,
     timeout_ms: ControlTimeoutMs,
     response_bytes: 65_536,

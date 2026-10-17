@@ -118,10 +118,11 @@ test "text draft refuses stale ranges overlaps duplicate anchors and malformed r
         new="\"replacement\":null",
       ),
     ] {
-    assert_true(
-      (try? retained_text_edits(@utf8.encode(invalid))) is Err(_),
-      msg=invalid,
-    )
+    try retained_text_edits(@utf8.encode(invalid)) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail(invalid)
+    }
   }
   let invalid_operations : Array[Array[Json]] = [
     [{ "start_line": 2, "end_line": 1, "expected": "", "replacement": "" }],
@@ -169,28 +170,52 @@ test "text draft refuses stale ranges overlaps duplicate anchors and malformed r
     ],
   ]
   for operations in invalid_operations {
-    assert_true(
-      (try? apply_text_recipe(@utf8.decode(source), operations)) is Err(_),
-    )
+    try apply_text_recipe(@utf8.decode(source), operations) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? retained_text_edits(text_draft_recipe(source, []))) is Err(_),
-  )
-  assert_true((try? retained_text_edits(Bytes::make(65537, 32))) is Err(_))
-  assert_true((try? retained_text_edits(b"\xff")) is Err(_))
-  assert_true((try? text_draft_lines("a\n".repeat(2001))) is Err(_))
-  assert_true((try? text_draft_lines("a".repeat(262145))) is Err(_))
-  assert_true(
-    (try? apply_text_recipe("a".repeat(250000), [
+  try retained_text_edits(text_draft_recipe(source, [])) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try retained_text_edits(Bytes::make(65537, 32)) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try retained_text_edits(b"\xff") |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try text_draft_lines("a\n".repeat(2001)) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try text_draft_lines("a".repeat(262145)) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    apply_text_recipe("a".repeat(250000), [
       {
         "start_line": 2,
         "end_line": 2,
         "expected": "",
         "replacement": "b".repeat(13000).to_json(),
       },
-    ]))
-    is Err(_),
-  )
+    ])
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
 }
 
 ///|
@@ -345,8 +370,12 @@ async test "native text draft exports reusable candidate context and refuses wit
   assert_eq(@fs.readdir(config.approval_root + "/consumed"), [])
   assert_eq(@fs.readdir(config.workspaces["book"].root), [])
   @fs.write_file(config.scratch_root + "/table-results/checks.csv", b"tampered")
-  assert_true(
-    (try? draft_retained_text(binding, "checks.csv", config, recipe)) is Err(_),
-  )
+  try
+    draft_retained_text(binding, "checks.csv", config, recipe) |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   cleanup_test_roots(roots)
 }

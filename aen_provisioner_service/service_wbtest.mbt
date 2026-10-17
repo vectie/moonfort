@@ -264,28 +264,28 @@ async test "configuration loader requires a private regular file and rejects fin
   let (root, workspace, staging, artifacts, leases) = test_tree()
   let config_path = root + "/provisioner.json"
   let config_text = Json::object({
-    "bind_address": "127.0.0.1:8787".to_json(),
-    "api_key": "0123456789abcdef0123456789abcdef".to_json(),
-    "receipt_key_id": "test-key-1".to_json(),
-    "receipt_key": "abcdef0123456789abcdef0123456789".to_json(),
-    "staging_root": staging.to_json(),
-    "artifact_root": artifacts.to_json(),
-    "lease_root": leases.to_json(),
-    "registry_repository": "registry.test/moonfort/workspaces".to_json(),
+    "bind_address": ToJson::to_json("127.0.0.1:8787"),
+    "api_key": ToJson::to_json("0123456789abcdef0123456789abcdef"),
+    "receipt_key_id": ToJson::to_json("test-key-1"),
+    "receipt_key": ToJson::to_json("abcdef0123456789abcdef0123456789"),
+    "staging_root": ToJson::to_json(staging),
+    "artifact_root": ToJson::to_json(artifacts),
+    "lease_root": ToJson::to_json(leases),
+    "registry_repository": ToJson::to_json("registry.test/moonfort/workspaces"),
     "workspaces": Json::object({
       "workspace-main": Json::object({
-        "root": workspace.to_json(),
-        "max_bytes": "1048576".to_json(),
-        "max_entries": (64).to_json(),
-        "max_file_bytes": "1048576".to_json(),
+        "root": ToJson::to_json(workspace),
+        "max_bytes": ToJson::to_json("1048576"),
+        "max_entries": ToJson::to_json(64),
+        "max_file_bytes": ToJson::to_json("1048576"),
       }),
     }),
     "limits": Json::object({
-      "max_request_bytes": (16384).to_json(),
-      "max_response_bytes": (16384).to_json(),
-      "request_timeout_ms": (5000).to_json(),
-      "snapshot_timeout_ms": (30000).to_json(),
-      "max_connections": (2).to_json(),
+      "max_request_bytes": ToJson::to_json(16384),
+      "max_response_bytes": ToJson::to_json(16384),
+      "request_timeout_ms": ToJson::to_json(5000),
+      "snapshot_timeout_ms": ToJson::to_json(30000),
+      "max_connections": ToJson::to_json(2),
     }),
   }).stringify()
   @fs.write_file(

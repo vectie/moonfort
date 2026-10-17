@@ -49,7 +49,7 @@ fn recovery_refusal(
     desired_state_digest: "",
     observed_state_digest: "",
     outcome,
-    error: Some({ code, message }),
+    error: Some({ code, message, }),
   }
 }
 

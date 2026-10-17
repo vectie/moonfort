@@ -7,7 +7,7 @@ async test "live output provides monotonic bounded chunks before terminal receip
     "run-live-1", approval_id, approval_digest, config,
   )
   let initial = read_live_output(
-    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 4 },
+    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 4, },
     config,
   )
   assert_eq(initial.status, "running")
@@ -22,14 +22,14 @@ async test "live output provides monotonic bounded chunks before terminal receip
     sync=Full,
   )
   let first = read_live_output(
-    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 5 },
+    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 5, },
     config,
   )
   assert_eq(first.content_base64, "aGVsbG8=")
   assert_eq(first.next_offset, 5L)
   assert_false(first.terminal)
   let second = read_live_output(
-    { protocol_version: 1, approval_id, offset: 5L, max_bytes: 64 },
+    { protocol_version: 1, approval_id, offset: 5L, max_bytes: 64, },
     config,
   )
   assert_eq(second.content_base64, "IHdvcmxk")
@@ -51,7 +51,7 @@ async test "live output provides monotonic bounded chunks before terminal receip
   assert_eq(finalized.status, "exited")
   assert_eq(finalized.size_bytes, 11L)
   let terminal = read_live_output(
-    { protocol_version: 1, approval_id, offset: 11L, max_bytes: 64 },
+    { protocol_version: 1, approval_id, offset: 11L, max_bytes: 64, },
     config,
   )
   assert_true(terminal.terminal)
@@ -110,7 +110,7 @@ async test "live output rejects cross-approval cursors and terminal substitution
     permission=0o600,
   )
   let tampered = read_live_output(
-    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 64 },
+    { protocol_version: 1, approval_id, offset: 0L, max_bytes: 64, },
     config,
   )
   assert_true(
@@ -118,7 +118,7 @@ async test "live output rejects cross-approval cursors and terminal substitution
     error.code == "live-output-integrity-refused",
   )
   let future = read_live_output(
-    { protocol_version: 1, approval_id, offset: 999L, max_bytes: 64 },
+    { protocol_version: 1, approval_id, offset: 999L, max_bytes: 64, },
     config,
   )
   assert_true(future.error is Some(_))

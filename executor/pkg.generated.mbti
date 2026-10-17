@@ -80,7 +80,8 @@ pub async fn summarize_retained_csv(RetentionArtifactBinding, String, ExecutorCo
 
 pub async fn sweep_expired_retentions(ExecutorConfig) -> Int
 
-pub async fn tabulate_retained_har(RetentionArtifactBinding, String, ExecutorConfig, method? : String, status? : Int, minimum_ms? : Double) -> RetentionHarTable
+#label_migration(http_method, alias=method)
+pub async fn tabulate_retained_har(RetentionArtifactBinding, String, ExecutorConfig, http_method? : String, status? : Int, minimum_ms? : Double) -> RetentionHarTable
 
 pub async fn tabulate_retained_json(RetentionArtifactBinding, String, ExecutorConfig, Bytes) -> RetentionJsonTable
 
@@ -101,9 +102,15 @@ pub(all) suberror CommandOutputArtifactRefusal {
   ArtifactUnavailable
   ArtifactIntegrityFailure
 } derive(Eq, ToJson, @debug.Debug)
+pub fn CommandOutputArtifactRefusal::equal(Self, Self) -> Bool
+pub fn CommandOutputArtifactRefusal::not_equal(Self, Self) -> Bool
+pub fn CommandOutputArtifactRefusal::to_json(Self) -> Json
+pub fn CommandOutputArtifactRefusal::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 type CommandOutputArtifactRecord derive(ToJson, @json.FromJson)
+pub fn CommandOutputArtifactRecord::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CommandOutputArtifactRecord::to_json(Self) -> Json
 
 pub(all) struct CommandOutputReadRequest {
   protocol_version : Int
@@ -114,6 +121,11 @@ pub(all) struct CommandOutputReadRequest {
   offset : Int64
   max_bytes : Int
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn CommandOutputReadRequest::equal(Self, Self) -> Bool
+pub fn CommandOutputReadRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn CommandOutputReadRequest::not_equal(Self, Self) -> Bool
+pub fn CommandOutputReadRequest::to_json(Self) -> Json
+pub fn CommandOutputReadRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CommandOutputReadResponse {
   protocol_version : Int
@@ -125,6 +137,10 @@ pub(all) struct CommandOutputReadResponse {
   status : String
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn CommandOutputReadResponse::equal(Self, Self) -> Bool
+pub fn CommandOutputReadResponse::not_equal(Self, Self) -> Bool
+pub fn CommandOutputReadResponse::to_json(Self) -> Json
+pub fn CommandOutputReadResponse::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ExecutionGrant {
   protocol_version : Int
@@ -142,6 +158,11 @@ pub(all) struct ExecutionGrant {
   backend_config_id : String
   expires_at_ms : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ExecutionGrant::equal(Self, Self) -> Bool
+pub fn ExecutionGrant::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn ExecutionGrant::not_equal(Self, Self) -> Bool
+pub fn ExecutionGrant::to_json(Self) -> Json
+pub fn ExecutionGrant::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ExecutorConfig {
   approval_root : String
@@ -154,6 +175,7 @@ pub(all) struct ExecutorConfig {
   aen_backends : Map[String, TrustedAenConfig]
   limits : ExecutorLimits
 } derive(@json.FromJson)
+pub fn ExecutorConfig::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 pub(all) struct ExecutorLimits {
   max_protocol_bytes : Int
@@ -169,11 +191,16 @@ pub(all) struct ExecutorLimits {
   max_changed_paths : Int
   retention_ms : Int64
 } derive(@json.FromJson)
+pub fn ExecutorLimits::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 pub(all) struct ExecutorProtocolError {
   code : String
   message : String
 } derive(Eq, ToJson, @debug.Debug)
+pub fn ExecutorProtocolError::equal(Self, Self) -> Bool
+pub fn ExecutorProtocolError::not_equal(Self, Self) -> Bool
+pub fn ExecutorProtocolError::to_json(Self) -> Json
+pub fn ExecutorProtocolError::to_repr(Self) -> @debug.Repr
 
 pub struct ExecutorResponse {
   protocol_version : Int
@@ -182,9 +209,13 @@ pub struct ExecutorResponse {
   error : ExecutorProtocolError?
   live_output : LiveOutputReference?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn ExecutorResponse::equal(Self, Self) -> Bool
 pub fn ExecutorResponse::error(Self) -> ExecutorProtocolError?
 pub fn ExecutorResponse::live_output(Self) -> LiveOutputReference?
+pub fn ExecutorResponse::not_equal(Self, Self) -> Bool
 pub fn ExecutorResponse::receipt(Self) -> @sandbox.SandboxReceipt?
+pub fn ExecutorResponse::to_json(Self) -> Json
+pub fn ExecutorResponse::to_repr(Self) -> @debug.Repr
 pub fn ExecutorResponse::with_live_output(Self, LiveOutputReference) -> Self
 
 pub(all) struct GrantCorrection {
@@ -192,11 +223,20 @@ pub(all) struct GrantCorrection {
   message : String
   next_step : String
 } derive(Eq, ToJson, @debug.Debug)
+pub fn GrantCorrection::equal(Self, Self) -> Bool
+pub fn GrantCorrection::not_equal(Self, Self) -> Bool
+pub fn GrantCorrection::to_json(Self) -> Json
+pub fn GrantCorrection::to_repr(Self) -> @debug.Repr
 
 pub(all) struct GrantPublicationRequest {
   protocol_version : Int
   grant : ExecutionGrant
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn GrantPublicationRequest::equal(Self, Self) -> Bool
+pub fn GrantPublicationRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn GrantPublicationRequest::not_equal(Self, Self) -> Bool
+pub fn GrantPublicationRequest::to_json(Self) -> Json
+pub fn GrantPublicationRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct GrantPublicationResponse {
   protocol_version : Int
@@ -205,6 +245,10 @@ pub(all) struct GrantPublicationResponse {
   published : Bool
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn GrantPublicationResponse::equal(Self, Self) -> Bool
+pub fn GrantPublicationResponse::not_equal(Self, Self) -> Bool
+pub fn GrantPublicationResponse::to_json(Self) -> Json
+pub fn GrantPublicationResponse::to_repr(Self) -> @debug.Repr
 
 pub(all) struct GrantRehearsal {
   protocol_version : Int
@@ -214,6 +258,10 @@ pub(all) struct GrantRehearsal {
   correction : GrantCorrection?
   notice : String
 } derive(Eq, ToJson, @debug.Debug)
+pub fn GrantRehearsal::equal(Self, Self) -> Bool
+pub fn GrantRehearsal::not_equal(Self, Self) -> Bool
+pub fn GrantRehearsal::to_json(Self) -> Json
+pub fn GrantRehearsal::to_repr(Self) -> @debug.Repr
 
 pub(all) struct LiveOutputReadRequest {
   protocol_version : Int
@@ -221,6 +269,11 @@ pub(all) struct LiveOutputReadRequest {
   offset : Int64
   max_bytes : Int
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn LiveOutputReadRequest::equal(Self, Self) -> Bool
+pub fn LiveOutputReadRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn LiveOutputReadRequest::not_equal(Self, Self) -> Bool
+pub fn LiveOutputReadRequest::to_json(Self) -> Json
+pub fn LiveOutputReadRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct LiveOutputReadResponse {
   protocol_version : Int
@@ -236,8 +289,14 @@ pub(all) struct LiveOutputReadResponse {
   retry_after_ms : Int
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn LiveOutputReadResponse::equal(Self, Self) -> Bool
+pub fn LiveOutputReadResponse::not_equal(Self, Self) -> Bool
+pub fn LiveOutputReadResponse::to_json(Self) -> Json
+pub fn LiveOutputReadResponse::to_repr(Self) -> @debug.Repr
 
 type LiveOutputRecord derive(ToJson, @json.FromJson)
+pub fn LiveOutputRecord::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn LiveOutputRecord::to_json(Self) -> Json
 
 pub(all) struct LiveOutputReference {
   stream_id : String
@@ -249,8 +308,15 @@ pub(all) struct LiveOutputReference {
   key_id : String
   signature : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn LiveOutputReference::equal(Self, Self) -> Bool
+pub fn LiveOutputReference::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn LiveOutputReference::not_equal(Self, Self) -> Bool
+pub fn LiveOutputReference::to_json(Self) -> Json
+pub fn LiveOutputReference::to_repr(Self) -> @debug.Repr
 
 type PromotionClaim derive(ToJson, @json.FromJson)
+pub fn PromotionClaim::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn PromotionClaim::to_json(Self) -> Json
 
 pub(all) struct RetentionArtifactBinding {
   protocol_version : Int
@@ -259,6 +325,11 @@ pub(all) struct RetentionArtifactBinding {
   approval_digest : String
   command_digest : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionArtifactBinding::equal(Self, Self) -> Bool
+pub fn RetentionArtifactBinding::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionArtifactBinding::not_equal(Self, Self) -> Bool
+pub fn RetentionArtifactBinding::to_json(Self) -> Json
+pub fn RetentionArtifactBinding::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionArtifactList {
   binding : RetentionArtifactBinding
@@ -272,6 +343,11 @@ pub(all) struct RetentionArtifactList {
   has_more : Bool
   max_export_bytes : Int
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionArtifactList::equal(Self, Self) -> Bool
+pub fn RetentionArtifactList::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionArtifactList::not_equal(Self, Self) -> Bool
+pub fn RetentionArtifactList::to_json(Self) -> Json
+pub fn RetentionArtifactList::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionArtifactPage {
   binding : RetentionArtifactBinding
@@ -282,6 +358,11 @@ pub(all) struct RetentionArtifactPage {
   content_base64 : String
   eof : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionArtifactPage::equal(Self, Self) -> Bool
+pub fn RetentionArtifactPage::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionArtifactPage::not_equal(Self, Self) -> Bool
+pub fn RetentionArtifactPage::to_json(Self) -> Json
+pub fn RetentionArtifactPage::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionBundleManifest {
   format_version : Int
@@ -291,6 +372,11 @@ pub(all) struct RetentionBundleManifest {
   files : Array[@sandbox.ScratchEntry]
   total_bytes : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionBundleManifest::equal(Self, Self) -> Bool
+pub fn RetentionBundleManifest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionBundleManifest::not_equal(Self, Self) -> Bool
+pub fn RetentionBundleManifest::to_json(Self) -> Json
+pub fn RetentionBundleManifest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionComparison {
   baseline : RetentionArtifactBinding
@@ -305,6 +391,11 @@ pub(all) struct RetentionComparison {
   next_after : String
   has_more : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionComparison::equal(Self, Self) -> Bool
+pub fn RetentionComparison::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionComparison::not_equal(Self, Self) -> Bool
+pub fn RetentionComparison::to_json(Self) -> Json
+pub fn RetentionComparison::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionComparisonEntry {
   path : String
@@ -313,6 +404,11 @@ pub(all) struct RetentionComparisonEntry {
   after : @sandbox.ScratchEntry?
   byte_delta : Int64
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionComparisonEntry::equal(Self, Self) -> Bool
+pub fn RetentionComparisonEntry::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionComparisonEntry::not_equal(Self, Self) -> Bool
+pub fn RetentionComparisonEntry::to_json(Self) -> Json
+pub fn RetentionComparisonEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvAggregate {
   binding : RetentionArtifactBinding
@@ -326,6 +422,9 @@ pub(all) struct RetentionCsvAggregate {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvAggregate::context(Self) -> Json
+pub fn RetentionCsvAggregate::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvAggregate::to_json(Self) -> Json
+pub fn RetentionCsvAggregate::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvChange {
   key : Array[String]
@@ -336,6 +435,11 @@ pub(all) struct RetentionCsvChange {
   after : Array[String]?
   changed_columns : Array[Int]
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvChange::equal(Self, Self) -> Bool
+pub fn RetentionCsvChange::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvChange::not_equal(Self, Self) -> Bool
+pub fn RetentionCsvChange::to_json(Self) -> Json
+pub fn RetentionCsvChange::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvComparison {
   baseline : RetentionArtifactBinding
@@ -353,7 +457,12 @@ pub(all) struct RetentionCsvComparison {
   entries : Array[RetentionCsvChange]
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvComparison::context(Self) -> Json
+pub fn RetentionCsvComparison::equal(Self, Self) -> Bool
+pub fn RetentionCsvComparison::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvComparison::not_equal(Self, Self) -> Bool
 pub fn RetentionCsvComparison::to_csv(Self) -> String raise
+pub fn RetentionCsvComparison::to_json(Self) -> Json
+pub fn RetentionCsvComparison::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvDraft {
   binding : RetentionArtifactBinding
@@ -368,6 +477,9 @@ pub(all) struct RetentionCsvDraft {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvDraft::context(Self) -> Json
+pub fn RetentionCsvDraft::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvDraft::to_json(Self) -> Json
+pub fn RetentionCsvDraft::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvEnrichment {
   binding : RetentionArtifactBinding
@@ -387,6 +499,9 @@ pub(all) struct RetentionCsvEnrichment {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvEnrichment::context(Self) -> Json
+pub fn RetentionCsvEnrichment::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvEnrichment::to_json(Self) -> Json
+pub fn RetentionCsvEnrichment::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvPage {
   binding : RetentionArtifactBinding
@@ -401,12 +516,22 @@ pub(all) struct RetentionCsvPage {
   next_after_row : Int
   has_more : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvPage::equal(Self, Self) -> Bool
+pub fn RetentionCsvPage::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvPage::not_equal(Self, Self) -> Bool
 pub fn RetentionCsvPage::to_csv(Self) -> String
+pub fn RetentionCsvPage::to_json(Self) -> Json
+pub fn RetentionCsvPage::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvRow {
   row : Int
   cells : Array[String]
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvRow::equal(Self, Self) -> Bool
+pub fn RetentionCsvRow::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvRow::not_equal(Self, Self) -> Bool
+pub fn RetentionCsvRow::to_json(Self) -> Json
+pub fn RetentionCsvRow::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvStack {
   binding : RetentionArtifactBinding
@@ -419,11 +544,17 @@ pub(all) struct RetentionCsvStack {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvStack::context(Self) -> Json
+pub fn RetentionCsvStack::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvStack::to_json(Self) -> Json
+pub fn RetentionCsvStack::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvStackSource {
   file : @sandbox.ScratchEntry
   row_count : Int
 } derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionCsvStackSource::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvStackSource::to_json(Self) -> Json
+pub fn RetentionCsvStackSource::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionCsvSummary {
   binding : RetentionArtifactBinding
@@ -439,13 +570,16 @@ pub(all) struct RetentionCsvSummary {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionCsvSummary::context(Self) -> Json
+pub fn RetentionCsvSummary::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionCsvSummary::to_json(Self) -> Json
+pub fn RetentionCsvSummary::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionHarTable {
   binding : RetentionArtifactBinding
   file : @sandbox.ScratchEntry
   entry_count : Int
   row_count : Int
-  method : String
+  http_method : String
   status : Int?
   minimum_ms : Double
   candidate_fingerprint : String
@@ -453,11 +587,19 @@ pub(all) struct RetentionHarTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionHarTable::context(Self) -> Json
+pub fn RetentionHarTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionHarTable::to_json(Self) -> Json
+pub fn RetentionHarTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonColumn {
   header : String
   pointer : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonColumn::equal(Self, Self) -> Bool
+pub fn RetentionJsonColumn::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonColumn::not_equal(Self, Self) -> Bool
+pub fn RetentionJsonColumn::to_json(Self) -> Json
+pub fn RetentionJsonColumn::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonDraft {
   binding : RetentionArtifactBinding
@@ -469,6 +611,9 @@ pub(all) struct RetentionJsonDraft {
   value : Json
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionJsonDraft::context(Self) -> Json
+pub fn RetentionJsonDraft::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonDraft::to_json(Self) -> Json
+pub fn RetentionJsonDraft::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonEntry {
   pointer : String
@@ -477,6 +622,11 @@ pub(all) struct RetentionJsonEntry {
   preview : String
   preview_truncated : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonEntry::equal(Self, Self) -> Bool
+pub fn RetentionJsonEntry::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonEntry::not_equal(Self, Self) -> Bool
+pub fn RetentionJsonEntry::to_json(Self) -> Json
+pub fn RetentionJsonEntry::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonLinesTable {
   binding : RetentionArtifactBinding
@@ -494,6 +644,9 @@ pub(all) struct RetentionJsonLinesTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionJsonLinesTable::context(Self) -> Json
+pub fn RetentionJsonLinesTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonLinesTable::to_json(Self) -> Json
+pub fn RetentionJsonLinesTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonPage {
   binding : RetentionArtifactBinding
@@ -503,6 +656,11 @@ pub(all) struct RetentionJsonPage {
   next_after_child : Int
   has_more : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonPage::equal(Self, Self) -> Bool
+pub fn RetentionJsonPage::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonPage::not_equal(Self, Self) -> Bool
+pub fn RetentionJsonPage::to_json(Self) -> Json
+pub fn RetentionJsonPage::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonSelection {
   binding : RetentionArtifactBinding
@@ -510,6 +668,9 @@ pub(all) struct RetentionJsonSelection {
   pointer : String
   value : Json
 } derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionJsonSelection::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonSelection::to_json(Self) -> Json
+pub fn RetentionJsonSelection::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJsonTable {
   binding : RetentionArtifactBinding
@@ -525,6 +686,9 @@ pub(all) struct RetentionJsonTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionJsonTable::context(Self) -> Json
+pub fn RetentionJsonTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJsonTable::to_json(Self) -> Json
+pub fn RetentionJsonTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionJunitTable {
   binding : RetentionArtifactBinding
@@ -539,6 +703,9 @@ pub(all) struct RetentionJunitTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionJunitTable::context(Self) -> Json
+pub fn RetentionJunitTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionJunitTable::to_json(Self) -> Json
+pub fn RetentionJunitTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionLcovTable {
   binding : RetentionArtifactBinding
@@ -553,6 +720,9 @@ pub(all) struct RetentionLcovTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionLcovTable::context(Self) -> Json
+pub fn RetentionLcovTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionLcovTable::to_json(Self) -> Json
+pub fn RetentionLcovTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionPromotionRequest {
   protocol_version : Int
@@ -562,6 +732,11 @@ pub(all) struct RetentionPromotionRequest {
   command_digest : String
   items : Array[@sandbox.SandboxPromotionRequest]
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionPromotionRequest::equal(Self, Self) -> Bool
+pub fn RetentionPromotionRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionPromotionRequest::not_equal(Self, Self) -> Bool
+pub fn RetentionPromotionRequest::to_json(Self) -> Json
+pub fn RetentionPromotionRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionPromotionResponse {
   protocol_version : Int
@@ -575,13 +750,27 @@ pub(all) struct RetentionPromotionResponse {
   completed : Bool
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn RetentionPromotionResponse::equal(Self, Self) -> Bool
+pub fn RetentionPromotionResponse::not_equal(Self, Self) -> Bool
+pub fn RetentionPromotionResponse::to_json(Self) -> Json
+pub fn RetentionPromotionResponse::to_repr(Self) -> @debug.Repr
 
 type RetentionRecord derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionRecord::equal(Self, Self) -> Bool
+pub fn RetentionRecord::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionRecord::not_equal(Self, Self) -> Bool
+pub fn RetentionRecord::to_json(Self) -> Json
+pub fn RetentionRecord::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionRecoveryInspectionRequest {
   protocol_version : Int
   retention_id : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionRecoveryInspectionRequest::equal(Self, Self) -> Bool
+pub fn RetentionRecoveryInspectionRequest::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionRecoveryInspectionRequest::not_equal(Self, Self) -> Bool
+pub fn RetentionRecoveryInspectionRequest::to_json(Self) -> Json
+pub fn RetentionRecoveryInspectionRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionRecoveryInspectionResponse {
   protocol_version : Int
@@ -597,11 +786,20 @@ pub(all) struct RetentionRecoveryInspectionResponse {
   outcome : String
   error : ExecutorProtocolError?
 } derive(Eq, ToJson, @debug.Debug)
+pub fn RetentionRecoveryInspectionResponse::equal(Self, Self) -> Bool
+pub fn RetentionRecoveryInspectionResponse::not_equal(Self, Self) -> Bool
+pub fn RetentionRecoveryInspectionResponse::to_json(Self) -> Json
+pub fn RetentionRecoveryInspectionResponse::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionRunMatch {
   file : @sandbox.ScratchEntry
   hit : RetentionTextMatch
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionRunMatch::equal(Self, Self) -> Bool
+pub fn RetentionRunMatch::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionRunMatch::not_equal(Self, Self) -> Bool
+pub fn RetentionRunMatch::to_json(Self) -> Json
+pub fn RetentionRunMatch::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionRunSearch {
   binding : RetentionArtifactBinding
@@ -620,6 +818,11 @@ pub(all) struct RetentionRunSearch {
   next_after_line : Int
   has_more : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionRunSearch::equal(Self, Self) -> Bool
+pub fn RetentionRunSearch::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionRunSearch::not_equal(Self, Self) -> Bool
+pub fn RetentionRunSearch::to_json(Self) -> Json
+pub fn RetentionRunSearch::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionSarifTable {
   binding : RetentionArtifactBinding
@@ -632,12 +835,20 @@ pub(all) struct RetentionSarifTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionSarifTable::context(Self) -> Json
+pub fn RetentionSarifTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionSarifTable::to_json(Self) -> Json
+pub fn RetentionSarifTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionSearchOmission {
   file : @sandbox.ScratchEntry
   reason : String
   bytes_verified : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionSearchOmission::equal(Self, Self) -> Bool
+pub fn RetentionSearchOmission::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionSearchOmission::not_equal(Self, Self) -> Bool
+pub fn RetentionSearchOmission::to_json(Self) -> Json
+pub fn RetentionSearchOmission::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTapTable {
   binding : RetentionArtifactBinding
@@ -655,6 +866,9 @@ pub(all) struct RetentionTapTable {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionTapTable::context(Self) -> Json
+pub fn RetentionTapTable::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTapTable::to_json(Self) -> Json
+pub fn RetentionTapTable::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTextDiff {
   baseline : RetentionArtifactBinding
@@ -666,6 +880,11 @@ pub(all) struct RetentionTextDiff {
   removed_lines : Int
   patch : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTextDiff::equal(Self, Self) -> Bool
+pub fn RetentionTextDiff::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTextDiff::not_equal(Self, Self) -> Bool
+pub fn RetentionTextDiff::to_json(Self) -> Json
+pub fn RetentionTextDiff::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTextDraft {
   binding : RetentionArtifactBinding
@@ -680,6 +899,9 @@ pub(all) struct RetentionTextDraft {
   text : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionTextDraft::context(Self) -> Json
+pub fn RetentionTextDraft::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTextDraft::to_json(Self) -> Json
+pub fn RetentionTextDraft::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTextMatch {
   line : Int
@@ -687,6 +909,11 @@ pub(all) struct RetentionTextMatch {
   omitted_before : Bool
   omitted_after : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTextMatch::equal(Self, Self) -> Bool
+pub fn RetentionTextMatch::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTextMatch::not_equal(Self, Self) -> Bool
+pub fn RetentionTextMatch::to_json(Self) -> Json
+pub fn RetentionTextMatch::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTextSearch {
   binding : RetentionArtifactBinding
@@ -699,6 +926,11 @@ pub(all) struct RetentionTextSearch {
   next_after_line : Int
   has_more : Bool
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTextSearch::equal(Self, Self) -> Bool
+pub fn RetentionTextSearch::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTextSearch::not_equal(Self, Self) -> Bool
+pub fn RetentionTextSearch::to_json(Self) -> Json
+pub fn RetentionTextSearch::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTimeline {
   binding : RetentionArtifactBinding
@@ -719,6 +951,9 @@ pub(all) struct RetentionTimeline {
   csv : String
 } derive(ToJson, @debug.Debug, @json.FromJson)
 pub fn RetentionTimeline::context(Self) -> Json
+pub fn RetentionTimeline::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTimeline::to_json(Self) -> Json
+pub fn RetentionTimeline::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RetentionTimelineSource {
   file : @sandbox.ScratchEntry
@@ -726,11 +961,19 @@ pub(all) struct RetentionTimelineSource {
   row_count : Int
   blank_lines_skipped : Int
 } derive(ToJson, @debug.Debug, @json.FromJson)
+pub fn RetentionTimelineSource::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn RetentionTimelineSource::to_json(Self) -> Json
+pub fn RetentionTimelineSource::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SandboxInvocation {
   protocol_version : Int
   approval_id : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn SandboxInvocation::equal(Self, Self) -> Bool
+pub fn SandboxInvocation::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SandboxInvocation::not_equal(Self, Self) -> Bool
+pub fn SandboxInvocation::to_json(Self) -> Json
+pub fn SandboxInvocation::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TrustedAenConfig {
   base_url : String
@@ -754,6 +997,7 @@ pub(all) struct TrustedAenConfig {
   tool_registry_digest : String
   guest_tools : Map[String, String]
 } derive(@json.FromJson)
+pub fn TrustedAenConfig::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 pub(all) struct WorkspacePolicy {
   root : String
@@ -764,6 +1008,7 @@ pub(all) struct WorkspacePolicy {
   allowed_commands : Array[String]
   allow_degraded : Bool
 } derive(@json.FromJson)
+pub fn WorkspacePolicy::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
 
 // Type aliases
 

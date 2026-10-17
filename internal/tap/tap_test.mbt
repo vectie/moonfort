@@ -48,7 +48,15 @@ test "TAP rejects ambiguous and incomplete flat reports" {
       "# Subtest: nested\n    ok 1\nok 1\n", "    ok 1\n", "Bail out! stop\nok 1\n",
       "ok 1\nTAP version 13\n", "okay 1\n", "1..0\nok 1\nBail out! stop\n",
     ] {
-    assert_true((try? @tap.parse(bad)) is Err(_), msg=bad)
+    try @tap.parse(bad) catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected invalid TAP to raise: " + bad)
+    }
   }
-  assert_true((try? @tap.parse("#".repeat(1048577))) is Err(_))
+  try @tap.parse("#".repeat(1048577)) catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected oversized TAP to raise")
+  }
 }

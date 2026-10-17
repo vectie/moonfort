@@ -171,7 +171,7 @@ pub fn profile_rejection(profile : SandboxProfile) -> String {
 /// Return a copy that explicitly opts into best-effort local enforcement.
 /// Receipts still report `Degraded`; this never upgrades the backend state.
 pub fn SandboxProfile::allow_degraded(self : SandboxProfile) -> SandboxProfile {
-  { ..self, enforcement_requirement: AllowDegraded }
+  { ..self, enforcement_requirement: AllowDegraded, }
 }
 
 ///|
@@ -250,3 +250,67 @@ pub fn contract_json() -> Json {
     ],
   }
 }
+
+///|
+pub extend SandboxBackendKind with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxBackendKind with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxBackendKind with ToJson::{to_json}
+
+///|
+pub extend SandboxBackendKind with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxNetworkMode with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxNetworkMode with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxNetworkMode with ToJson::{to_json}
+
+///|
+pub extend SandboxNetworkMode with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxEnforcementRequirement with @moonbitlang/core/debug.Debug::{
+  to_repr,
+}
+
+///|
+pub extend SandboxEnforcementRequirement with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxEnforcementRequirement with ToJson::{to_json}
+
+///|
+pub extend SandboxEnforcementRequirement with @moonbitlang/core/json.FromJson::{
+  from_json,
+}
+
+///|
+pub extend SandboxLimits with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxLimits with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxLimits with ToJson::{to_json}
+
+///|
+pub extend SandboxLimits with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SandboxProfile with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SandboxProfile with Eq::{not_equal, equal}
+
+///|
+pub extend SandboxProfile with ToJson::{to_json}
+
+///|
+pub extend SandboxProfile with @moonbitlang/core/json.FromJson::{from_json}

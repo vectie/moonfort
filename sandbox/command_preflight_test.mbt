@@ -1,9 +1,9 @@
 ///|
 fn test_profile(
-  backend? : SandboxBackendKind = MicroVm,
-  enforcement_requirement? : SandboxEnforcementRequirement = RequireEnforced,
+  backend? : @sandbox.SandboxBackendKind = MicroVm,
+  enforcement_requirement? : @sandbox.SandboxEnforcementRequirement = RequireEnforced,
   allowed_commands? : Array[String] = ["moon", "git"],
-) -> SandboxProfile {
+) -> @sandbox.SandboxProfile {
   {
     run_id: "run-preflight-1",
     workspace_root: "/workspace/book",
@@ -14,7 +14,7 @@ fn test_profile(
     read_only_roots: ["/workspace/book"],
     allowed_egress: [],
     allowed_commands,
-    limits: default_limits(),
+    limits: @sandbox.default_limits(),
     read_only_workspace: true,
     executor_evidence_root: "",
     live_output_id: "",
@@ -22,7 +22,7 @@ fn test_profile(
 }
 
 ///|
-fn refusal_code(result : SandboxPreparation) -> String raise {
+fn refusal_code(result : @sandbox.SandboxPreparation) -> String raise {
   match result.refusal() {
     Some(reason) => reason.code()
     None => fail("expected preparation refusal")
@@ -32,7 +32,7 @@ fn refusal_code(result : SandboxPreparation) -> String raise {
 ///|
 test "Exec preserves a pre-tokenized argv" {
   let arguments = ["test", "--filter", "name with spaces", "$(not-a-shell)"]
-  let result = prepare_sandbox_command(
+  let result = @sandbox.prepare_sandbox_command(
     test_profile(),
     Exec(tool="moon", args=arguments),
     BackendEnforced,
@@ -42,7 +42,7 @@ test "Exec preserves a pre-tokenized argv" {
   }
   assert_eq(prepared.capability_label(), "moon")
   assert_true(prepared.enforcement() is Enforced)
-  assert_eq(prepared.profile_digest(), profile_digest(test_profile()))
+  assert_eq(prepared.profile_digest(), @sandbox.profile_digest(test_profile()))
   debug_inspect(
     prepared.command(),
     content=(
@@ -58,11 +58,11 @@ test "Exec preserves a pre-tokenized argv" {
 test "empty Exec and Shell commands are refused" {
   let profile = test_profile(allowed_commands=[
     "moon",
-    shell_compatibility_command_label(),
+    @sandbox.shell_compatibility_command_label(),
   ])
   assert_eq(
     refusal_code(
-      prepare_sandbox_command(
+      @sandbox.prepare_sandbox_command(
         profile,
         Exec(tool="  ", args=[]),
         BackendEnforced,
@@ -72,7 +72,11 @@ test "empty Exec and Shell commands are refused" {
   )
   assert_eq(
     refusal_code(
-      prepare_sandbox_command(profile, Shell(script="\n\t"), BackendEnforced),
+      @sandbox.prepare_sandbox_command(
+        profile,
+        Shell(script="\n\t"),
+        BackendEnforced,
+      ),
     ),
     "empty-command",
   )
@@ -83,7 +87,7 @@ test "Exec allow-list matching is exact and rejects host paths" {
   let profile = test_profile(allowed_commands=["moon"])
   assert_eq(
     refusal_code(
-      prepare_sandbox_command(
+      @sandbox.prepare_sandbox_command(
         profile,
         Exec(tool="git", args=["status"]),
         BackendEnforced,
@@ -93,7 +97,7 @@ test "Exec allow-list matching is exact and rejects host paths" {
   )
   assert_eq(
     refusal_code(
-      prepare_sandbox_command(
+      @sandbox.prepare_sandbox_command(
         profile,
         Exec(tool="/usr/bin/moon", args=["check"]),
         BackendEnforced,
@@ -105,14 +109,14 @@ test "Exec allow-list matching is exact and rejects host paths" {
 
 ///|
 test "Shell compatibility requires its explicit capability" {
-  let denied = prepare_sandbox_command(
+  let denied = @sandbox.prepare_sandbox_command(
     test_profile(),
     Shell(script="moon check && git status"),
     BackendEnforced,
   )
   assert_eq(refusal_code(denied), "command-not-allowed")
-  let allowed = prepare_sandbox_command(
-    test_profile(allowed_commands=[shell_compatibility_command_label()]),
+  let allowed = @sandbox.prepare_sandbox_command(
+    test_profile(allowed_commands=[@sandbox.shell_compatibility_command_label()]),
     Shell(script="moon check && git status"),
     BackendEnforced,
   )
@@ -121,13 +125,13 @@ test "Shell compatibility requires its explicit capability" {
 
 ///|
 test "degraded enforcement is refused without explicit operator opt-in" {
-  let strict = prepare_sandbox_command(
+  let strict = @sandbox.prepare_sandbox_command(
     test_profile(backend=LocalOs),
     Exec(tool="moon", args=["check"]),
     BackendDegraded("local backend does not enforce every resource limit"),
   )
   assert_eq(refusal_code(strict), "degraded-not-allowed")
-  let opted_in = prepare_sandbox_command(
+  let opted_in = @sandbox.prepare_sandbox_command(
     test_profile(backend=LocalOs, enforcement_requirement=AllowDegraded),
     Exec(tool="moon", args=["check"]),
     BackendDegraded("local backend does not enforce every resource limit"),
@@ -140,7 +144,7 @@ test "degraded enforcement is refused without explicit operator opt-in" {
 
 ///|
 test "local backend cannot overclaim full enforcement" {
-  let result = prepare_sandbox_command(
+  let result = @sandbox.prepare_sandbox_command(
     test_profile(backend=LocalOs, enforcement_requirement=AllowDegraded),
     Exec(tool="moon", args=["check"]),
     BackendEnforced,
@@ -150,7 +154,7 @@ test "local backend cannot overclaim full enforcement" {
 
 ///|
 test "unavailable backend has no executable fallback" {
-  let result = prepare_sandbox_command(
+  let result = @sandbox.prepare_sandbox_command(
     test_profile(enforcement_requirement=AllowDegraded),
     Exec(tool="moon", args=["check"]),
     BackendUnavailable("microVM service is offline"),
@@ -164,7 +168,7 @@ test "unavailable backend has no executable fallback" {
 test "prepared command owns copies of mutable command and profile arrays" {
   let allowed = ["moon"]
   let arguments = ["check"]
-  let result = prepare_sandbox_command(
+  let result = @sandbox.prepare_sandbox_command(
     test_profile(allowed_commands=allowed),
     Exec(tool="moon", args=arguments),
     BackendEnforced,

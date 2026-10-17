@@ -91,3 +91,39 @@ pub fn diff_scratch(
     after_bytes: after.total_bytes,
   }
 }
+
+///|
+pub extend ScratchChangeKind with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchChangeKind with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchChangeKind with ToJson::{to_json}
+
+///|
+pub extend ScratchChangeKind with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ScratchDiffEntry with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchDiffEntry with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchDiffEntry with ToJson::{to_json}
+
+///|
+pub extend ScratchDiffEntry with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend ScratchDiff with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ScratchDiff with Eq::{not_equal, equal}
+
+///|
+pub extend ScratchDiff with ToJson::{to_json}
+
+///|
+pub extend ScratchDiff with @moonbitlang/core/json.FromJson::{from_json}

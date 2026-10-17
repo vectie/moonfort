@@ -104,17 +104,23 @@ async test "retention comparison explores iteration changes with paging and veri
     export_retained_artifact(right, "reports/checks.csv", config),
     b"area,passed,follow_ups\ncore,24,0\nui,20,0\n",
   )
-  assert_true(
-    (try? compare_retained_artifacts(
+  try
+    compare_retained_artifacts(
       { ..left, command_digest: "f".repeat(64), },
       right,
       config,
-    ))
-    is Err(_),
-  )
-  assert_true(
-    (try? compare_retained_artifacts(left, right, config, limit=0)) is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try compare_retained_artifacts(left, right, config, limit=0) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(
     @fs.read_file(config.retention_root + "/" + left.retention_id + ".json").binary(),
     saved_left,

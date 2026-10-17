@@ -164,7 +164,7 @@ async test "compiled artifact browser lists filters previews exports and reopens
   assert_eq(page.next_offset, 13L)
   assert_eq(
     @base64.decode(page.content_base64),
-    artifact_sample_files()[3].1[3:13].to_bytes(),
+    artifact_sample_files()[3].1[3:13].to_owned(),
   )
   if evidence is Some(root) {
     @fs.write_file(

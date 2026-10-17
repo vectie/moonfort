@@ -66,7 +66,11 @@ test "retained CSV parses quoted multiline cells empty fields and BOM" {
       "h,".repeat(64) + "h",
       "h\n" + "v\n".repeat(20_001),
     ] {
-    assert_true((try? parse_retained_csv(input)) is Err(_))
+    try parse_retained_csv(input) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 
@@ -207,9 +211,11 @@ async test "retained CSV shrinks protocol pages without skipping rows" {
     large,
     @utf8.encode("id,note\n01," + "x".repeat(5000)),
   )
-  assert_true(
-    (try? read_retained_csv(large_binding, "checks.csv", large)) is Err(_),
-  )
+  try read_retained_csv(large_binding, "checks.csv", large) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   assert_eq(
     read_retained_csv(large_binding, "checks.csv", large, columns=[1]).rows[0].cells,
     ["01"],
@@ -221,48 +227,76 @@ async test "retained CSV refuses invalid selections stale binding and malformed 
   let (config, _roots) = test_executor_config()
   let binding = csv_fixture(config, b"id,note\n01,ok\n")
   for columns in [[0], [3], [1, 1], [-1]] {
-    assert_true(
-      (try? read_retained_csv(binding, "checks.csv", config, columns~))
-      is Err(_),
-    )
+    try
+      read_retained_csv(binding, "checks.csv", config, columns~) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for after_row in [-1, 2] {
-    assert_true(
-      (try? read_retained_csv(binding, "checks.csv", config, after_row~))
-      is Err(_),
-    )
+    try
+      read_retained_csv(binding, "checks.csv", config, after_row~) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for limit in [0, 101] {
-    assert_true(
-      (try? read_retained_csv(binding, "checks.csv", config, limit~)) is Err(_),
-    )
+    try
+      read_retained_csv(binding, "checks.csv", config, limit~) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   for where_column in [-1, 3] {
-    assert_true(
-      (try? read_retained_csv(binding, "checks.csv", config, where_column~))
-      is Err(_),
-    )
+    try
+      read_retained_csv(binding, "checks.csv", config, where_column~) |> ignore
+    catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
-  assert_true(
-    (try? read_retained_csv(binding, "checks.csv", config, equals="oops"))
-    is Err(_),
-  )
-  assert_true(
-    (try? read_retained_csv(
+  try
+    read_retained_csv(binding, "checks.csv", config, equals="oops") |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
+  try
+    read_retained_csv(
       { ..binding, command_digest: "d".repeat(64), },
       "checks.csv",
       config,
-    ))
-    is Err(_),
-  )
+    )
+    |> ignore
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for path in ["missing.csv", "../outside"] {
-    assert_true((try? read_retained_csv(binding, path, config)) is Err(_))
+    try read_retained_csv(binding, path, config) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
   @fs.write_file(
     config.scratch_root + "/table-results/checks.csv",
     b"id,note\n01,NO\n",
   )
-  assert_true((try? read_retained_csv(binding, "checks.csv", config)) is Err(_))
+  try read_retained_csv(binding, "checks.csv", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   @fs.write_file(
     config.scratch_root + "/table-results/checks.csv",
     b"id,note\n01,ok\n",
@@ -272,7 +306,11 @@ async test "retained CSV refuses invalid selections stale binding and malformed 
     config.retention_root + "/table-results.json",
     { ..record, expires_at_ms: 1L, }.to_json().stringify(),
   )
-  assert_true((try? read_retained_csv(binding, "checks.csv", config)) is Err(_))
+  try read_retained_csv(binding, "checks.csv", config) |> ignore catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected retained-artifact operation to reject input")
+  }
   for
     bytes in [
       b"h\n\xff",
@@ -283,9 +321,11 @@ async test "retained CSV refuses invalid selections stale binding and malformed 
     ] {
     let (other, _roots) = test_executor_config()
     let selected = csv_fixture(other, bytes)
-    assert_true(
-      (try? read_retained_csv(selected, "checks.csv", other)) is Err(_),
-    )
+    try read_retained_csv(selected, "checks.csv", other) |> ignore catch {
+      _ => ()
+    } noraise {
+      _ => fail("expected retained-artifact operation to reject input")
+    }
   }
 }
 

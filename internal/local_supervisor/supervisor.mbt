@@ -70,7 +70,7 @@ fn contains_nul(value : String) -> Bool {
 
 ///|
 fn encode_nul_list(values : ArrayView[String]) -> Bytes {
-  let builder = StringBuilder::new()
+  let builder = StringBuilder()
   for value in values {
     builder.write_string(value)
     builder.write_char('\u0000')
@@ -172,3 +172,48 @@ pub fn run(request : Request) -> Result raise SupervisorError {
     result => result
   }
 }
+
+///|
+pub extend Limits with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Limits with Eq::{not_equal, equal}
+
+///|
+pub extend Limits with ToJson::{to_json}
+
+///|
+pub extend Limits with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend Request with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Request with Eq::{not_equal, equal}
+
+///|
+pub extend Request with ToJson::{to_json}
+
+///|
+pub extend Request with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend Result with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Result with Eq::{not_equal, equal}
+
+///|
+pub extend Result with ToJson::{to_json}
+
+///|
+pub extend Result with @moonbitlang/core/json.FromJson::{from_json}
+
+///|
+pub extend SupervisorError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SupervisorError with Eq::{not_equal, equal}
+
+///|
+pub extend SupervisorError with ToJson::{to_json}
