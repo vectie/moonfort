@@ -14,6 +14,16 @@ async fn bounded_stdin(limit : Int) -> String {
 
 ///|
 async fn main {
+  let args = @env.args()
+  let mode = args.get(1).unwrap_or("")
+  if !(args.length() == 1 ||
+    (args.length() == 2 && mode == "--check") ||
+    (args.length() == 3 && mode == "--publish-reviewed")) {
+    @stdio.stdout.write(
+      "{\"error\":\"usage: grant-publisher [--check | --publish-reviewed REVIEW_DIGEST]\",\"published\":false}\n",
+    )
+    return
+  }
   let config_path = match @env.get_env_var("MOONFORT_EXECUTOR_CONFIG") {
     Some(value) => value
     None => {
@@ -65,6 +75,15 @@ async fn main {
       return
     }
   }
-  let response = @trusted_executor.publish_grant(request, config)
+  if mode == "--check" {
+    let review = @trusted_executor.rehearse_grant(request, config)
+    @stdio.stdout.write(review.to_json().stringify() + "\n")
+    return
+  }
+  let response = if mode == "--publish-reviewed" {
+    @trusted_executor.publish_reviewed_grant(request, args[2], config)
+  } else {
+    @trusted_executor.publish_grant(request, config)
+  }
   @stdio.stdout.write(response.to_json().stringify() + "\n")
 }

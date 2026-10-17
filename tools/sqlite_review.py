@@ -16,6 +16,46 @@ from coverage_review import bundle, decode, read_file, require, sha, MAX_OUTPUT,
 MAX_SELECTION = 64 * 1024
 
 
+def read_authorizer(tables=None):
+    """Share the deny-by-default reader boundary; custom SQL narrows reads.
+
+    Views, virtual/shadow tables, generated columns, schema tables and indirect
+    reads are unavailable to custom queries. Only pure aggregate/null handling
+    functions are added for user-authored exploration.
+    """
+    allowed = None
+    if tables is not None:
+        allowed = {}
+        for table in tables:
+            if table['kind'] != 'table':
+                continue
+            names = {column['name'] for column in table['columns'] if not column['generated']}
+            if not table['without_rowid']:
+                occupied = {folded(column['name']) for column in table['columns']}
+                names.update(name for name in ('rowid', '_rowid_', 'oid') if name not in occupied)
+            # SQLite authorizes COUNT(*) as a read with the empty column name.
+            allowed[table['name']] = names | {''}
+
+    def authorize(action, arg1, arg2, db, origin):
+        if action == sqlite3.SQLITE_SELECT: return sqlite3.SQLITE_OK
+        if action == sqlite3.SQLITE_READ and db == 'main' and origin is None:
+            if allowed is None or arg1 in allowed and arg2 in allowed[arg1]:
+                return sqlite3.SQLITE_OK
+        # SQLite reports a column-free table scan (COUNT(*), EXISTS, or a
+        # constant-false predicate) with database=None. It still must name a
+        # listed ordinary main table; no temp or attached objects can exist.
+        if allowed is not None and action == sqlite3.SQLITE_READ and db is None and origin is None and arg2 == '' and arg1 in allowed:
+            return sqlite3.SQLITE_OK
+        if allowed is None and action == sqlite3.SQLITE_PRAGMA and arg1 in ('table_list', 'table_xinfo', 'foreign_key_list'):
+            return sqlite3.SQLITE_OK
+        functions = {'typeof', 'instr'}
+        if allowed is not None:
+            functions |= {'count', 'sum', 'avg', 'min', 'max', 'coalesce'}
+        if action == sqlite3.SQLITE_FUNCTION and arg2 in functions: return sqlite3.SQLITE_OK
+        return sqlite3.SQLITE_DENY
+    return authorize
+
+
 def quoted(name):
     require(isinstance(name, str) and '\x00' not in name, 'invalid identifier')
     return '"' + name.replace('"', '""') + '"'
@@ -84,14 +124,7 @@ def database(data):
 
         conn.set_progress_handler(progress, 1000)
 
-        def authorize(action, arg1, arg2, db, origin):
-            if action == sqlite3.SQLITE_SELECT: return sqlite3.SQLITE_OK
-            if action == sqlite3.SQLITE_READ and db == 'main' and origin is None: return sqlite3.SQLITE_OK
-            if action == sqlite3.SQLITE_PRAGMA and arg1 in ('table_list', 'table_xinfo', 'foreign_key_list'): return sqlite3.SQLITE_OK
-            if action == sqlite3.SQLITE_FUNCTION and arg2 == 'typeof': return sqlite3.SQLITE_OK
-            return sqlite3.SQLITE_DENY
-
-        conn.set_authorizer(authorize)
+        conn.set_authorizer(read_authorizer())
         yield conn
     finally:
         conn.close()
@@ -125,7 +158,9 @@ def inventory(conn):
         if kind == 'table':
             for cid, column, declared, notnull, default, pk, hidden in conn.execute('PRAGMA main.table_xinfo(' + quoted(name) + ')'):
                 columns.append({'name': column, 'declared_type': declared, 'not_null': bool(notnull),
-                                'primary_key_position': pk, 'generated': hidden != 0})
+                                'primary_key_position': pk, 'generated': hidden != 0,
+                                'generated_kind': {0: 'stored-column', 2: 'virtual', 3: 'stored'}.get(hidden, 'hidden'),
+                                'default_sql': default})
         tables.append({'name': name, 'kind': kind, 'row_selection_supported': kind == 'table',
                        'without_rowid': bool(without_rowid), 'strict': bool(strict), 'columns': columns,
                        'foreign_keys': foreign_keys(conn, name) if kind == 'table' else []})
@@ -135,6 +170,49 @@ def inventory(conn):
             for child in tables for relation in child['foreign_keys']
             if folded(relation['referenced_table']) == folded(parent['name'])]
     return tables
+
+
+def filter_predicates(filters):
+    """Compile the shared, closed typed filter vocabulary; never accept SQL.
+
+    Unary + removes column affinity. typeof guards prevent cross-class numeric
+    comparisons; integer bounds remain signed 64-bit integers, never floats.
+    """
+    predicates, parameters = [], []
+    for item in filters:
+        require(isinstance(item, dict) and {'column', 'value'} <= set(item),
+                'filter requires a stored column and typed value')
+        op = item.get('op', 'eq')
+        require(isinstance(op, str) and op in ('eq', 'gt', 'gte', 'lt', 'lte', 'between', 'contains', 'starts_with'),
+                'unsupported filter operator')
+        allowed = {'column', 'value', 'op'}
+        if op == 'between': allowed |= {'upper', 'lower_inclusive', 'upper_inclusive'}
+        require(set(item) <= allowed, 'unexpected filter field')
+        value = item['value']
+        bound = parameter(value)
+        name = '+' + quoted(item['column']) + ' COLLATE BINARY'
+        parameters.append(value['type'])
+        parts = ['typeof(' + quoted(item['column']) + ') = ?']
+        if op in ('contains', 'starts_with'):
+            require(value['type'] == 'text', 'literal text filters require text values')
+            parts.append('instr(' + name + ', ?) ' + ('> 0' if op == 'contains' else '= 1'))
+            parameters.append(bound)
+        elif op == 'between':
+            require(value['type'] in ('integer', 'real'), 'range filters require integer or real bounds')
+            upper = item.get('upper')
+            end = parameter(upper)
+            require(upper['type'] == value['type'], 'range endpoints must have the same storage type')
+            require(bound <= end, 'range lower endpoint exceeds upper endpoint')
+            low_closed, high_closed = item.get('lower_inclusive', True), item.get('upper_inclusive', True)
+            require(type(low_closed) is bool and type(high_closed) is bool, 'range inclusivity must be boolean')
+            parts.extend([name + (' >= ?' if low_closed else ' > ?'), name + (' <= ?' if high_closed else ' < ?')])
+            parameters.extend([bound, end])
+        else:
+            if op != 'eq': require(value['type'] in ('integer', 'real'), 'threshold filters require integer or real values')
+            parts.append(name + ' ' + {'eq': 'IS', 'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<='}[op] + ' ?')
+            parameters.append(bound)
+        predicates.append('(' + ' AND '.join(parts) + ')')
+    return predicates, parameters
 
 
 def selection_recipe(raw, tables):
@@ -148,10 +226,10 @@ def selection_recipe(raw, tables):
     require(isinstance(columns, list) and 1 <= len(columns) <= 128 and all(isinstance(name, str) and name in available for name in columns), 'columns must name stored columns in the selected table')
     require(len(set(columns)) == len(columns), 'duplicate selected column')
     filters = recipe.get('where', [])
-    require(isinstance(filters, list) and len(filters) <= 8, 'where accepts at most 8 exact filters')
+    require(isinstance(filters, list) and len(filters) <= 8, 'where accepts at most 8 typed filters')
     for item in filters:
-        require(isinstance(item, dict) and set(item) == {'column', 'value'} and isinstance(item['column'], str) and item['column'] in available, 'filter requires a stored column and typed value')
-        parameter(item['value'])
+        require(isinstance(item, dict) and isinstance(item.get('column'), str) and item['column'] in available, 'filter requires a stored column and typed value')
+    filter_predicates(filters)
     order = recipe.get('order_by', [])
     require(isinstance(order, list) and len(order) <= 8, 'order_by accepts at most 8 columns')
     seen = set()
@@ -188,10 +266,9 @@ def selected_rows(conn, recipe, locator, offset, limit, reference=None, incoming
                           for left, right in zip(parent_columns, child_columns))
         filters.append('EXISTS (SELECT 1 FROM main.' + quoted(parent) + ' AS parent WHERE ' + ' AND '.join(predicates) + ')')
         parameters.extend(anchor_parameters)
-    for item in recipe['where']:
-        name, value = quoted(item['column']), item['value']
-        filters.append('(typeof(' + name + ') = ? AND ' + name + ' COLLATE BINARY IS ?)')
-        parameters.extend([value['type'], parameter(value)])
+    predicates, typed_parameters = filter_predicates(recipe['where'])
+    filters.extend(predicates)
+    parameters.extend(typed_parameters)
     query = 'SELECT ' + ', '.join(quoted(name) for name in locator + recipe['columns']) + ' FROM main.' + quoted(recipe['table']) + ' AS target'
     if filters: query += ' WHERE ' + ' AND '.join(filters)
     order = [quoted(item['column']) + ' COLLATE BINARY ' + item['direction'].upper() for item in recipe['order_by']]
@@ -322,35 +399,127 @@ def csv_output(columns, rows):
     return stream.getvalue()
 
 
+def query_output(args, data, source, *, sql_bytes=None, parameter_bytes=None):
+    """One complete bounded result set, or an error before stdout is written."""
+    sql_raw = read_file(args.sql, MAX_SELECTION) if sql_bytes is None else sql_bytes
+    require(isinstance(sql_raw, bytes) and len(sql_raw) <= MAX_SELECTION, "SQL exceeds 64 KiB")
+    sql = sql_raw.decode('utf-8')
+    require(sql.strip() and '\x00' not in sql, 'SQL must be nonempty UTF-8 without NUL')
+    raw = read_file(args.parameters, MAX_SELECTION) if parameter_bytes is None else parameter_bytes
+    require(isinstance(raw, bytes) and len(raw) <= MAX_SELECTION, "parameters exceed 64 KiB")
+    request = decode(raw)
+    require(isinstance(request, dict) and set(request) == {'database_sha256', 'parameters'},
+            'query parameters require exactly database_sha256 and parameters')
+    require(request['database_sha256'] == sha(data), 'query database fingerprint does not match retained artifact')
+    require(isinstance(request['parameters'], list) and len(request['parameters']) <= 128,
+            'query accepts at most 128 positional typed parameters')
+    parameters = [parameter(value) for value in request['parameters']]
+    require(type(args.max_rows) is int and 1 <= args.max_rows <= 10000, 'max-rows must be 1..10000')
+    result, size = [], 0
+    with database(data) as conn:
+        tables = inventory(conn)
+        conn.set_authorizer(read_authorizer(tables))
+        cursor = conn.execute(sql, parameters)
+        require(cursor.description is not None, 'SQL must return a result set')
+        columns = [description[0] for description in cursor.description]
+        for values in cursor:
+            require(len(result) < args.max_rows, 'query exceeds max-rows; narrow the SQL or raise the bound; no partial result')
+            row = [cell(value) for value in values]
+            size += len(json.dumps(row, ensure_ascii=False, allow_nan=False).encode('utf-8'))
+            require(size <= MAX_OUTPUT, 'query projection exceeds 16 MiB; no partial result')
+            result.append(row)
+    context = {'schema': 'moonfort.sqlite-query.v1', 'source': source, 'operation': 'query',
+               'sqlite_version': sqlite3.sqlite_version, 'database_sha256': sha(data),
+               'sql_sha256': sha(sql_raw), 'sql_size_bytes': len(sql_raw), 'sql': sql,
+               'parameters_sha256': sha(raw), 'parameters_size_bytes': len(raw),
+               'parameters': request['parameters'], 'columns': columns, 'row_count': len(result),
+               'max_rows': args.max_rows, 'complete': True,
+               'ordering': 'Only the supplied SQL ORDER BY defines ordering; no implicit stable order.',
+               'meaning': 'Complete result of supplied SQL on one retained in-memory copy. SQL LIMIT belongs to the query and may deliberately restrict its result. Derived rows have no inferred source locator. No authenticity, live state, execution, acceptance or promotion.'}
+    if args.format == 'csv':
+        stream = io.StringIO(newline='')
+        writer = csv.writer(stream, quoting=csv.QUOTE_ALL, lineterminator='\r\n')
+        # Keep duplicate/empty SQL labels distinct by their result position.
+        writer.writerow(['column:' + str(index + 1) + ':' + name for index, name in enumerate(columns)])
+        for row in result:
+            writer.writerow([json.dumps(value, ensure_ascii=False, allow_nan=False) for value in row])
+        output = stream.getvalue()
+    else:
+        output = json.dumps(context | {'rows': result}, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
+    return context, output
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('bundle'); parser.add_argument('--database', required=True, help='exact retained database artifact path')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('schema', help='list schema objects and stored column metadata as JSON')
+    query = commands.add_parser('query', help='run one read-only SQL result set over stored columns of retained ordinary tables')
+    query.add_argument('--sql', required=True, help='UTF-8 SQL file; use ? positional placeholders')
+    query.add_argument('--parameters', required=True, help='JSON with database_sha256 and typed parameters array')
+    query.add_argument('--max-rows', type=int, default=1000, help='complete-result bound, 1..10000; exceeding it refuses all output')
+    query.add_argument('--format', choices=('json', 'csv'), default='json')
+    histogram = commands.add_parser('histogram', help='inspect numeric distribution bands with source row locators')
+    histogram.add_argument('--selection', required=True)
+    crosstab = commands.add_parser('crosstab', help='cross two exact typed categories and inspect intersection records')
+    crosstab.add_argument('--selection', required=True)
     for command, help_text in [('rows', 'select ordinary table rows with a local JSON selection'),
                                ('related', 'follow one retained row through a declared outgoing foreign key'),
                                ('referencing', 'inspect child records that reference one retained parent row')]:
         rows = commands.add_parser(command, help=help_text)
         rows.add_argument('--selection', required=True)
+        if command == 'rows':
+            rows.add_argument('--expected-database-sha256', help='refuse row navigation if the retained database fingerprint changed')
         rows.add_argument('--offset', type=int, default=0); rows.add_argument('--limit', type=int, default=100)
         rows.add_argument('--format', choices=('json', 'csv'), default='json')
+    schema_comparison = commands.add_parser('compare-schema', help='compare retained schema metadata and navigate a selected object on either side')
+    schema_comparison.add_argument('after_bundle')
+    schema_comparison.add_argument('--after-database', help='after artifact path; defaults to --database')
+    schema_comparison.add_argument('--selection', required=True, help='JSON with both database fingerprints and optional exact table name')
     comparison = commands.add_parser('compare', help='compare two retained table snapshots by explicit typed key columns')
     comparison.add_argument('after_bundle')
     comparison.add_argument('--after-database', help='after artifact path; defaults to --database')
     comparison.add_argument('--selection', required=True)
     comparison.add_argument('--format', choices=('json', 'csv'), default='json')
+    for command, help_text in [('summarize', 'group retained rows and compute exact numeric summaries'),
+                               ('group-rows', 'inspect the source rows of one exact typed summary group')]:
+        summary = commands.add_parser(command, help=help_text)
+        summary.add_argument('--selection', required=True)
+        summary.add_argument('--format', choices=('json', 'csv'), default='json')
+        if command == 'group-rows':
+            summary.add_argument('--group', required=True, help='local JSON file containing a typed key array from summary output')
+            summary.add_argument('--offset', type=int, default=0)
+            summary.add_argument('--limit', type=int, default=100)
     args = parser.parse_args(argv)
     try:
-        if args.command in ('rows', 'related', 'referencing'):
+        if args.command in ('rows', 'related', 'referencing', 'group-rows'):
             require(0 <= args.offset <= 1000000 and 1 <= args.limit <= 1000, 'offset must be 0..1000000 and limit 1..1000')
         data, source = bundle(args.bundle, args.database, report_label='SQLite database')
-        if args.command == 'compare':
+        if args.command == 'rows' and args.expected_database_sha256 is not None:
+            require(args.expected_database_sha256 == sha(data), 'row navigation database fingerprint does not match retained artifact')
+        if args.command == 'query':
+            context, output = query_output(args, data, source)
+        elif args.command == 'crosstab':
+            from sqlite_crosstab import crosstab_output
+            context, output = crosstab_output(args, data, source)
+        elif args.command == 'histogram':
+            from sqlite_histogram import histogram_output
+            context, output = histogram_output(args, data, source)
+        elif args.command == 'compare-schema':
+            from sqlite_schema_compare import schema_comparison_output
+            context, output = schema_comparison_output(args, data, source)
+        elif args.command == 'compare':
             from sqlite_compare import comparison_output
             context, output = comparison_output(args, data, source)
+        elif args.command in ('summarize', 'group-rows'):
+            from sqlite_summary import summary_output
+            context, output = summary_output(args, data, source)
         else:
             context = {'schema': 'moonfort.sqlite-review.v1', 'source': source, 'operation': args.command,
                        'sqlite_version': sqlite3.sqlite_version,
                        'meaning': 'Read-only exploration of a supplied retained database copy; not authenticity, live state, execution, acceptance or promotion.'}
+            if args.command == 'rows' and args.expected_database_sha256 is not None:
+                context['expected_database_sha256'] = args.expected_database_sha256
             with database(data) as conn:
                 tables = inventory(conn)
                 if args.command == 'schema':

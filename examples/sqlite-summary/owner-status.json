@@ -1,0 +1,7 @@
+{
+  "database_sha256": "REPLACE_WITH_THE_INSPECTED_DATABASE_SHA256",
+  "table": "samples",
+  "group_by": ["owner", "status"],
+  "measures": ["score"],
+  "where": []
+}

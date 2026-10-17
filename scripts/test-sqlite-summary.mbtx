@@ -1,0 +1,574 @@
+///|
+import {
+  "moonbitlang/async@0.20.2",
+  "moonbitlang/async@0.20.2/fs",
+  "moonbitlang/async@0.20.2/process",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/x@0.4.49/crypto",
+}
+
+///|
+fn field(value : Json, key : String) -> Json raise {
+  guard value is Object(fields) && fields.get(key) is Some(result) else {
+    fail("missing field " + key)
+  }
+  result
+}
+
+///|
+fn array(value : Json) -> Array[Json] raise {
+  guard value is Array(items) else { fail("array required") }
+  items
+}
+
+///|
+fn at(value : Json, keys : Array[String]) -> Json raise {
+  let mut current = value
+  for key in keys {
+    current = field(current, key)
+  }
+  current
+}
+
+///|
+fn edit(value : Json, key : String, replacement : Json) -> Json raise {
+  let copy = @json.parse(value.stringify())
+  guard copy is Object(fields) else { fail("object required") }
+  fields[key] = replacement
+  copy
+}
+
+///|
+fn digest(value : Bytes) -> String {
+  @crypto.bytes_to_hex_string(@crypto.sha256(value))
+}
+
+///|
+fn csv_rows(text : String) -> Array[Array[String]] raise {
+  let chars = text.to_array()
+  let result : Array[Array[String]] = []
+  let mut row : Array[String] = []
+  let mut value = ""
+  let mut quoted = false
+  let mut closed = false
+  let mut i = 0
+  while i < chars.length() {
+    let c = chars[i]
+    if quoted {
+      if c == '"' {
+        if i + 1 < chars.length() && chars[i + 1] == '"' {
+          value += "\""
+          i += 1
+        } else {
+          quoted = false
+          closed = true
+        }
+      } else {
+        value += c.to_string()
+      }
+    } else if c == ',' {
+      row.push(value)
+      value = ""
+      closed = false
+    } else if c == '\r' {
+      assert_true(i + 1 < chars.length() && chars[i + 1] == '\n')
+      row.push(value)
+      result.push(row)
+      row = []
+      value = ""
+      closed = false
+      i += 1
+    } else if c == '"' && value == "" && !closed {
+      quoted = true
+    } else {
+      assert_false(closed || c == '\n', msg="invalid CSV boundary")
+      value += c.to_string()
+    }
+    i += 1
+  }
+  assert_false(quoted)
+  assert_eq(value, "")
+  assert_eq(row.length(), 0)
+  result
+}
+
+///|
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 else { fail("SOURCE_ROOT FRESH_EVIDENCE_DIRECTORY") }
+  let source = args[1]
+  let evidence = args[2]
+  @fs.mkdir(evidence, permission=0o700)
+  let extra_env = { "PYTHONDONTWRITEBYTECODE": "1" }
+  // Reuse the repository's existing fixture producers unchanged. New workflow
+  // orchestration and assertions are MoonBit; no Python automation is generated.
+  for
+    (suite, variable, folder) in [
+      ("test-sqlite-review.py", "MOONFORT_SQLITE_EVIDENCE", "reader"),
+      (
+        "test-sqlite-comparison.py", "MOONFORT_COMPARISON_EVIDENCE", "comparison",
+      ),
+    ] {
+    extra_env[variable] = evidence + "/" + folder
+    let (code, out, err) = @process.collect_output(
+      "/usr/bin/python3",
+      [source + "/scripts/" + suite],
+      extra_env~,
+    )
+    @fs.write_file(
+      evidence + "/" + folder + ".log",
+      out.text() + err.text(),
+      create_mode=CreateNew,
+    )
+    assert_eq(code, 0, msg=err.text())
+  }
+  let fixture = evidence +
+    "/reader/test_schema_discovers_ordinary_tables_and_marks_views"
+  let archive = fixture + "/retained.zip"
+  let bytes = @fs.read_file(fixture + "/original.sqlite").binary()
+  let hash = digest(bytes)
+  let original_zip = @fs.read_file(archive).binary()
+  let recipe : Json = {
+    "database_sha256": hash,
+    "table": "samples",
+    "group_by": ["owner"],
+    "measures": ["score", "note", "raw"],
+  }
+  async fn invoke(
+    label : String,
+    zip : String,
+    request : Json,
+    command : String,
+    options : Array[String],
+    success : Bool,
+  ) -> (Json, String) {
+    let recipe_path = evidence + "/" + label + ".json"
+    let raw = @utf8.encode(request.stringify())
+    @fs.write_file(recipe_path, raw, create_mode=CreateNew)
+    let original = @fs.read_file(zip).binary()
+    let (code, out, err) = @process.collect_output(
+      "/usr/bin/python3",
+      [
+        source + "/tools/sqlite_review.py",
+        zip,
+        "--database",
+        "results/review.sqlite",
+        command,
+        "--selection",
+        recipe_path,
+      ] +
+      options,
+      extra_env~,
+    )
+    @fs.write_file(
+      evidence + "/" + label + ".stdout",
+      out.binary(),
+      create_mode=CreateNew,
+    )
+    @fs.write_file(
+      evidence + "/" + label + ".stderr",
+      err.binary(),
+      create_mode=CreateNew,
+    )
+    assert_eq(@fs.read_file(zip).binary(), original)
+    if !success {
+      assert_eq(code, 1, msg=err.text())
+      assert_eq(out.binary(), b"")
+      return (Json::null(), err.text())
+    }
+    assert_eq(code, 0, msg=err.text())
+    let context = @json.parse(err.text())
+    assert_eq(
+      field(context, "candidate_sha256"),
+      digest(out.binary()).to_json(),
+    )
+    assert_eq(
+      field(context, "candidate_size_bytes"),
+      out.binary().length().to_json(),
+    )
+    assert_eq(field(context, "selection_sha256"), digest(raw).to_json())
+    assert_eq(
+      at(context, ["source", "bundle_sha256"]),
+      digest(original).to_json(),
+    )
+    assert_eq(
+      at(context, ["source", "source_file", "fingerprint"]),
+      field(request, "database_sha256"),
+    )
+    assert_eq(at(context, ["source", "expires_at_ms"]), "1")
+    (context, out.text())
+  }
+  let (_, output) = invoke("owners", archive, recipe, "summarize", [], true)
+  let result = @json.parse(output)
+  assert_eq(field(result, "selected_row_count"), 7)
+  assert_eq(field(result, "group_count"), 4)
+  assert_eq(field(result, "complete"), true)
+  let groups = array(field(result, "groups"))
+  let largest = groups[0]
+  assert_eq(field(largest, "row_count"), 4)
+  assert_eq(field(largest, "key"), [{ "type": "text", "value": "Zoë" }])
+  assert_eq(field(largest, "locators"), [
+    [{ "type": "integer", "value": "11" }],
+    [{ "type": "integer", "value": "33" }],
+    [{ "type": "integer", "value": "66" }],
+    [{ "type": "integer", "value": "77" }],
+  ])
+  let score = at(largest, ["measures", "score"])
+  assert_eq(at(score, ["sum", "numerator"]), "19")
+  assert_eq(at(score, ["mean", "numerator"]), "19")
+  assert_eq(at(score, ["mean", "denominator"]), "4")
+  assert_eq(at(score, ["minimum", "locator"]), [
+    { "type": "integer", "value": "11" },
+  ])
+  let (_, repeated) = invoke("repeat", archive, recipe, "summarize", [], true)
+  assert_eq(output, repeated)
+  let relocated = evidence + "/moved.zip"
+  @fs.write_file(relocated, original_zip, create_mode=CreateNew)
+  let (_, moved) = invoke("relocated", relocated, recipe, "summarize", [], true)
+  assert_eq(output, moved)
+
+  let all = edit(recipe, "group_by", [])
+  let (_, total_output) = invoke("totals", archive, all, "summarize", [], true)
+  let total = array(field(@json.parse(total_output), "groups"))[0]
+  let total_score = at(total, ["measures", "score"])
+  assert_eq(at(total_score, ["sum", "numerator"]), "215")
+  assert_eq(at(total_score, ["sum", "denominator"]), "8")
+  assert_eq(at(total_score, ["mean", "numerator"]), "215")
+  assert_eq(at(total_score, ["mean", "denominator"]), "56")
+  let note = at(total, ["measures", "note"])
+  assert_eq(at(note, ["sum", "numerator"]), "9223372036854775809")
+  assert_eq(at(note, ["sum", "denominator"]), "1")
+  assert_eq(field(note, "storage_counts"), {
+    "null": 1,
+    "integer": 2,
+    "real": 1,
+    "text": 3,
+    "blob": 0,
+  })
+  let raw = at(total, ["measures", "raw"])
+  assert_eq(field(raw, "numeric_count"), 0)
+  assert_eq(field(raw, "sum"), Json::null())
+  assert_eq(field(raw, "minimum"), Json::null())
+  assert_eq(at(raw, ["storage_counts", "blob"]), 6)
+  let (_, typed_output) = invoke(
+    "typed-groups",
+    archive,
+    edit(all, "group_by", ["note"]),
+    "summarize",
+    [],
+    true,
+  )
+  assert_eq(field(@json.parse(typed_output), "group_count"), 7)
+
+  let group_path = evidence + "/owner-group.json"
+  @fs.write_file(
+    group_path,
+    field(largest, "key").stringify(),
+    create_mode=CreateNew,
+  )
+  let (page1, page1_output) = invoke(
+    "page-one",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", group_path, "--limit", "2"],
+    true,
+  )
+  let (page2, page2_output) = invoke(
+    "page-two",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", group_path, "--offset", "2", "--limit", "2"],
+    true,
+  )
+  assert_eq(field(page1, "total_group_rows"), 4)
+  assert_eq(field(page1, "next_offset"), 2)
+  assert_eq(field(page2, "has_more"), false)
+  assert_eq(field(page2, "next_offset"), Json::null())
+  let rows = array(field(@json.parse(page1_output), "rows")) +
+    array(field(@json.parse(page2_output), "rows"))
+  assert_eq(
+    rows.map(row => field(row, "locator")),
+    array(field(largest, "locators")),
+  )
+  assert_eq(array(field(rows[0], "values")), [
+    { "type": "integer", "value": "11" },
+    { "type": "text", "value": "Zoë" },
+    { "type": "text", "value": "failed" },
+    { "type": "real", "value": "2.5" },
+    { "type": "blob", "value": "AP8=" },
+    { "type": "null", "value": Json::null() },
+  ])
+  let (past, _) = invoke(
+    "past-page",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", group_path, "--offset", "50"],
+    true,
+  )
+  assert_eq(field(past, "row_count"), 0)
+  assert_eq(field(past, "has_more"), false)
+  let absent_path = evidence + "/absent-key.json"
+  @fs.write_file(
+    absent_path,
+    "[{\"type\":\"text\",\"value\":\"absent\"}]",
+    create_mode=CreateNew,
+  )
+  let (absent, _) = invoke(
+    "absent-group",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", absent_path],
+    true,
+  )
+  assert_eq(field(absent, "total_group_rows"), 0)
+  let (_, csv) = invoke(
+    "csv",
+    archive,
+    recipe,
+    "summarize",
+    ["--format", "csv"],
+    true,
+  )
+  assert_true(
+    csv.has_prefix(
+      "\"key_json\",\"row_count\",\"measures_json\",\"locators_json\"\r\n",
+    ),
+  )
+  assert_true(csv.contains("Zoë"))
+  assert_true(csv.contains("9223372036854775809"))
+  let records = csv_rows(csv)
+  assert_eq(records.length(), groups.length() + 1)
+  for index in 0..<groups.length() {
+    assert_eq(@json.parse(records[index + 1][0]), field(groups[index], "key"))
+    assert_eq(
+      @json.parse(records[index + 1][1]),
+      field(groups[index], "row_count"),
+    )
+    assert_eq(
+      @json.parse(records[index + 1][2]),
+      field(groups[index], "measures"),
+    )
+    assert_eq(
+      @json.parse(records[index + 1][3]),
+      field(groups[index], "locators"),
+    )
+  }
+  let (_, typed_csv) = invoke(
+    "typed-csv",
+    archive,
+    edit(all, "group_by", ["note"]),
+    "summarize",
+    ["--format", "csv"],
+    true,
+  )
+  let typed_records = csv_rows(typed_csv)
+  let typed_groups = array(field(@json.parse(typed_output), "groups"))
+  for index in 0..<typed_groups.length() {
+    assert_eq(
+      @json.parse(typed_records[index + 1][0]),
+      field(typed_groups[index], "key"),
+    )
+    assert_eq(
+      @json.parse(typed_records[index + 1][2]),
+      field(typed_groups[index], "measures"),
+    )
+  }
+  let (_, member_csv) = invoke(
+    "member-csv",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", group_path, "--format", "csv"],
+    true,
+  )
+  assert_true(member_csv.contains("AP8="))
+  assert_true(member_csv.contains("9223372036854775807"))
+  let members = csv_rows(member_csv)
+  for index in 0..<rows.length() {
+    assert_eq(@json.parse(members[index + 1][0]), field(rows[index], "locator"))
+    assert_eq(
+      members[index + 1][1:].map(value => @json.parse(value)),
+      array(field(rows[index], "values")),
+    )
+  }
+  let filtered = edit(recipe, "where", [
+    { "column": "status", "value": { "type": "text", "value": "passed" } },
+  ])
+  let (_, filtered_out) = invoke(
+    "filtered",
+    archive,
+    filtered,
+    "summarize",
+    [],
+    true,
+  )
+  assert_eq(field(@json.parse(filtered_out), "selected_row_count"), 1)
+  let (filtered_members, _) = invoke(
+    "filtered-members",
+    archive,
+    filtered,
+    "group-rows",
+    ["--group", group_path],
+    true,
+  )
+  assert_eq(field(filtered_members, "total_group_rows"), 0)
+  let empty : Json = {
+    "database_sha256": hash,
+    "table": "empty",
+    "group_by": [],
+    "measures": [],
+  }
+  let (_, empty_out) = invoke("empty", archive, empty, "summarize", [], true)
+  assert_eq(field(@json.parse(empty_out), "groups"), [])
+  let (_, count_out) = invoke(
+    "count-only",
+    archive,
+    edit(all, "measures", []),
+    "summarize",
+    [],
+    true,
+  )
+  assert_eq(field(@json.parse(count_out), "selected_row_count"), 7)
+
+  for
+    (label, invalid, diagnostic) in [
+      (
+        "stale",
+        edit(recipe, "database_sha256", "0".repeat(64).to_json()),
+        "fingerprint",
+      ),
+      ("unknown-group", edit(recipe, "group_by", ["missing"]), "stored columns"),
+      (
+        "duplicate-group",
+        edit(recipe, "group_by", ["owner", "owner"]),
+        "distinct",
+      ),
+      (
+        "unknown-measure",
+        edit(recipe, "measures", ["missing"]),
+        "stored columns",
+      ),
+      ("expression", edit(recipe, "measures", ["sum(score)"]), "stored columns"),
+      ("view", edit(recipe, "table", "summary"), "ordinary table"),
+      (
+        "unrecognized-field",
+        edit(recipe, "sql", "select 1"),
+        "summary requires",
+      ),
+      (
+        "invalid-filter",
+        edit(recipe, "where", [
+          { "column": "score", "value": { "type": "integer", "value": "01" } },
+        ]),
+        "integer filter",
+      ),
+    ] {
+    let (_, diagnostic_out) = invoke(
+      label,
+      archive,
+      invalid,
+      "summarize",
+      [],
+      false,
+    )
+    assert_true(diagnostic_out.contains(diagnostic), msg=diagnostic_out)
+  }
+  let wrong_key = evidence + "/wrong-key.json"
+  @fs.write_file(wrong_key, "[]", create_mode=CreateNew)
+  let _ = invoke(
+    "key-width",
+    archive,
+    recipe,
+    "group-rows",
+    ["--group", wrong_key],
+    false,
+  )
+  let noncanonical = evidence + "/noncanonical-key-input.json"
+  @fs.write_file(
+    noncanonical,
+    "[{\"type\":\"real\",\"value\":\"1e0\"}]",
+    create_mode=CreateNew,
+  )
+  let _ = invoke(
+    "noncanonical-key",
+    archive,
+    edit(recipe, "group_by", ["note"]),
+    "group-rows",
+    ["--group", noncanonical],
+    false,
+  )
+
+  let boundary = evidence +
+    "/comparison/test_complete_scan_bound_never_silently_compares_first_page"
+  for
+    (name, success, count) in [
+      ("maximum", true, 10000),
+      ("excessive", false, 10001),
+    ] {
+    let pinned = digest(
+      @fs.read_file(boundary + "/" + name + ".sqlite").binary(),
+    )
+    let selection : Json = {
+      "database_sha256": pinned,
+      "table": "results",
+      "group_by": [],
+      "measures": ["key"],
+    }
+    let (ctx, value) = invoke(
+      "bound-" + name,
+      boundary + "/" + name + ".zip",
+      selection,
+      "summarize",
+      [],
+      success,
+    )
+    if success {
+      assert_eq(field(ctx, "selected_row_count"), count.to_json())
+      let sum = at(array(field(@json.parse(value), "groups"))[0], [
+        "measures", "key", "sum",
+      ])
+      assert_eq(field(sum, "numerator"), "49995000")
+    } else {
+      assert_true(value.contains("no partial result"))
+    }
+  }
+  let composite = evidence +
+    "/comparison/test_composite_without_rowid_locators_and_quoted_names"
+  let composite_recipe : Json = {
+    "database_sha256": digest(
+      @fs.read_file(composite + "/composite-before.sqlite").binary(),
+    ),
+    "table": "月\"results",
+    "group_by": ["part\"one"],
+    "measures": ["slot"],
+  }
+  let (composite_ctx, composite_out) = invoke(
+    "composite",
+    composite + "/composite-before.zip",
+    composite_recipe,
+    "summarize",
+    [],
+    true,
+  )
+  assert_eq(at(composite_ctx, ["locator", "kind"]), "primary-key")
+  assert_eq(
+    field(array(field(@json.parse(composite_out), "groups"))[0], "row_count"),
+    2,
+  )
+  assert_eq(@fs.read_file(archive).binary(), original_zip)
+  assert_eq(@fs.read_file(fixture + "/original.sqlite").binary(), bytes)
+  @fs.write_file(
+    evidence + "/PASS.txt",
+    "SQLite grouped summary and paged drillback journeys passed, including exact rational measures, type distinctions, CSV, filters, stale input, composite locators and complete-scan bounds. Existing reader and comparison regressions passed.\n",
+    create_mode=CreateNew,
+  )
+  println(
+    "SQLite summary and group-row workflows passed. Evidence: " + evidence,
+  )
+}

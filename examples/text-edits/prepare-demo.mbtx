@@ -1,0 +1,127 @@
+///|
+import {
+  "moonbitlang/async@0.20.2",
+  "moonbitlang/async@0.20.2/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/x@0.4.49/crypto",
+}
+
+///|
+// New disposable synthetic store; no execution, grant or real retention import.
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 && args[1].has_prefix("/") && args[2].has_prefix("/") else {
+    fail("prepare-demo.mbtx SAMPLE-DIRECTORY NEW-ABSOLUTE-DEMO-DIRECTORY")
+  }
+  let source = @fs.read_file(args[1] + "/notes.txt").binary()
+  guard source.length() <= 262_144 else { fail("sample exceeds 256 KiB") }
+  @fs.mkdir(args[2], permission=0o700)
+  let root = args[2]
+  for
+    name in [
+      "approvals", "approvals/pending", "approvals/consumed", "scratch", "scratch/text-demo",
+      "retention", "retention/output-artifacts", "retention/live-output",
+    ] {
+    @fs.mkdir(root + "/" + name, permission=0o700)
+  }
+  @fs.write_file(
+    root + "/scratch/text-demo/notes.txt",
+    source,
+    create_mode=CreateNew,
+    permission=0o600,
+  )
+  let approval = "b".repeat(64)
+  let command = "c".repeat(64)
+  let binding : Json = {
+    "protocol_version": 1,
+    "retention_id": "text-demo",
+    "workspace_id": "demo-workspace",
+    "approval_digest": approval,
+    "command_digest": command,
+  }
+  let record : Json = {
+    "retention_id": "text-demo",
+    "scratch_path": root + "/scratch/text-demo",
+    "expires_at_ms": @env.now().reinterpret_as_int64() + 86_400_000L,
+    "workspace_id": "demo-workspace",
+    "profile_digest": "a".repeat(64),
+    "approval_digest": approval,
+    "command_digest": command,
+    "reviewable_files": [
+      {
+        "relative_path": "notes.txt",
+        "kind": "RegularFile",
+        "size_bytes": source.length().to_int64(),
+        "fingerprint": @crypto.bytes_to_hex_string(@crypto.sha256(source)),
+      },
+    ],
+  }
+  let config : Json = {
+    "approval_root": root + "/approvals",
+    "scratch_root": root + "/scratch",
+    "retention_root": root + "/retention",
+    "artifact_key_id": "synthetic-demo-key",
+    "artifact_signing_key": "synthetic-example-only-01234567890123456789",
+    "workspaces": {},
+    "local_tools": {},
+    "aen_backends": {},
+    "limits": {
+      "max_protocol_bytes": 65536,
+      "max_wall_clock_ms": 5000,
+      "max_cpu_seconds": 2,
+      "max_memory_mib": 256,
+      "max_disk_mib": 32,
+      "max_processes": 32,
+      "max_output_bytes": 65536,
+      "max_model_output_bytes": 32768,
+      "max_command_args": 16,
+      "max_argument_bytes": 4096,
+      "max_changed_paths": 32,
+      "retention_ms": "86400000",
+    },
+  }
+  for
+    (name, data) in [
+      ("retention/text-demo.json", record),
+      ("config.json", config),
+      ("receipt-binding.json", binding),
+    ] {
+    @fs.write_file(
+      root + "/" + name,
+      data.stringify(),
+      create_mode=CreateNew,
+      permission=0o600,
+    )
+  }
+  let recipe : Json = {
+    "version": 1,
+    "source_fingerprint": @crypto.bytes_to_hex_string(@crypto.sha256(source)),
+    "operations": [
+      {
+        "start_line": 2,
+        "end_line": 3,
+        "expected": "status: draft\n",
+        "replacement": "status: reviewed locally\n",
+      },
+      {
+        "start_line": 3,
+        "end_line": 4,
+        "expected": "remove this\n",
+        "replacement": "",
+      },
+      {
+        "start_line": 5,
+        "end_line": 5,
+        "expected": "",
+        "replacement": "next: separate review\n",
+      },
+    ],
+  }
+  @fs.write_file(
+    root + "/edits.json",
+    recipe.stringify(indent=2) + "\n",
+    create_mode=CreateNew,
+  )
+  println("Synthetic text demo ready for 24 hours: " + root)
+}

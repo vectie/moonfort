@@ -12,6 +12,25 @@ grant, and resolves every path, executable, credential, and deployment limit
 from executor-owned configuration. Neither backend has an unsandboxed fallback.
 
 ## Current status
+
+Operators can [download the actual records displayed in the SQLite workbench](docs/PORTABLE_SQLITE_WORKBENCH.md#download-the-records-you-are-inspecting)
+as reusable CSV or exact typed JSON, including a table page, query result or
+selected category/numeric-band members, without recreating a command-line query.
+
+Operators can [cross two SQLite categories](docs/PORTABLE_SQLITE_CROSSTAB.md)
+in a retained result, compare count matrices and inspect the original records
+inside each intersection without changing or executing the artifact.
+
+Operators can [author a bounded command REQUEST offline](docs/GRANT_REQUEST_AUTHORING.md)
+using a generated local form: open a v3 template, edit individual arguments and
+requested limits, preview exact scope, and download the ordinary request. This
+does not approve, publish or execute a grant.
+
+Operators can now [rehearse a grant before publishing it](docs/GRANT_REHEARSAL.md):
+check the actual candidate against trusted policy, correct a field, review the
+exact scope, and explicitly publish only the unchanged reviewed candidate.
+Rehearsal never publishes or executes a grant.
+
 To reconstruct interleaved events, [merge retained JSONL logs into a chronological timeline](docs/RETAINED_EVENT_TIMELINES.md)
 with `browse-retention timeline --mapping timeline.json`. Select exact log paths,
 a canonical UTC timestamp field, and scalar columns. Export all events with
@@ -39,6 +58,17 @@ To add ownership, labels or other reference fields, [enrich retained CSV with a 
 using `browse-retention enrich-csv PATH --lookup LOCAL-FILE --source-key N --lookup-key N`.
 It exports a reusable left-joined CSV candidate with source, lookup and output
 fingerprints, preserving every source row without changing retained evidence.
+
+To combine partitioned reports, [consolidate retained CSV shards](docs/RETAINED_CSV_STACKS.md)
+with an explicit fingerprint-bound manifest. Matching schemas produce one reusable
+CSV with original file/row locators; duplicate observations remain intact. Original
+artifacts stay unchanged and the candidate carries separate derivation context.
+
+To correct a generated report before review, [edit retained CSV into a local candidate](docs/RETAINED_CSV_DRAFTS.md)
+with `browse-retention edit-csv PATH --recipe local-edits.json`. Correct cells,
+remove data rows or append a row using explicit sequential positions. The recipe
+pins the inspected source fingerprint; original headers and retained bytes stay
+unchanged, and the exported CSV carries separate recipe/candidate context.
 
 To find diagnostic or review lines within one file, [search verified retained text](docs/RETAINED_TEXT_SEARCH.md)
 with `browse-retention search PATH --query TEXT`, including line-numbered excerpts,
@@ -204,6 +234,12 @@ Select stored columns, exact typed filters and ordering in a local JSON recipe;
 page records with source-row locators and export typed JSON/CSV with receipt,
 database, selection and output fingerprints. This inspects a self-contained
 database copy without modifying retained output or running the original workload.
+
+[Find the largest groups and inspect their source rows](docs/PORTABLE_SQLITE_SUMMARIES.md)
+with `summarize --selection owner-status.json`, then `group-rows` using the same
+editable pinned recipe and a selected typed key. Compare exact numeric sums,
+means and extrema, inspect missing/nonnumeric counts, and page through the
+original records with receipt-bound locators. JSON and CSV remain local review copies.
 
 [Follow a retained row to its referenced records](docs/PORTABLE_SQLITE_RELATIONS.md)
 with the same tool's `related --selection reference.json` command. Discover

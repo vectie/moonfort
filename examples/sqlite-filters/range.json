@@ -1,0 +1,6 @@
+{
+  "table": "mixed",
+  "where": [
+    {"column": "amount", "op": "between", "value": {"type": "integer", "value": "-5"}, "upper": {"type": "integer", "value": "5"}, "lower_inclusive": false, "upper_inclusive": true}
+  ]
+}

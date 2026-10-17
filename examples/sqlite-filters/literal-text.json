@@ -1,0 +1,4 @@
+{
+  "table": "mixed",
+  "where": [{"column": "label", "op": "contains", "value": {"type": "text", "value": "%_"}}]
+}

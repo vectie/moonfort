@@ -17,9 +17,13 @@ let usage : String =
   #|  lcov-csv PATH [--uncovered] > new-lines.csv 2> new-context.json
   #|  tap-csv PATH [--failures] > new-tests.csv 2> new-context.json
   #|  sarif-csv PATH > new-findings.csv 2> new-context.json
+  #|  har-csv PATH [--method METHOD] [--status CODE] [--minimum-ms MS] > new-requests.csv 2> new-context.json
   #|  junit-csv PATH > new-tests.csv 2> new-context.json
   #|  jsonl-csv PATH --mapping LOCAL-FILE [--skip-blank-lines] > new-candidate.csv 2> new-context.json
   #|  edit-json PATH --recipe LOCAL-FILE > new-candidate.json 2> new-context.json
+  #|  edit-csv PATH --recipe LOCAL-FILE > new-candidate.csv 2> new-context.json
+  #|  edit-text PATH --recipe LOCAL-FILE > new-candidate.txt 2> new-context.json
+  #|  stack-csv --manifest LOCAL-FILE > new-combined.csv 2> new-context.json
   #|  enrich-csv PATH --lookup LOCAL-FILE --source-key N --lookup-key N [--lookup-columns 2,3] [--prefix TEXT] > new-candidate.csv 2> new-context.json
   #|  export PATH > new-artifact-file
   #|  bundle [--prefix PATH] [--contains TEXT] > new-review.zip
@@ -125,8 +129,9 @@ async fn run(args : Array[String]) -> Unit {
   guard args.length() >= 2 &&
     [
       "list", "preview", "search", "search-all", "table", "json", "json-csv", "edit-json",
-      "timeline", "enrich-csv", "aggregate-csv", "summarize-csv", "jsonl-csv", "export",
-      "bundle", "junit-csv", "sarif-csv", "lcov-csv", "tap-csv",
+      "edit-csv", "timeline", "enrich-csv", "aggregate-csv", "summarize-csv", "jsonl-csv",
+      "export", "bundle", "junit-csv", "sarif-csv", "lcov-csv", "tap-csv", "stack-csv",
+      "har-csv", "edit-text",
     ].contains(args[1]) else {
     fail("invalid command")
   }
@@ -134,7 +139,8 @@ async fn run(args : Array[String]) -> Unit {
   let filtered = command == "list" ||
     command == "bundle" ||
     command == "search-all" ||
-    command == "timeline"
+    command == "timeline" ||
+    command == "stack-csv"
   let path = if filtered {
     ""
   } else {
@@ -213,7 +219,13 @@ async fn run(args : Array[String]) -> Unit {
       command == "jsonl-csv" ||
       command == "timeline" {
       ["--mapping"]
-    } else if command == "edit-json" {
+    } else if command == "stack-csv" {
+      ["--manifest"]
+    } else if command == "har-csv" {
+      ["--method", "--status", "--minimum-ms"]
+    } else if command == "edit-json" ||
+      command == "edit-csv" ||
+      command == "edit-text" {
       ["--recipe"]
     } else if command == "enrich-csv" {
       [
@@ -236,6 +248,43 @@ async fn run(args : Array[String]) -> Unit {
   let config = @executor.load_executor_config(config_path)
   let binding = binding_stdin(config.limits.max_protocol_bytes)
   match command {
+    "har-csv" => {
+      let status = match options.get("--status") {
+        Some(value) => Some(@string.parse_int(value))
+        None => None
+      }
+      let minimum_ms = match options.get("--minimum-ms") {
+        Some(value) => {
+          guard @json.parse(value) is Number(number, ..) else {
+            fail("minimum milliseconds requires a JSON number")
+          }
+          number
+        }
+        None => 0.0
+      }
+      let result = @executor.tabulate_retained_har(
+        binding,
+        path,
+        config,
+        method=options.get("--method").unwrap_or(""),
+        status?,
+        minimum_ms~,
+      )
+      @stdio.stderr.write(result.context().stringify() + "\n")
+      @stdio.stdout.write(result.csv)
+    }
+    "stack-csv" => {
+      guard options.get("--manifest") is Some(manifest_path) else {
+        fail("CSV consolidation requires --manifest LOCAL-FILE")
+      }
+      let result = @executor.stack_retained_csv(
+        binding,
+        config,
+        local_data_file(manifest_path, 65_536, "CSV stack manifest"),
+      )
+      @stdio.stderr.write(result.context().stringify() + "\n")
+      @stdio.stdout.write(result.csv)
+    }
     "tap-csv" => {
       let result = @executor.tabulate_retained_tap(
         binding,
@@ -381,6 +430,32 @@ async fn run(args : Array[String]) -> Unit {
       )
       @stdio.stderr.write(result.context().stringify() + "\n")
       @stdio.stdout.write(result.csv)
+    }
+    "edit-text" => {
+      guard options.get("--recipe") is Some(recipe_path) else {
+        fail("text editing requires --recipe LOCAL-FILE")
+      }
+      let draft = @executor.draft_retained_text(
+        binding,
+        path,
+        config,
+        local_data_file(recipe_path, 65_536, "text edit recipe"),
+      )
+      @stdio.stderr.write(draft.context().stringify() + "\n")
+      @stdio.stdout.write(draft.text)
+    }
+    "edit-csv" => {
+      guard options.get("--recipe") is Some(recipe_path) else {
+        fail("CSV editing requires --recipe LOCAL-FILE")
+      }
+      let draft = @executor.draft_retained_csv(
+        binding,
+        path,
+        config,
+        local_data_file(recipe_path, 65_536, "CSV edit recipe"),
+      )
+      @stdio.stderr.write(draft.context().stringify() + "\n")
+      @stdio.stdout.write(draft.csv)
     }
     "edit-json" => {
       guard options.get("--recipe") is Some(recipe_path) else {
