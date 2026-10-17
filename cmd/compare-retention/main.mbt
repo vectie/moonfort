@@ -59,9 +59,9 @@ async fn run(args : Array[String]) -> Unit {
   let output = StringBuilder()
   output.write_string(
     "Saved manifest comparison: " +
-    result.baseline.retention_id.to_json().stringify() +
+    ToJson::to_json(result.baseline.retention_id).stringify() +
     " -> " +
-    result.candidate.retention_id.to_json().stringify() +
+    ToJson::to_json(result.candidate.retention_id).stringify() +
     "\n",
   )
   output.write_string(
@@ -74,7 +74,7 @@ async fn run(args : Array[String]) -> Unit {
     output.write_string(
       row.change +
       " " +
-      row.path.to_json().stringify() +
+      ToJson::to_json(row.path).stringify() +
       " (byte delta \{row.byte_delta})\n",
     )
     for (label, file) in [("before", row.before), ("after", row.after)] {
@@ -92,7 +92,7 @@ async fn run(args : Array[String]) -> Unit {
   if result.has_more {
     output.write_string(
       "More rows; --after " +
-      result.next_after.to_json().stringify() +
+      ToJson::to_json(result.next_after).stringify() +
       " with the same filters.\n",
     )
   }

@@ -37,7 +37,7 @@ test "completed output protocol requires one exact signed receipt reference" {
   guard fields["reference"] is Object(reference) else {
     fail("expected reference object")
   }
-  reference["host_path"] = "/tmp/output".to_json()
+  reference["host_path"] = ToJson::to_json("/tmp/output")
   fields["reference"] = Json::object(reference)
   assert_true(
     try {

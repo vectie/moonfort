@@ -26,7 +26,10 @@ test "CSV draft public context separates original and candidate identities" {
   let context = draft.context()
   guard context is Object(fields) else { fail("object expected") }
   assert_eq(fields.get("derived_candidate"), Some(true))
-  assert_eq(fields.get("candidate_fingerprint"), Some("f".repeat(64).to_json()))
+  assert_eq(
+    fields.get("candidate_fingerprint"),
+    Some(ToJson::to_json("f".repeat(64))),
+  )
   assert_eq(fields.get("source_file"), Some(draft.file.to_json()))
   assert_false(context.stringify().contains("sensitive cell"))
   let reopened : @executor.RetentionCsvDraft = @json.from_json(draft.to_json())

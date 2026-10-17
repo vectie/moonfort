@@ -38,7 +38,7 @@ test "CSV consolidation public context and serialization preserve each source id
   let context = result.context()
   guard context is Object(fields) else { fail("expected object") }
   assert_eq(fields.get("derived_candidate"), Some(true))
-  assert_eq(fields.get("sources"), Some(result.sources.to_json()))
+  assert_eq(fields.get("sources"), Some(ToJson::to_json(result.sources)))
   assert_eq(fields.get("row_count"), Some(1))
   assert_false(context.stringify().contains("private cell content"))
   let reopened : @executor.RetentionCsvStack = @json.from_json(result.to_json())

@@ -102,7 +102,7 @@ fn list_text(list : @executor.RetentionArtifactList) -> String {
     "Saved manifest; preview/export verify the selected file. Expires at \{list.expires_at_ms} ms.\n",
   )
   for file in list.files {
-    let name = file.relative_path.to_json().stringify()
+    let name = ToJson::to_json(file.relative_path).stringify()
     let large = if file.size_bytes > list.max_export_bytes.to_int64() {
       " [over export limit]"
     } else {
@@ -116,7 +116,7 @@ fn list_text(list : @executor.RetentionArtifactList) -> String {
     output.write_string("No files on this page.\n")
   }
   if list.has_more {
-    let cursor = list.next_after.to_json().stringify()
+    let cursor = ToJson::to_json(list.next_after).stringify()
     output.write_string(
       "More files. Next cursor (JSON string): \{cursor}\nPass its literal value to --after with the same filters.\n",
     )
@@ -487,7 +487,7 @@ async fn run(args : Array[String]) -> Unit {
         let context : Json = {
           "binding": selection.binding.to_json(),
           "file": selection.file.to_json(),
-          "pointer": selection.pointer.to_json(),
+          "pointer": ToJson::to_json(selection.pointer),
           "derived_selection": true,
         }
         @stdio.stderr.write(context.stringify() + "\n")
@@ -509,14 +509,14 @@ async fn run(args : Array[String]) -> Unit {
           let output = StringBuilder()
           output.write_string(
             "Retained JSON: " +
-            preview_text(path.to_json().stringify()) +
+            preview_text(ToJson::to_json(path).stringify()) +
             "\nSHA256: " +
             page.file.fingerprint +
             "\n",
           )
           output.write_string(
             "Pointer " +
-            preview_text(pointer.to_json().stringify()) +
+            preview_text(ToJson::to_json(pointer).stringify()) +
             ": " +
             page.selected.kind +
             "; " +
@@ -534,7 +534,7 @@ async fn run(args : Array[String]) -> Unit {
           )
           for child in page.children {
             output.write_string(
-              preview_text(child.pointer.to_json().stringify()) +
+              preview_text(ToJson::to_json(child.pointer).stringify()) +
               "  " +
               child.kind +
               "  " +
@@ -602,22 +602,22 @@ async fn run(args : Array[String]) -> Unit {
         let output = StringBuilder()
         output.write_string(
           "CSV table: " +
-          preview_text(path.to_json().stringify()) +
+          preview_text(ToJson::to_json(path).stringify()) +
           "\nSHA256: " +
           result.file.fingerprint +
           "\n",
         )
         output.write_string(
           "\{result.matching_rows} matching data rows of \{result.total_rows}. Columns (one-based): " +
-          result.columns.to_json().stringify() +
+          ToJson::to_json(result.columns).stringify() +
           "\nHeaders: " +
-          preview_text(result.headers.to_json().stringify()) +
+          preview_text(ToJson::to_json(result.headers).stringify()) +
           "\n",
         )
         for row in result.rows {
           output.write_string(
             "\{row.row}: " +
-            preview_text(row.cells.to_json().stringify()) +
+            preview_text(ToJson::to_json(row.cells).stringify()) +
             "\n",
           )
         }
@@ -667,7 +667,7 @@ async fn run(args : Array[String]) -> Unit {
         let output = StringBuilder()
         output.write_string(
           "Search: " +
-          preview_text(path.to_json().stringify()) +
+          preview_text(ToJson::to_json(path).stringify()) +
           "\nSHA256: " +
           result.file.fingerprint +
           "\n",
@@ -753,7 +753,7 @@ async fn run(args : Array[String]) -> Unit {
       if json_output {
         @stdio.stdout.write(result.to_json().stringify() + "\n")
       } else {
-        let name = result.file.relative_path.to_json().stringify()
+        let name = ToJson::to_json(result.file.relative_path).stringify()
         let bytes = @base64.decode(result.content_base64)
         let text = preview_text(@utf8.decode(bytes)) catch {
           _ => "[Binary or incomplete UTF-8 page; use --json or export.]"
@@ -809,7 +809,7 @@ fn run_search_text(result : @executor.RetentionRunSearch) -> String {
   )
   output.write_string(
     "Literal query " +
-    preview_text(result.query.to_json().stringify()) +
+    preview_text(ToJson::to_json(result.query).stringify()) +
     (if result.ignore_ascii_case {
       " (ASCII case-insensitive)\n"
     } else {
@@ -819,7 +819,7 @@ fn run_search_text(result : @executor.RetentionRunSearch) -> String {
   for omission in result.skipped_files {
     output.write_string(
       "Skipped " +
-      preview_text(omission.file.relative_path.to_json().stringify()) +
+      preview_text(ToJson::to_json(omission.file.relative_path).stringify()) +
       ": " +
       omission.reason +
       (if omission.bytes_verified {
@@ -831,7 +831,7 @@ fn run_search_text(result : @executor.RetentionRunSearch) -> String {
   }
   for found in result.matches {
     output.write_string(
-      preview_text(found.file.relative_path.to_json().stringify()) +
+      preview_text(ToJson::to_json(found.file.relative_path).stringify()) +
       ":" +
       found.hit.line.to_string() +
       ": " +
@@ -846,7 +846,7 @@ fn run_search_text(result : @executor.RetentionRunSearch) -> String {
   if result.has_more {
     output.write_string(
       "More matches. Next path (JSON string): " +
-      preview_text(result.next_after_path.to_json().stringify()) +
+      preview_text(ToJson::to_json(result.next_after_path).stringify()) +
       "; line: " +
       result.next_after_line.to_string() +
       "\nPass the literal path to --after-path and the line to --after-line; keep the same query, case mode and filters.\n",
