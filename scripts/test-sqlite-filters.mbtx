@@ -1,0 +1,23 @@
+import {
+  "moonbitlang/async@0.20.2",
+  "moonbitlang/async@0.20.2/fs",
+  "moonbitlang/async@0.20.2/process",
+  "moonbitlang/core/env",
+}
+
+///|
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 else { fail("ABSOLUTE_SOURCE_ROOT FRESH_EVIDENCE_DIRECTORY") }
+  let (status, out, err) = @process.collect_output(
+    "/usr/bin/python3",
+    [args[1] + "/scripts/test-sqlite-filters.py"],
+    extra_env={
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "MOONFORT_SQLITE_EVIDENCE": args[2],
+    },
+  )
+  @fs.write_file(args[2] + "/suite.log", out.text() + err.text(), create_mode=CreateNew)
+  assert_eq(status, 0, msg=err.text())
+  println("Typed SQLite CLI filter journeys passed; evidence: " + args[2])
+}

@@ -1,5 +1,8 @@
 # Browse retained generated files
 
+Plain-text files can be edited into separate fingerprint-bound candidates with
+[`edit-text`](RETAINED_TEXT_EDITING.md). Original bytes and receipts stay intact.
+
 `browse-retention` opens the ordinary files a completed run retained for review.
 Use it when a task produces a report, CSV, JSON, image, or other generated file
 and the receipt's path list is not enough to inspect the result. The separate
@@ -127,3 +130,6 @@ macOS, production deployment, or a wider test-suite pass.
 For numeric durations or quantities, [decimal CSV aggregation](RETAINED_CSV_AGGREGATES.md)
 provides exact grouped totals, min/max/mean, explicit missing counts, a whole-report
 total, and original source-row drillback through `aggregate-csv`.
+
+For retained browser exports, [HAR request exploration](RETAINED_HAR_REQUESTS.md)
+selects request timings and statuses into a CSV with original-entry drillback.

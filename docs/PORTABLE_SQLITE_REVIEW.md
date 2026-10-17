@@ -74,8 +74,15 @@ row for drillback to this exact database fingerprint. They are not portable
 record identities across database revisions. If every rowid alias is shadowed,
 row browsing refuses; schema inspection remains available.
 
+To inspect schema changes first, use [retained schema comparison and both-side row navigation](PORTABLE_SQLITE_SCHEMA_COMPARISON.md).
+
 For two database revisions, use [typed-key snapshot comparison](PORTABLE_SQLITE_COMPARISON.md)
 to compare complete bounded table projections and retain both sides’ locators.
+
+To find meaningful subsets before paging records, use [grouped summaries and
+member drillback](PORTABLE_SQLITE_SUMMARIES.md). An editable pinned recipe selects
+group keys, numeric measures and filters; exact source locators connect a summary
+back to its original stored rows.
 
 ## Typed cells and CSV readback
 
@@ -168,3 +175,9 @@ The native ZIP producer, original workload, real executor, local/AEN containment
 browser, provider, hardware and full product are not executed or requalified.
 No Moon command or dependency install is needed. R50 remains the last fully
 verified cumulative checkpoint; R51–55 are separate.
+# Custom questions
+
+The [read-only custom SQL workflow](PORTABLE_SQLITE_QUERY.md) supports explicit
+SQL files, typed parameters, joins and derived columns over the same retained
+in-memory copy. Results are complete within declared bounds or refused; query
+support does not authorize mutation, execution or artifact promotion.

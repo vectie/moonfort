@@ -157,3 +157,10 @@ a new one. No native producer, original workload, real executor, browser,
 local/AEN containment, provider, hardware, or full product was requalified.
 No Moon command or dependency install is needed. R50 remains the last fully
 verified cumulative checkpoint; R51–55 are separate.
+
+## Optional interactive review
+
+The [fixed-copy local workbench](PORTABLE_SQLITE_WORKBENCH.md) provides table,
+typed-filter, paging, forward/reverse-reference and Back controls without manually
+copying locator JSON. It retains the same database reader and limits; its focused
+HTTP/DOM tests are not graphical-browser qualification.
