@@ -48,7 +48,7 @@ fn retained_csv_key_index(
     }
     // Encoding the tuple avoids collisions between compound keys containing
     // separators, quotes, or embedded newlines.
-    let identity = key.to_json().stringify()
+    let identity = ToJson::to_json(key).stringify()
     if index.get(identity) is Some(previous) {
       fail(
         "\{side} CSV data row \{row} repeats the key of data row \{previous}",
@@ -242,7 +242,7 @@ pub fn RetentionCsvComparison::to_csv(
     for column in entry.changed_columns {
       write([
         entry.change,
-        entry.key.to_json().stringify(),
+        ToJson::to_json(entry.key).stringify(),
         entry.before_row.map(row => row.to_string()).unwrap_or(""),
         entry.after_row.map(row => row.to_string()).unwrap_or(""),
         column.to_string(),
@@ -266,14 +266,14 @@ pub fn RetentionCsvComparison::context(self : RetentionCsvComparison) -> Json {
     "candidate": self.candidate.to_json(),
     "before_file": self.before_file.to_json(),
     "after_file": self.after_file.to_json(),
-    "key_columns": self.key_columns.to_json(),
-    "headers": self.headers.to_json(),
-    "baseline_rows": self.baseline_rows.to_json(),
-    "candidate_rows": self.candidate_rows.to_json(),
-    "added": self.added.to_json(),
-    "removed": self.removed.to_json(),
-    "changed": self.changed.to_json(),
-    "unchanged": self.unchanged.to_json(),
+    "key_columns": ToJson::to_json(self.key_columns),
+    "headers": ToJson::to_json(self.headers),
+    "baseline_rows": ToJson::to_json(self.baseline_rows),
+    "candidate_rows": ToJson::to_json(self.candidate_rows),
+    "added": ToJson::to_json(self.added),
+    "removed": ToJson::to_json(self.removed),
+    "changed": ToJson::to_json(self.changed),
+    "unchanged": ToJson::to_json(self.unchanged),
   }
 }
 

@@ -72,7 +72,7 @@ fn trusted_aen_binding_digest(config : TrustedAenConfig) -> String {
 fn trusted_local_binding_digest(bindings : Map[String, String]) -> String {
   @crypto.bytes_to_hex_string(
     @crypto.sha256(
-      @utf8.encode(sorted_map_entries(bindings).to_json().stringify()),
+      @utf8.encode(ToJson::to_json(sorted_map_entries(bindings)).stringify()),
     ),
   )
 }

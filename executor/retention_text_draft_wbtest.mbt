@@ -4,10 +4,10 @@ fn text_draft_recipe(source : Bytes, operations : Array[Json]) -> Bytes {
     (
       {
         "version": 1,
-        "source_fingerprint": @crypto.bytes_to_hex_string(
-          @crypto.sha256(source),
-        ).to_json(),
-        "operations": operations.to_json(),
+        "source_fingerprint": ToJson::to_json(
+          @crypto.bytes_to_hex_string(@crypto.sha256(source)),
+        ),
+        "operations": ToJson::to_json(operations),
       } : Json).stringify() +
     "\n",
   )
@@ -207,7 +207,7 @@ test "text draft refuses stale ranges overlaps duplicate anchors and malformed r
         "start_line": 2,
         "end_line": 2,
         "expected": "",
-        "replacement": "b".repeat(13000).to_json(),
+        "replacement": ToJson::to_json("b".repeat(13000)),
       },
     ])
     |> ignore
@@ -269,11 +269,11 @@ async test "native text draft exports reusable candidate context and refuses wit
   let context = @json.parse(err.text())
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(out.binary())).to_json(),
+    ToJson::to_json(@crypto.bytes_to_hex_string(@crypto.sha256(out.binary()))),
   )
   assert_eq(
     retained_json_at(context, "/recipe_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(recipe)).to_json(),
+    ToJson::to_json(@crypto.bytes_to_hex_string(@crypto.sha256(recipe))),
   )
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(retained_json_at(context, "/source_lines"), 4)

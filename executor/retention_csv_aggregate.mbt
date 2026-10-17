@@ -103,7 +103,7 @@ fn aggregate_csv_records(
   let index : Map[String, Int] = Map([])
   for row in 1..<records.length() {
     let cells = group_by.map(column => records[row][column - 1])
-    let identity = cells.to_json().stringify()
+    let identity = ToJson::to_json(cells).stringify()
     let position = match index.get(identity) {
       Some(position) => position
       None => {
@@ -268,16 +268,16 @@ pub fn RetentionCsvAggregate::context(self : RetentionCsvAggregate) -> Json {
     "derivation": "moonfort-csv-decimal-aggregate-v1",
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
-    "group_by": self.group_by.to_json(),
-    "value_column": self.value_column.to_json(),
-    "source_rows": self.source_rows.to_json(),
-    "group_count": self.group_count.to_json(),
+    "group_by": ToJson::to_json(self.group_by),
+    "value_column": ToJson::to_json(self.value_column),
+    "source_rows": ToJson::to_json(self.source_rows),
+    "group_count": ToJson::to_json(self.group_count),
     "decimal_places": 6,
     "mean_rounding": "half-away-from-zero",
     "blank_values": "excluded-from-numeric-statistics",
     "order": "sum-descending-then-first-source-row-missing-last",
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

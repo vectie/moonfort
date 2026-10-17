@@ -189,11 +189,15 @@ async test "compiled JUnit browser exports repeatable CSV and drills into origin
   assert_eq(retained_json_at(context, "/row_count"), (6 : Json))
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/source_file/fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(junit_example))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(junit_example))),
+    ),
   )
   let (again, repeated, repeated_context) = @process.collect_output(
     executable,

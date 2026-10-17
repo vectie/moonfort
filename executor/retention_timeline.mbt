@@ -75,7 +75,7 @@ fn retained_timeline_mapping(
   retained_edit_tokens(timestamp) |> ignore
   let (_, selected) = retained_json_columns(
     @utf8.encode(
-      ({ "version": 1, "rows": "", "columns": columns.to_json() } : Json).stringify(),
+      ({ "version": 1, "rows": "", "columns": ToJson::to_json(columns) } : Json).stringify(),
     ),
   )
   guard selected.length() <= 61 &&
@@ -182,7 +182,8 @@ pub async fn merge_retained_timeline(
     let (rows, lines, physical, blanks, values) = retained_jsonl_rows_counted(
       text, skip_blank_lines, total_values,
     ) catch {
-      error => fail("timeline file \{path.to_json().stringify()}: \{error}")
+      error =>
+        fail("timeline file \{ToJson::to_json(path).stringify()}: \{error}")
     }
     total_lines += physical
     guard total_lines <= 20_000 else {
@@ -207,7 +208,7 @@ pub async fn merge_retained_timeline(
       } catch {
         error =>
           fail(
-            "timeline file \{path.to_json().stringify()} source line \{lines[index]}: \{error}",
+            "timeline file \{ToJson::to_json(path).stringify()} source line \{lines[index]}: \{error}",
           )
       }
       events.push({ timestamp, path, line: lines[index], value: row, })
@@ -272,21 +273,21 @@ pub fn RetentionTimeline::context(self : RetentionTimeline) -> Json {
     "derivation": "moonfort-retained-jsonl-timeline-v1",
     "binding": self.binding.to_json(),
     "sources": self.sources.to_json(),
-    "mapping_fingerprint": self.mapping_fingerprint.to_json(),
-    "timestamp_pointer": self.timestamp_pointer.to_json(),
+    "mapping_fingerprint": ToJson::to_json(self.mapping_fingerprint),
+    "timestamp_pointer": ToJson::to_json(self.timestamp_pointer),
     "timestamp_format": "YYYY-MM-DDTHH:mm:ss.SSSZ",
     "order": "timestamp-ascending-then-path-then-physical-line",
-    "columns": self.columns.to_json(),
-    "skip_blank_lines": self.skip_blank_lines.to_json(),
-    "total_lines": self.total_lines.to_json(),
-    "row_count": self.row_count.to_json(),
-    "blank_lines_skipped": self.blank_lines_skipped.to_json(),
-    "missing_cells": self.missing_cells.to_json(),
-    "null_cells": self.null_cells.to_json(),
-    "first_timestamp": self.first_timestamp.to_json(),
-    "last_timestamp": self.last_timestamp.to_json(),
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "columns": ToJson::to_json(self.columns),
+    "skip_blank_lines": ToJson::to_json(self.skip_blank_lines),
+    "total_lines": ToJson::to_json(self.total_lines),
+    "row_count": ToJson::to_json(self.row_count),
+    "blank_lines_skipped": ToJson::to_json(self.blank_lines_skipped),
+    "missing_cells": ToJson::to_json(self.missing_cells),
+    "null_cells": ToJson::to_json(self.null_cells),
+    "first_timestamp": ToJson::to_json(self.first_timestamp),
+    "last_timestamp": ToJson::to_json(self.last_timestamp),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

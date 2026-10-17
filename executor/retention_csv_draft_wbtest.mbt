@@ -2,8 +2,10 @@
 fn csv_draft_recipe(source : Bytes, operations : Array[Json]) -> Bytes {
   let recipe : Json = {
     "version": 1,
-    "source_fingerprint": @crypto.bytes_to_hex_string(@crypto.sha256(source)).to_json(),
-    "operations": operations.to_json(),
+    "source_fingerprint": ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(source)),
+    ),
+    "operations": ToJson::to_json(operations),
   }
   @utf8.encode(recipe.stringify() + "\n")
 }
@@ -92,11 +94,11 @@ test "CSV draft rejects malformed recipes and non-string or ambiguous coordinate
     [{ "op": "append-row", "cells": [1] }],
     [{ "op": "append-row", "cells": [] }],
     [{ "op": "append-row", "cells": ["\u{0}"] }],
-    [{ "op": "append-row", "cells": ["x".repeat(16_385).to_json()] }],
+    [{ "op": "append-row", "cells": [ToJson::to_json("x".repeat(16_385))] }],
     [
       {
         "op": "append-row",
-        "cells": Array::make(65, Json::string("")).to_json(),
+        "cells": ToJson::to_json(Array::make(65, Json::string(""))),
       },
     ],
     Array::make(101, Json::object({ "op": "remove-row", "row": 1 })),
@@ -301,11 +303,13 @@ async test "compiled CSV editing exports repeatable reusable candidates and no o
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/source_file/fingerprint"),
-    page.file.fingerprint.to_json(),
+    ToJson::to_json(page.file.fingerprint),
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let reopened = config.scratch_root + "/candidate.csv"
   @fs.write_file(reopened, output.binary(), create_mode=CreateNew)
@@ -357,7 +361,10 @@ async test "compiled CSV editing exports repeatable reusable candidates and no o
         ("local-edits.json", recipe),
         ("candidate.csv", output.binary()),
         ("candidate.context.json", errors.binary()),
-        ("comparison.json", @utf8.encode(changes.to_json().stringify() + "\n")),
+        (
+          "comparison.json",
+          @utf8.encode(ToJson::to_json(changes).stringify() + "\n"),
+        ),
       ] {
       @fs.write_file(root + "/" + name, bytes, create_mode=CreateOrTruncate)
     }

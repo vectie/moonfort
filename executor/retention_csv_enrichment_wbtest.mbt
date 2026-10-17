@@ -294,19 +294,25 @@ async test "compiled CSV enrichment joins local ownership data and reopens reusa
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/source_file/fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/lookup_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(lookup))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(lookup))),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_size_bytes"),
-    output.binary().length().to_json(),
+    ToJson::to_json(output.binary().length()),
   )
   assert_eq(retained_json_at(context, "/matched_rows"), (3 : Json))
   assert_eq(retained_json_at(context, "/unmatched_rows"), (1 : Json))

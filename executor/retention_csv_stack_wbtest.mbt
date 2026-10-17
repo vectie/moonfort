@@ -4,16 +4,18 @@ fn csv_stack_manifest(files : Array[(String, Bytes)]) -> Bytes {
     (
       {
         "version": 1,
-        "files": files
-        .map(pair => {
-          let (path, bytes) = pair
-          (
-            {
-              "path": path.to_json(),
-              "fingerprint": @crypto.bytes_to_hex_string(@crypto.sha256(bytes)).to_json(),
-            } : Json)
-        })
-        .to_json(),
+        "files": ToJson::to_json(
+          files.map(pair => {
+            let (path, bytes) = pair
+            (
+              {
+                "path": ToJson::to_json(path),
+                "fingerprint": ToJson::to_json(
+                  @crypto.bytes_to_hex_string(@crypto.sha256(bytes)),
+                ),
+              } : Json)
+          }),
+        ),
       } : Json).stringify() +
     "\n",
   )
@@ -355,16 +357,16 @@ async test "compiled CSV stack connects inventory consolidation downstream rollu
     (
       {
         "version": 1,
-        "files": files
-        .map(pair => {
-          let file = list.files.filter(file => file.relative_path == pair.0)[0]
-          (
-            {
-              "path": file.relative_path.to_json(),
-              "fingerprint": file.fingerprint.to_json(),
-            } : Json)
-        })
-        .to_json(),
+        "files": ToJson::to_json(
+          files.map(pair => {
+            let file = list.files.filter(file => file.relative_path == pair.0)[0]
+            (
+              {
+                "path": ToJson::to_json(file.relative_path),
+                "fingerprint": ToJson::to_json(file.fingerprint),
+              } : Json)
+          }),
+        ),
       } : Json).stringify() +
     "\n",
   )
@@ -384,7 +386,9 @@ async test "compiled CSV stack connects inventory consolidation downstream rollu
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let candidate_path = config.scratch_root + "/combined.csv"
   @fs.write_file(candidate_path, output.binary(), create_mode=CreateNew)

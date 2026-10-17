@@ -298,11 +298,13 @@ async test "compiled CSV summary ranks diagnostic groups exports context and dri
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_size_bytes"),
-    output.binary().length().to_json(),
+    ToJson::to_json(output.binary().length()),
   )
   assert_eq(retained_json_at(context, "/matching_rows"), (5 : Json))
   assert_eq(retained_json_at(context, "/source_rows"), (7 : Json))

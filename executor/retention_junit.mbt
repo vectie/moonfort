@@ -75,15 +75,15 @@ pub fn RetentionJunitTable::context(self : RetentionJunitTable) -> Json {
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
     "source_line_column": "__source_line",
-    "row_count": self.row_count.to_json(),
-    "passed": self.passed.to_json(),
-    "failed": self.failed.to_json(),
-    "errors": self.errors.to_json(),
-    "skipped": self.skipped.to_json(),
+    "row_count": ToJson::to_json(self.row_count),
+    "passed": ToJson::to_json(self.passed),
+    "failed": ToJson::to_json(self.failed),
+    "errors": ToJson::to_json(self.errors),
+    "skipped": ToJson::to_json(self.skipped),
     "counts_from": "testcase outcomes; declared suite totals are not used",
     "omitted_metadata": ["properties", "system-out", "system-err"],
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

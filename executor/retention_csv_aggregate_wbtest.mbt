@@ -245,7 +245,9 @@ async test "compiled decimal rollup exports ranked groups total and original evi
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let (again, repeated, repeated_context) = @process.collect_output(
     executable,

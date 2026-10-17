@@ -186,7 +186,9 @@ async test "compiled LCOV command filters uncovered observations with atomic ref
   assert_eq(retained_json_at(context, "/row_count"), (1 : Json))
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let (all_code, all_output, all_context) = @process.collect_output(
     executable,

@@ -194,7 +194,7 @@ async test "retained JSON protocol pages advance and large selections remain exp
   let source = Json::array(
     [
       for index in 0..<60 => {
-        ("月🌙".repeat(100) + index.to_string()).to_json()
+        ToJson::to_json("月🌙".repeat(100) + index.to_string())
       }
     ],
   ).stringify()
@@ -368,7 +368,7 @@ async test "compiled retained JSON CLI browses extracts and reopens with provena
       assert_eq(retained_json_at(context, "/binding"), binding.to_json())
       assert_eq(
         retained_json_at(context, "/file/relative_path"),
-        "report.json".to_json(),
+        ToJson::to_json("report.json"),
       )
       let reopened = parse_retained_json(out.text())
       if label == "selected.json" {
@@ -383,7 +383,7 @@ async test "compiled retained JSON CLI browses extracts and reopens with provena
       } else if label == "null.json" {
         assert_eq(reopened, (null : Json))
       } else {
-        assert_eq(reopened, "kept".to_json())
+        assert_eq(reopened, ToJson::to_json("kept"))
       }
     }
     if @env.get_env_var("MOONFORT_JSON_EVIDENCE") is Some(root) {

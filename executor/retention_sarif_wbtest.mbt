@@ -135,8 +135,8 @@ test "SARIF reports unsupported or unresolved evidence and bounds repeated rows"
         "tool": { "driver": { "name": "test" } },
         "results": [
           {
-            "message": { "text": "x".repeat(16000).to_json() },
-            "locations": Array::make(70, ({} : Json)).to_json(),
+            "message": { "text": ToJson::to_json("x".repeat(16000)) },
+            "locations": ToJson::to_json(Array::make(70, ({} : Json))),
           },
         ],
       },
@@ -220,7 +220,9 @@ async test "compiled SARIF browser exports repeatably and reopens result through
   assert_eq(retained_json_at(context, "/row_count"), (4 : Json))
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let (again, repeated, repeated_context) = @process.collect_output(
     executable,

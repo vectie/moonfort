@@ -5,8 +5,11 @@ fn json_csv_mapping(
 ) -> Bytes {
   @utf8.encode(
     (
-      { "version": 1, "rows": pointer.to_json(), "columns": columns.to_json() } :
-      Json).stringify(),
+      {
+        "version": 1,
+        "rows": ToJson::to_json(pointer),
+        "columns": ToJson::to_json(columns),
+      } : Json).stringify(),
   )
 }
 
@@ -118,7 +121,7 @@ test "JSON CSV rejects malformed mappings traversal containers and oversized out
     }
   }
   try
-    retained_json_csv(Json::array(["x".repeat(16_385).to_json()]), [
+    retained_json_csv(Json::array([ToJson::to_json("x".repeat(16_385))]), [
       { ..column, pointer: "", },
     ])
     |> ignore
@@ -127,7 +130,9 @@ test "JSON CSV rejects malformed mappings traversal containers and oversized out
   } noraise {
     _ => fail("expected retained-artifact operation to reject input")
   }
-  let repeated = Json::array(Array::make(100, "x".repeat(16_000).to_json()))
+  let repeated = Json::array(
+    Array::make(100, ToJson::to_json("x".repeat(16_000))),
+  )
   try
     retained_json_csv(repeated, [{ ..column, pointer: "", }]) |> ignore
   catch {
@@ -161,7 +166,10 @@ async test "JSON CSV binds source mapping and candidate without changing retaine
   )
   assert_eq(table.candidate_size_bytes, @utf8.encode(table.csv).length())
   assert_eq((table.row_count, table.missing_cells, table.null_cells), (3, 1, 1))
-  assert_eq(retained_json_at(table.context(), "/pointer"), "/checks".to_json())
+  assert_eq(
+    retained_json_at(table.context(), "/pointer"),
+    ToJson::to_json("/checks"),
+  )
   assert_eq(
     retained_json_at(table.context(), "/derived_candidate"),
     (true : Json),
@@ -280,19 +288,23 @@ async test "compiled JSON CSV exports and reopens nested report rows with contex
   assert_eq(retained_json_at(context, "/binding"), binding.to_json())
   assert_eq(
     retained_json_at(context, "/source_file/fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(source))),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/mapping_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(mapping)).to_json(),
+    ToJson::to_json(@crypto.bytes_to_hex_string(@crypto.sha256(mapping))),
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_size_bytes"),
-    output.binary().length().to_json(),
+    ToJson::to_json(output.binary().length()),
   )
   assert_eq(retained_json_at(context, "/row_count"), (2 : Json))
   assert_eq(retained_json_at(context, "/missing_cells"), (1 : Json))

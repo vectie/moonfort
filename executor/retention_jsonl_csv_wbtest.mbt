@@ -1,7 +1,7 @@
 ///|
 fn jsonl_csv_mapping(columns : Array[RetentionJsonColumn]) -> Bytes {
   @utf8.encode(
-    ({ "version": 1, "columns": columns.to_json() } : Json).stringify(),
+    ({ "version": 1, "columns": ToJson::to_json(columns) } : Json).stringify(),
   )
 }
 
@@ -237,7 +237,9 @@ test "JSONL mapping and aggregate value line candidate budgets remain bounded" {
   } noraise {
     _ => fail("expected retained-artifact operation to reject input")
   }
-  let repeated = Json::array(Array::make(100, "x".repeat(16_000).to_json()))
+  let repeated = Json::array(
+    Array::make(100, ToJson::to_json("x".repeat(16_000))),
+  )
   try
     retained_json_csv(
       repeated,
@@ -293,7 +295,7 @@ async test "JSONL API binds exact source mapping candidate and leaves originals 
   )
   assert_eq(
     retained_json_at(table.context(), "/source_line_column"),
-    "__source_line".to_json(),
+    ToJson::to_json("__source_line"),
   )
   assert_eq(
     retained_json_at(table.context(), "/skip_blank_lines"),
@@ -441,7 +443,9 @@ async test "compiled JSONL browser exports reopens drills back and refuses parti
   assert_eq(retained_json_at(context, "/blank_lines_skipped"), (1 : Json))
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(output.binary())),
+    ),
   )
   let reopened = config.scratch_root + "/candidate.csv"
   @fs.write_file(reopened, output.binary(), create_mode=CreateNew)

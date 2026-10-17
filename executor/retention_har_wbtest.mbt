@@ -202,7 +202,7 @@ test "HAR validates excluded entries and refuses malformed or unbounded metrics"
     "/log/entries/0",
   )
   let wrap = fn(entries : Array[Json]) -> Json {
-    { "log": { "version": "1.2", "entries": entries.to_json() } }
+    { "log": { "version": "1.2", "entries": ToJson::to_json(entries) } }
   }
   try retained_har_csv(wrap(Array::make(5001, entry))) |> ignore catch {
     _ => ()
@@ -330,7 +330,7 @@ async test "compiled HAR journey connects inventory selection CSV reopen and ori
   let metadata = @json.parse(context.text())
   assert_eq(
     retained_json_at(metadata, "/candidate_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(csv.binary())).to_json(),
+    ToJson::to_json(@crypto.bytes_to_hex_string(@crypto.sha256(csv.binary()))),
   )
   let saved = config.scratch_root + "/requests.csv"
   @fs.write_file(saved, csv.binary(), create_mode=CreateNew)

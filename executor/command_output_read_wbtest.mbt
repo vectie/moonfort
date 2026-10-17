@@ -96,7 +96,7 @@ async test "output reader rejects invalid cursors requests and receipt bindings"
     assert_false(response.to_json().stringify().contains(config.retention_root))
   }
   guard request.to_json() is Object(fields) else { fail("expected object") }
-  fields["path"] = "/tmp/untrusted".to_json()
+  fields["path"] = ToJson::to_json("/tmp/untrusted")
   assert_true(
     try {
       ignore(decode_command_output_read_request(Json::object(fields)))
@@ -293,8 +293,8 @@ async fn test_output_reader_cli(
   assert_eq(page_code, 0)
   let page = @json.parse(@utf8.decode(page_stdout.binary()))
   guard page is Object(fields) else { fail("CLI page must be an object") }
-  assert_eq(fields["status"], "available".to_json())
-  assert_eq(fields["next_offset"], "32768".to_json())
+  assert_eq(fields["status"], ToJson::to_json("available"))
+  assert_eq(fields["next_offset"], ToJson::to_json("32768"))
   let partial = { ..request, offset: 1L, }
   @fs.write_file(
     request_path,

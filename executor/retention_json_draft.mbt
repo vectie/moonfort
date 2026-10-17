@@ -206,10 +206,10 @@ pub fn RetentionJsonDraft::context(self : RetentionJsonDraft) -> Json {
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
     "recipe_format": "moonfort-json-edits-v1",
-    "recipe_fingerprint": self.recipe_fingerprint.to_json(),
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
-    "operation_count": self.operation_count.to_json(),
+    "recipe_fingerprint": ToJson::to_json(self.recipe_fingerprint),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
+    "operation_count": ToJson::to_json(self.operation_count),
   }
 }
 

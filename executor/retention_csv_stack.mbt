@@ -88,7 +88,10 @@ fn stack_retained_csv_records(
   let mut rows = 0
   for (path, records) in tables {
     guard records.get(0) is Some(actual) && actual == headers else {
-      fail("CSV stack ordered headers differ at " + path.to_json().stringify())
+      fail(
+        "CSV stack ordered headers differ at " +
+        ToJson::to_json(path).stringify(),
+      )
     }
     guard rows + records.length() - 1 <= 20_000 else {
       fail("CSV stack candidate exceeds 20000 data rows")
@@ -133,13 +136,13 @@ pub async fn stack_retained_csv(
       file.size_bytes <= 1_048_576L else {
       fail(
         "CSV stack requires retained files of at most 1 MiB: " +
-        path.to_json().stringify(),
+        ToJson::to_json(path).stringify(),
       )
     }
     guard file.fingerprint == fingerprint else {
       fail(
         "CSV stack manifest fingerprint is stale at " +
-        path.to_json().stringify(),
+        ToJson::to_json(path).stringify(),
       )
     }
     file
@@ -159,7 +162,7 @@ pub async fn stack_retained_csv(
       error =>
         fail(
           "CSV stack source " +
-          file.relative_path.to_json().stringify() +
+          ToJson::to_json(file.relative_path).stringify() +
           ": \{error}",
         )
     }
@@ -199,12 +202,12 @@ pub fn RetentionCsvStack::context(self : RetentionCsvStack) -> Json {
     "derived_candidate": true,
     "derivation": "moonfort-csv-stack-v1",
     "binding": self.binding.to_json(),
-    "sources": self.sources.to_json(),
-    "manifest_fingerprint": self.manifest_fingerprint.to_json(),
-    "manifest_size_bytes": self.manifest_size_bytes.to_json(),
-    "row_count": self.row_count.to_json(),
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "sources": ToJson::to_json(self.sources),
+    "manifest_fingerprint": ToJson::to_json(self.manifest_fingerprint),
+    "manifest_size_bytes": ToJson::to_json(self.manifest_size_bytes),
+    "row_count": ToJson::to_json(self.row_count),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
     "ordering": "manifest-file-order-then-original-logical-data-row",
     "locators": ["__source_path", "__source_row"],
     "duplicates": "preserved",

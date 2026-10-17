@@ -34,7 +34,7 @@ fn retained_jsonl_columns(mapping : Bytes) -> Array[RetentionJsonColumn] raise {
   // every nonblank physical line is one complete JSON value and one CSV row.
   let (_, selected) = retained_json_columns(
     @utf8.encode(
-      ({ "version": 1, "rows": "", "columns": columns.to_json() } : Json).stringify(),
+      ({ "version": 1, "rows": "", "columns": ToJson::to_json(columns) } : Json).stringify(),
     ),
   )
   guard selected.length() <= 63 &&
@@ -178,17 +178,17 @@ pub fn RetentionJsonLinesTable::context(self : RetentionJsonLinesTable) -> Json 
     "derivation": "moonfort-jsonl-csv-v1",
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
-    "mapping_fingerprint": self.mapping_fingerprint.to_json(),
+    "mapping_fingerprint": ToJson::to_json(self.mapping_fingerprint),
     "source_line_column": "__source_line",
-    "columns": self.columns.to_json(),
-    "total_lines": self.total_lines.to_json(),
-    "row_count": self.row_count.to_json(),
-    "skip_blank_lines": self.skip_blank_lines.to_json(),
-    "blank_lines_skipped": self.blank_lines_skipped.to_json(),
-    "missing_cells": self.missing_cells.to_json(),
-    "null_cells": self.null_cells.to_json(),
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "columns": ToJson::to_json(self.columns),
+    "total_lines": ToJson::to_json(self.total_lines),
+    "row_count": ToJson::to_json(self.row_count),
+    "skip_blank_lines": ToJson::to_json(self.skip_blank_lines),
+    "blank_lines_skipped": ToJson::to_json(self.blank_lines_skipped),
+    "missing_cells": ToJson::to_json(self.missing_cells),
+    "null_cells": ToJson::to_json(self.null_cells),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

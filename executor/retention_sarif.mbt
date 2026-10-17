@@ -311,17 +311,17 @@ pub fn RetentionSarifTable::context(self : RetentionSarifTable) -> Json {
     "source_file": self.file.to_json(),
     "result_pointer_column": "__result_pointer",
     "location_pointer_column": "__location_pointer",
-    "run_count": self.run_count.to_json(),
-    "result_count": self.result_count.to_json(),
-    "row_count": self.row_count.to_json(),
+    "run_count": ToJson::to_json(self.run_count),
+    "result_count": ToJson::to_json(self.result_count),
+    "row_count": ToJson::to_json(self.row_count),
     "row_semantics": "one row per primary location; one blank-location row for locationless results",
     "severity_semantics": "declared result level and driver rule default only; effective severity is not computed",
     "uri_semantics": "run artifact indexes resolved; URI/base ID preserved, not fetched or made absolute",
     "omitted_metadata": [
       "fixes", "codeFlows", "relatedLocations", "properties", "invocations", "logicalLocations",
     ],
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

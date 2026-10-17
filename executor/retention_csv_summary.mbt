@@ -57,7 +57,7 @@ fn summarize_csv_records(
     matching_rows += 1
     let key = group_by.map(column => cells[column - 1])
     // JSON tuples preserve boundaries even for commas, quotes and newlines.
-    let identity = key.to_json().stringify()
+    let identity = ToJson::to_json(key).stringify()
     match index.get(identity) {
       Some(position) => groups[position].count += 1
       None => {
@@ -152,16 +152,16 @@ pub fn RetentionCsvSummary::context(self : RetentionCsvSummary) -> Json {
     "derivation": "moonfort-csv-frequency-v1",
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
-    "group_by": self.group_by.to_json(),
-    "where_column": self.where_column.to_json(),
-    "equals": self.equals.to_json(),
-    "source_rows": self.source_rows.to_json(),
-    "matching_rows": self.matching_rows.to_json(),
-    "excluded_rows": (self.source_rows - self.matching_rows).to_json(),
-    "group_count": self.group_count.to_json(),
+    "group_by": ToJson::to_json(self.group_by),
+    "where_column": ToJson::to_json(self.where_column),
+    "equals": ToJson::to_json(self.equals),
+    "source_rows": ToJson::to_json(self.source_rows),
+    "matching_rows": ToJson::to_json(self.matching_rows),
+    "excluded_rows": ToJson::to_json(self.source_rows - self.matching_rows),
+    "group_count": ToJson::to_json(self.group_count),
     "order": "count-descending-then-first-source-row",
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

@@ -150,7 +150,7 @@ fn retained_json_csv(
             Some(lines) =>
               match source_paths {
                 Some(paths) =>
-                  "JSONL file \{paths[row_index].to_json().stringify()} source line \{lines[row_index]}"
+                  "JSONL file \{ToJson::to_json(paths[row_index]).stringify()} source line \{lines[row_index]}"
                 None => "JSONL source line \{lines[row_index]}"
               }
             None => "JSON table row \{row_index + 1}"
@@ -214,14 +214,14 @@ pub fn RetentionJsonTable::context(self : RetentionJsonTable) -> Json {
     "derivation": "moonfort-json-csv-v1",
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
-    "mapping_fingerprint": self.mapping_fingerprint.to_json(),
-    "pointer": self.pointer.to_json(),
-    "columns": self.columns.to_json(),
-    "row_count": self.row_count.to_json(),
-    "missing_cells": self.missing_cells.to_json(),
-    "null_cells": self.null_cells.to_json(),
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "mapping_fingerprint": ToJson::to_json(self.mapping_fingerprint),
+    "pointer": ToJson::to_json(self.pointer),
+    "columns": ToJson::to_json(self.columns),
+    "row_count": ToJson::to_json(self.row_count),
+    "missing_cells": ToJson::to_json(self.missing_cells),
+    "null_cells": ToJson::to_json(self.null_cells),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

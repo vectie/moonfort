@@ -328,15 +328,15 @@ pub fn RetentionHarTable::context(self : RetentionHarTable) -> Json {
     "derivation": "moonfort-har-requests-v1",
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
-    "entry_count": self.entry_count.to_json(),
-    "row_count": self.row_count.to_json(),
+    "entry_count": ToJson::to_json(self.entry_count),
+    "row_count": ToJson::to_json(self.row_count),
     "selection": {
-      "method": self.http_method.to_json(),
+      "method": ToJson::to_json(self.http_method),
       "status": match self.status {
-        Some(value) => value.to_json()
+        Some(value) => ToJson::to_json(value)
         None => Json::null()
       },
-      "minimum_ms": self.minimum_ms.to_json(),
+      "minimum_ms": ToJson::to_json(self.minimum_ms),
     },
     "entry_pointer_column": "__entry_pointer",
     "order": "original log.entries order; timestamps are verbatim labels, not parsed or sorted",
@@ -348,8 +348,8 @@ pub fn RetentionHarTable::context(self : RetentionHarTable) -> Json {
       "pages", "cache", "serverIPAddress", "connection", "custom fields",
     ],
     "privacy": "URLs remain verbatim and may contain private query strings or credentials; this candidate and the unchanged original are not sanitized for sharing",
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 

@@ -158,7 +158,7 @@ async test "export five real locked promotion inspection fixtures for Claw hosts
   }
   @fs.write_file(
     root + "/cases.json",
-    cases.to_json().stringify(),
+    ToJson::to_json(cases).stringify(),
     create_mode=CreateNew,
     permission=0o600,
   )

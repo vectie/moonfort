@@ -15,7 +15,7 @@ test "JSON draft edits ordinary objects arrays and escaped keys without aliasing
   )
   assert_eq(retained_json_at(edited, "/a~1b/~0tag"), (null : Json))
   assert_eq(retained_json_at(edited, "/01").stringify(), "-0")
-  assert_eq(retained_json_at(edited, "/"), "月🌙".to_json())
+  assert_eq(retained_json_at(edited, "/"), ToJson::to_json("月🌙"))
   try retained_json_at(edited, "/rows/0/note") |> ignore catch {
     _ => ()
   } noraise {
@@ -60,7 +60,7 @@ test "JSON draft recipe errors are explicit and no partial candidate escapes" {
       "version": 1,
       "operations": [
         { "op": "set", "pointer": "/temporary", "value": 1 },
-        { "op": "set", "pointer": pointer.to_json(), "value": 2 },
+        { "op": "set", "pointer": ToJson::to_json(pointer), "value": 2 },
       ],
     }
     let edits = retained_json_edits(@utf8.encode(recipe.stringify()))
@@ -74,7 +74,7 @@ test "JSON draft recipe errors are explicit and no partial candidate escapes" {
   for pointer in ["/absent", "/rows/-", "/rows/2"] {
     let recipe : Json = {
       "version": 1,
-      "operations": [{ "op": "remove", "pointer": pointer.to_json() }],
+      "operations": [{ "op": "remove", "pointer": ToJson::to_json(pointer) }],
     }
     try
       retained_apply_edits(
@@ -115,13 +115,13 @@ test "JSON draft bounds recipe operations and aggregate candidate" {
   let append : Json = {
     "op": "set",
     "pointer": "/-",
-    "value": "x".repeat(20_000).to_json(),
+    "value": ToJson::to_json("x".repeat(20_000)),
   }
   // An ordinary-size edit applied to a source under 1 MiB must still obey
   // the aggregate candidate budget.
   let one : Json = { "version": 1, "operations": [append] }
   let edits = retained_json_edits(@utf8.encode(one.stringify()))
-  let large = Json::array(Array::make(52, "y".repeat(20_000).to_json()))
+  let large = Json::array(Array::make(52, ToJson::to_json("y".repeat(20_000))))
   assert_true(@utf8.encode(large.stringify()).length() < 1_048_576)
   try retained_apply_edits(large, edits) |> ignore catch {
     _ => ()
@@ -146,7 +146,7 @@ test "JSON draft bounds recipe operations and aggregate candidate" {
     "operations": [
       {
         "op": "set",
-        "pointer": ("/a".repeat(62) + "/new").to_json(),
+        "pointer": ToJson::to_json("/a".repeat(62) + "/new"),
         "value": [[1]],
       },
     ],
@@ -266,7 +266,7 @@ async test "compiled JSON edit CLI integrates local recipe and reusable candidat
   )
   assert_eq(
     retained_json_at(candidate, "/rows/0/status"),
-    "ready for review".to_json(),
+    ToJson::to_json("ready for review"),
   )
   assert_eq(
     retained_json_at(candidate, "/rows/2/latency").stringify(),
@@ -284,7 +284,9 @@ async test "compiled JSON edit CLI integrates local recipe and reusable candidat
   )
   assert_eq(
     retained_json_at(context, "/recipe_fingerprint"),
-    @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(recipe))).to_json(),
+    ToJson::to_json(
+      @crypto.bytes_to_hex_string(@crypto.sha256(@utf8.encode(recipe))),
+    ),
   )
   assert_eq(
     retained_json_at(context, "/candidate_fingerprint"),

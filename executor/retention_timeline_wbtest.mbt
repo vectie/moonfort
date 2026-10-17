@@ -10,9 +10,9 @@ fn timeline_mapping(
     (
       {
         "version": 1,
-        "files": files.to_json(),
-        "timestamp": timestamp.to_json(),
-        "columns": columns.to_json(),
+        "files": ToJson::to_json(files),
+        "timestamp": ToJson::to_json(timestamp),
+        "columns": ToJson::to_json(columns),
       } : Json).stringify(),
   )
 }
@@ -461,7 +461,7 @@ async test "compiled timeline exports repeatable chronological evidence and sour
   )
   assert_eq(
     retained_json_at(@json.parse(drill.text()), "/file/fingerprint"),
-    expected.sources[0].file.fingerprint.to_json(),
+    ToJson::to_json(expected.sources[0].file.fingerprint),
   )
   for
     bad_args in [

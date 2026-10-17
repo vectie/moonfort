@@ -105,29 +105,30 @@ pub fn RetentionTapTable::context(self : RetentionTapTable) -> Json {
     "binding": self.binding.to_json(),
     "source_file": self.file.to_json(),
     "plan_count": match self.plan_count {
-      Some(value) => value.to_json()
+      Some(value) => ToJson::to_json(value)
       None => Json::null()
     },
-    "test_count": self.test_count.to_json(),
-    "status_counts": self.status_counts.to_json(),
-    "row_count": self.row_count.to_json(),
-    "failures_only": self.failures_only.to_json(),
-    "skip_reason": self.skip_reason.to_json(),
+    "test_count": ToJson::to_json(self.test_count),
+    "status_counts": ToJson::to_json(self.status_counts),
+    "row_count": ToJson::to_json(self.row_count),
+    "failures_only": ToJson::to_json(self.failures_only),
+    "skip_reason": ToJson::to_json(self.skip_reason),
     "bailout": match self.bailout {
-      Some(value) => value.to_json()
+      Some(value) => ToJson::to_json(value)
       None => Json::null()
     },
     "bailout_line": match self.bailout_line {
-      Some(value) => value.to_json()
+      Some(value) => ToJson::to_json(value)
       None => Json::null()
     },
-    "plan_satisfied": (self.plan_count == Some(self.test_count) &&
-    self.bailout is None).to_json(),
+    "plan_satisfied": ToJson::to_json(
+      self.plan_count == Some(self.test_count) && self.bailout is None,
+    ),
     "row_semantics": "top-level test points in original order; failures filter selects only failed status",
     "report_line_semantics": "one-based physical test line in original report",
     "diagnostic_semantics": "following comments and indented YAML blocks are opaque text; preamble and post-plan comments omitted",
-    "candidate_fingerprint": self.candidate_fingerprint.to_json(),
-    "candidate_size_bytes": self.candidate_size_bytes.to_json(),
+    "candidate_fingerprint": ToJson::to_json(self.candidate_fingerprint),
+    "candidate_size_bytes": ToJson::to_json(self.candidate_size_bytes),
   }
 }
 
