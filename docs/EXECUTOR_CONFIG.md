@@ -1,5 +1,12 @@
 # Executor-owned configuration
 
+Build deployed CLI executables with `moon build --target native --release` and
+register the corresponding `_build/native/release/build/cmd/.../*.exe` paths.
+Debug executors make full snapshot hashing expensive even for a tiny command;
+snapshot preparation and result collection also consume the caller's transport
+time. Retention rechecks the published file manifest, without a third whole-tree
+inventory after the execution boundary has already collected it.
+
 `cmd/executor` requires `MOONFORT_EXECUTOR_CONFIG` to name a canonical regular
 file owned by the executor user (or root), not writable by group/other, beneath
 a trusted canonical parent chain. The approval, scratch, and retention roots

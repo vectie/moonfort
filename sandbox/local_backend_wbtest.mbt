@@ -165,6 +165,33 @@ async test "local backend either enforces its profile or refuses without fallbac
 }
 
 ///|
+async test "snapshot I/O refusal preserves its operating system cause" {
+  guard local_backend_readiness() is BackendDegraded(_) else { return }
+  let workspace = @fs.realpath(@fs.tmpdir(prefix="moonfort-io-source-"))
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-io-scratch-"))
+  defer ignore(@fs.rmdir(workspace, recursive=true) catch { _ => () })
+  defer ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  @fs.write_file(
+    workspace + "/unreadable",
+    "x",
+    create_mode=CreateNew,
+    permission=0o000,
+  )
+  let receipt = run_local_sandbox(
+    {
+      ..local_profile("io-cause", workspace, scratch).allow_degraded(),
+      allowed_commands: ["shell-compat"],
+    },
+    Shell(script="true"),
+    [],
+  )
+  assert_true(receipt.enforcement is Refused)
+  let reason = receipt.denial_reason.unwrap_or("")
+  assert_true(reason.contains("storage-io"), msg=reason)
+  assert_true(reason.contains("Permission denied"), msg=reason)
+}
+
+///|
 test "wall-clock receipts do not falsely claim output truncation" {
   let receipt = killed_receipt(
     "run-timeout",

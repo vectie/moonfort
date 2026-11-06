@@ -324,25 +324,28 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
     create_mode=CreateOrTruncate,
     permission=0o600,
   )
-  assert_true(
-    retain_scratch(
-      scratch,
-      retention_id,
-      "book",
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      [
-        {
-          relative_path: "made",
-          kind: RegularFile,
-          size_bytes: 8L,
-          fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(b"artifact")),
-        },
-      ],
-      config,
-    ),
-  )
+  for content in [b"changed!", b"artifact"] {
+    assert_eq(
+      retain_scratch(
+        scratch,
+        retention_id,
+        "book",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        [
+          {
+            relative_path: "made",
+            kind: RegularFile,
+            size_bytes: 8L,
+            fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(content)),
+          },
+        ],
+        config,
+      ),
+      content == b"artifact",
+    )
+  }
   let scratch = "\{config.scratch_root}/\{retention_id}"
   let metadata = "\{config.retention_root}/\{retention_id}.json"
   assert_true(@fs.exists("\{scratch}/made"))

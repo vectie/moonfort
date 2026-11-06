@@ -1,5 +1,28 @@
 # MoonFort handoff notes
 
+## Hashing cost and I/O cause 2026-11-07
+
+- The live adapter pointed at debug executables. Original Shell replay took
+  12039/11716/11484 ms; samples show SHA-256/SIMD. Release old implementation
+  took 4897/3405/3350 ms, after removing retention's third whole inventory
+  3219/2608/2720 ms. Same grant/limits; original single timeout not reproduced
+  under identical CPU load. Do not claim every historical millisecond proven.
+- retain_scratch now rechecks only declared files via the existing confined
+  inspect_sandbox_destination, keeping sizes/digests. Execution still inventories
+  before/after; existing retention test covers wrong digest then valid content.
+- Snapshot refusals erased the underlying StorageIo message. It now survives;
+  actual permission-denied regression red -> green, final Native 299/299 with
+  real local E2E. No added API/FFI/state/permission or timeout changes.
+- Experimental copies contributed to host disk exhaustion. Freed 10 diagnostic
+  and 24 completed .git/index-only private snapshots after saving manifests and
+  declared files; output artifacts/journals/costs preserved. This was operator
+  maintenance, not a new runtime retention policy. Preflight free space before
+  another live test, and include whole-snapshot/build storage costs.
+- Full provider cost 935131 input/6169 output across two attempts plus recovery;
+  not a lower-cost or fully unattended success. Sibling report:
+  ../moondesk/docs/MOONCODE_SHELL_ROOT_CAUSE_AUDIT_2026-11-07.md.
+  User workbench edits and unrelated formatter migrations remain untouched.
+
 ## SDK and snapshot fidelity follow-up 2026-11-06
 
 - Default Exec moon ide outline failed under private HOME; the same sandbox

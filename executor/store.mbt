@@ -407,16 +407,15 @@ async fn retain_scratch(
   let manifest = reviewable_files.copy()
   manifest.sort_by_key(entry => entry.relative_path)
   guard retention_manifest_is_valid(manifest, config) else { return false }
-  let inventory = match
-    @sandbox.inventory_scratch(
-      scratch,
-      config.limits.max_disk_mib.to_int64() * 1_048_576L,
-    ) {
-    Ok(value) => value
-    Err(_) => return false
-  }
-  guard manifest.all(expected => inventory.entries.contains(expected)) else {
-    return false
+  // Execution already inventories the whole snapshot. Retention revalidates
+  // only the files it publishes, using the existing confined observation.
+  for expected in manifest {
+    guard @sandbox.inspect_sandbox_destination(scratch, expected.relative_path)
+      is DestinationRegular(size_bytes~, fingerprint~) &&
+      size_bytes == expected.size_bytes &&
+      fingerprint == expected.fingerprint else {
+      return false
+    }
   }
   let record : RetentionRecord = {
     retention_id,

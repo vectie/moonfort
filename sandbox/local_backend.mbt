@@ -253,13 +253,18 @@ pub async fn run_local_sandbox(
       disk_limit_bytes~,
     ) {
     Ok(value) => value
-    Err(reason) =>
+    Err(reason) => {
+      let detail = match reason {
+        StorageIo(message) => "storage-io: " + message
+        _ => reason.code()
+      }
       return refused_receipt(
         canonical.run_id,
         LocalOs,
         checked.profile_digest(),
-        "failed to materialize private workspace snapshot: \{reason.code()}",
+        "failed to materialize private workspace snapshot: \{detail}",
       )
+    }
   }
   let process_cwd = if working_directory == "" {
     canonical.scratch_root
