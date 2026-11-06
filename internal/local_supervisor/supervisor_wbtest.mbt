@@ -165,6 +165,31 @@ test "native supervisor enforces aggregate disk bytes across many files" {
 }
 
 ///|
+test "native supervisor tolerates temporary directory removal during disk samples" {
+  let base_path = if supervisor_test_platform() == 1 {
+    "/private/tmp"
+  } else {
+    "/tmp"
+  }
+  let disk_root = "\{base_path}/moonfort-supervisor-churn-\{native_pid()}"
+  assert_true(prepare_test_directory(@utf8.encode(disk_root)))
+  let base = test_request(
+    [
+      "/bin/sh", "-c", "i=0; while [ $i -lt 100 ]; do mkdir \"$1/moving\"; j=0; while [ $j -lt 100 ]; do : > \"$1/moving/f$j\"; j=$((j+1)); done; rm -rf \"$1/moving\"; i=$((i+1)); done",
+      "churn", disk_root,
+    ],
+    10000L,
+  )
+  let request = { ..base, disk_root, }
+  unlink_file(@utf8.encode(request.output_path))
+  let result = run(request)
+  cleanup_test_directory(@utf8.encode(disk_root))
+  unlink_file(@utf8.encode(request.output_path))
+  assert_eq(result.kind, "exited", msg=result.to_json().stringify())
+  assert_eq(result.exit_code, Some(0))
+}
+
+///|
 test "native supervisor enforces process group count" {
   let base = test_request(
     [

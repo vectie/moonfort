@@ -286,8 +286,8 @@ static void kill_group(pid_t leader, int signal_number) {
 
 static int open_scanned_directory(int parent, const char *name) {
   struct stat before;
-  if (fstatat(parent, name, &before, AT_SYMLINK_NOFOLLOW) != 0 ||
-      !S_ISDIR(before.st_mode)) {
+  if (fstatat(parent, name, &before, AT_SYMLINK_NOFOLLOW) != 0) return -1;
+  if (!S_ISDIR(before.st_mode)) {
     errno = ENOTDIR;
     return -1;
   }
@@ -311,9 +311,9 @@ static int open_scanned_directory(int parent, const char *name) {
   return child;
 }
 
-/* Returns 0 below limits, 1 over byte limit, 2 over entry limit, or -1 when
- * concurrent mutation prevents a trustworthy observation. Symlinks are never
- * followed. */
+/* Returns 0 below limits, 1 over byte limit, 2 over entry limit, or -1 on an
+ * observation error. Entries removed or replaced during a scan are left to the
+ * next sample. Symlinks are never followed. */
 static int scan_disk_usage(
   int directory,
   uint64_t byte_limit,
@@ -346,6 +346,7 @@ static int scan_disk_usage(
     }
     struct stat status;
     if (fstatat(directory, entry->d_name, &status, AT_SYMLINK_NOFOLLOW) != 0) {
+      if (errno == ENOENT) continue;
       result = -1;
       break;
     }
@@ -358,6 +359,7 @@ static int scan_disk_usage(
     } else if (S_ISDIR(status.st_mode)) {
       int child = open_scanned_directory(directory, entry->d_name);
       if (child < 0) {
+        if (errno == ENOENT || errno == ENOTDIR || errno == ESTALE) continue;
         result = -1;
         break;
       }

@@ -1,11 +1,20 @@
 ///|
 test "local profile is default-deny with scratch as the only writable root" {
-  let profile = local_profile(
-    "run-local-1", "/workspace/book", "/scratch/run-local-1",
-  ).allow_degraded()
+  let profile = {
+    ..local_profile("run-local-1", "/workspace/book", "/scratch/run-local-1").allow_degraded(),
+    read_only_roots: ["/workspace/book", "/Library/Developer/CommandLineTools"],
+  }
   let policy = local_sbpl_profile(profile, "/usr/bin/moon")
   assert_true(policy.contains("(deny default)"))
   assert_true(policy.contains("(deny network*)"))
+  assert_true(
+    policy.contains("(allow file-read-metadata (literal \"/Library\"))"),
+  )
+  assert_true(
+    policy.contains(
+      "(allow file-read-metadata (literal \"/Library/Developer\"))",
+    ),
+  )
   assert_true(policy.contains("(allow file-read-data)"))
   let pathless_loader_read = policy.rev_find("(allow file-read-data)")
   let global_path_deny = policy.rev_find("(deny file-read* (subpath \"/\"))")

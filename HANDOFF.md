@@ -1,5 +1,26 @@
 # MoonFort handoff notes
 
+## Full-repository Native execution 2026-11-06
+
+- Existing Shell works with explicit MOON_HOME / CLT compiler, ar, SDKROOT,
+  DEVELOPER_DIR and PATH; command documented in docs/EXECUTOR_CONFIG.md. No new
+  environment API or launcher. A new scratch target directory proved cold
+  Native compilation of actual MoonLib main, not reuse of cached binaries.
+- Reused the metadata ancestor loop for trusted read/tool roots as well as
+  scratch; clang otherwise cannot resolve itself. Diagnostic broad /Library
+  access was removed. The existing policy test was extended (red then green).
+- Actual full tests repeatedly hit monitor_unverified / aggregate_disk when
+  temporary entries vanished during a sample. Ignore only vanished/replaced
+  entries until the next sample, never follow their links. Preserve errno from
+  fstatat so a missing child is distinguishable from an actual access failure.
+  One churn regression reproduces failure in original C and passes after fix.
+- Final Native 297/297 includes required real local E2E and the new regression.
+  Final real-model full-repository Native 108/108; independent acceptance passed.
+  LocalOs remains Degraded. This is not a hard filesystem-quota or MicroVM claim.
+- Test fixtures that use the tested async/fs tmpdir still target host /tmp;
+  use existing MoonLib os.tmpdir/fsx helpers instead of opening /tmp. Report and
+  all three model attempts: ../moondesk/docs/MOONCODE_LIVE_NATIVE_REPOSITORY_2026-11-06.md.
+
 ## Real MoonCode deployment 2026-11-06
 
 - Read docs/MOONCLAW_INTEGRATION.md and docs/EXECUTOR_CONFIG.md before runtime

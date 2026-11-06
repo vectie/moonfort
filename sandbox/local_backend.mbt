@@ -456,15 +456,17 @@ fn local_sbpl_profile(profile : SandboxProfile, executable : String) -> String {
   policy <+
     $|(allow file-read* (subpath "\{sbpl_escape(profile.scratch_root)}"))
     $|(allow file-write* (subpath "\{sbpl_escape(profile.scratch_root)}"))
-  // getcwd needs metadata for the ancestors of the private working directory.
-  let mut ancestor = ""
-  for component in profile.scratch_root.split("/") {
-    if component.is_empty() {
-      continue
+  // Path resolution needs metadata for scratch, tool and trusted read ancestors.
+  for path in [profile.scratch_root, executable, ..profile.read_only_roots] {
+    let mut ancestor = ""
+    for component in path.split("/") {
+      if component.is_empty() {
+        continue
+      }
+      policy <+
+        $|(allow file-read-metadata (literal "\{sbpl_escape(if ancestor == "" { "/" } else { ancestor })}"))
+      ancestor += "/" + component.to_owned()
     }
-    policy <+
-      $|(allow file-read-metadata (literal "\{sbpl_escape(if ancestor == "" { "/" } else { ancestor })}"))
-    ancestor += "/" + component.to_owned()
   }
   // Keep these denials last. SBPL is last-match-wins, and an attacker must not
   // be able to re-open a canonical read root through an alias or future

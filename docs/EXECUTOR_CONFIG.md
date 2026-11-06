@@ -107,6 +107,39 @@ Local runs accept only deny-network profiles and always report `Degraded`.
 Production untrusted work should authorize only `MicroVm` and
 `RequireEnforced`.
 
+## macOS MoonBit Native commands
+
+Keep the command's HOME and TMPDIR in private scratch. For an offline MoonBit
+installation, explicitly select its registry/toolchain and the actual CLT
+compiler rather than `/usr/bin/cc` and its xcrun host-cache lookup. The existing
+Shell capability can run this configuration without a new launcher or adapter
+field (substitute the operator's installed paths):
+
+```sh
+MOON_HOME=/Users/kq/.moon \
+MOON_CC=/Library/Developer/CommandLineTools/usr/bin/clang \
+MOON_AR=/Library/Developer/CommandLineTools/usr/bin/ar \
+DEVELOPER_DIR=/Library/Developer/CommandLineTools \
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk \
+PATH=/Library/Developer/CommandLineTools/usr/bin:/Users/kq/.moon/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+/Users/kq/.moon/bin/moon test --target native --frozen --target-dir .tmp/mooncode-native
+```
+
+The trusted read roots must cover the selected SDK, compiler and preinstalled
+registry; these command assignments do not grant filesystem access. Ordinary
+`moon_cmd` does not inherit these shell assignments. Use the configured command
+for this deployment rather than claiming the semantic tool has acquired an
+environment configuration API. The local policy also allows metadata access
+to the ancestors of those trusted roots, needed by clang's executable-path
+resolution; it does not require granting the entire `/Library` tree.
+
+Tests must honor the private temporary directory. MoonLib's existing
+`fsx.mkdtemp` plus `os.tmpdir` and `with_temporary_directory` do so; the tested
+async/fs version's tmpdir helper uses the host `/tmp` even with TMPDIR set.
+Fix affected test fixtures instead of opening host `/tmp`. For an actual cold
+compile, choose a new target directory inside scratch; copied build artifacts
+must not be mistaken for toolchain validation.
+
 `max_output_bytes` is the hard per-command merged-output ceiling. The native
 supervisor kills an output flood at that boundary. The independently
 configurable `max_model_output_bytes` bounds only the inline receipt projection
