@@ -173,7 +173,7 @@ fn validate_limits(
 ) -> String {
   if requested.wall_clock_ms <= 0 ||
     requested.wall_clock_ms > ceiling.max_wall_clock_ms {
-    "wall clock limit is outside deployment policy"
+    "wall clock limit \{requested.wall_clock_ms}ms is outside deployment policy (1..\{ceiling.max_wall_clock_ms}ms)"
   } else if requested.cpu_seconds <= 0 ||
     requested.cpu_seconds > ceiling.max_cpu_seconds {
     "CPU limit is outside deployment policy"
