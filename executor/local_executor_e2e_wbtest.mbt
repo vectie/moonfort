@@ -51,9 +51,13 @@ async test "published grant executes only in private local snapshot and binds ev
   // The first redirection deliberately targets the canonical workspace. The
   // shell continues so a successful backend also proves scratch writes and
   // structured diffing in the same real invocation.
-  let script = "printf pwned > \"$1/canonical-write.txt\"; printf artifact > generated.txt; printf mutated > original.txt; printf e2e-ok"
+  let script = "case \"$PATH\" in \"$2\":*) ;; *) exit 71;; esac; /bin/pwd -P >/dev/null || exit 70; printf pwned > \"$1/canonical-write.txt\"; printf artifact > generated.txt; printf mutated > original.txt; printf e2e-ok"
   let grant = local_e2e_grant("approval-local-e2e", "request-local-e2e", "sh", [
-    "-c", script, "moonfort-e2e", workspace,
+    "-c",
+    script,
+    "moonfort-e2e",
+    workspace,
+    shell[:shell.rev_find("/").unwrap()].to_owned(),
   ])
   let published = publish_grant({ protocol_version: 3, grant, }, config)
   assert_true(published.published)
@@ -88,7 +92,7 @@ async test "published grant executes only in private local snapshot and binds ev
   match receipt.enforcement {
     Degraded => {
       assert_true(receipt.status is Exited)
-      assert_eq(receipt.exit_code, Some(0))
+      assert_eq(receipt.exit_code, Some(0), msg=receipt.output)
       assert_true(receipt.output.contains("e2e-ok"))
       assert_true(receipt.output_artifact is None)
       assert_true(

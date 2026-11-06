@@ -396,7 +396,8 @@ async fn local_invocation(
         environment: {
           "HOME": profile.scratch_root,
           "TMPDIR": profile.scratch_root,
-          "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+          "PATH": executable[:executable.rev_find("/").unwrap_or(0)].to_owned() +
+          ":/usr/bin:/bin:/usr/sbin:/sbin",
           "LANG": "C.UTF-8",
         },
       }
@@ -443,6 +444,7 @@ fn local_sbpl_profile(profile : SandboxProfile, executable : String) -> String {
     $|(allow file-read* (subpath "/usr/share"))
     $|(allow file-read* (subpath "/Library/Apple/System"))
     $|(allow file-read* (literal "/dev/null"))
+    $|(allow file-write-data (literal "/dev/null"))
     $|(allow file-read* (literal "/dev/urandom"))
     $|(allow file-read* (literal "\{sbpl_escape(executable)}"))
   for root in profile.read_only_roots {
@@ -454,6 +456,16 @@ fn local_sbpl_profile(profile : SandboxProfile, executable : String) -> String {
   policy <+
     $|(allow file-read* (subpath "\{sbpl_escape(profile.scratch_root)}"))
     $|(allow file-write* (subpath "\{sbpl_escape(profile.scratch_root)}"))
+  // getcwd needs metadata for the ancestors of the private working directory.
+  let mut ancestor = ""
+  for component in profile.scratch_root.split("/") {
+    if component.is_empty() {
+      continue
+    }
+    policy <+
+      $|(allow file-read-metadata (literal "\{sbpl_escape(if ancestor == "" { "/" } else { ancestor })}"))
+    ancestor += "/" + component.to_owned()
+  }
   // Keep these denials last. SBPL is last-match-wins, and an attacker must not
   // be able to re-open a canonical read root through an alias or future
   // writable carve-out.
