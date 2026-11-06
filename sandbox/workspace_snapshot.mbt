@@ -1,4 +1,7 @@
 ///|
+extern "c" fn snapshot_execute_bits(fd : Int32) -> Int32 = "moonfort_snapshot_execute_bits"
+
+///|
 async fn directory_is_empty(path : String) -> Bool {
   @fs.readdir(path).is_empty()
 }
@@ -20,6 +23,10 @@ async fn copy_snapshot_file(
     raise ScratchScanFailure(EntryChangedDuringInventory(relative_path))
   }
   let declared_size = source.size()
+  let execute_bits = snapshot_execute_bits(source.fd())
+  if execute_bits < 0 {
+    raise ScratchScanFailure(EntryChangedDuringInventory(relative_path))
+  }
   if declared_size < 0L || declared_size > disk_limit_bytes - used_bytes.val {
     raise ScratchScanFailure(
       DiskLimitExceeded(
@@ -32,7 +39,7 @@ async fn copy_snapshot_file(
     destination_path,
     mode=WriteOnly,
     create_mode=CreateNew,
-    permission=0o600,
+    permission=0o600 | execute_bits,
   )
   defer destination.close()
   let observed : Ref[Int64] = { val: 0L, }

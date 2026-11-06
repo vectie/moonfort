@@ -109,6 +109,12 @@ Production untrusted work should authorize only `MicroVm` and
 
 ## macOS MoonBit Native commands
 
+For a registered executable resolving to `SDK/bin/moon`, the existing macOS
+invocation sets `MOON_HOME=SDK` beside its existing sibling-tool PATH. This
+locates installed core/registry data for IDE navigation while keeping HOME and
+TMPDIR private. It does not inherit the host environment or select a Native
+compiler; that deployment still uses the explicit command below.
+
 Keep the command's HOME and TMPDIR in private scratch. For an offline MoonBit
 installation, explicitly select its registry/toolchain and the actual CLT
 compiler rather than `/usr/bin/cc` and its xcrun host-cache lookup. The existing

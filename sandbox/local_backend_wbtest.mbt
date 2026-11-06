@@ -66,6 +66,32 @@ test "local profile is default-deny with scratch as the only writable root" {
 }
 
 ///|
+async test "Moon SDK invocation locates its registry without changing private HOME" {
+  if !(local_os_platform() is MacOs) {
+    return
+  }
+  let sdk = @fs.realpath(@fs.tmpdir(prefix="moonfort-sdk-"))
+  defer ignore(@fs.rmdir(sdk, recursive=true) catch { _ => () })
+  @fs.mkdir(sdk + "/bin")
+  @fs.write_file(sdk + "/bin/moon", "", create_mode=CreateNew)
+  let profile = local_profile("sdk", "/workspace/book", "/scratch/sdk").allow_degraded()
+  let prepared = prepare_sandbox_command(
+      profile,
+      Exec(tool="moon", args=[]),
+      BackendDegraded("fixture"),
+    )
+    .prepared()
+    .unwrap()
+  let invocation = local_invocation(
+    prepared,
+    [{ capability_label: "moon", executable_path: sdk + "/bin/moon", }],
+    "/scratch/sdk",
+  )
+  assert_eq(invocation.environment.get("MOON_HOME"), Some(sdk))
+  assert_eq(invocation.environment.get("HOME"), Some("/scratch/sdk"))
+}
+
+///|
 test "SBPL string escaping cannot inject a policy form" {
   let escaped = sbpl_escape("/tmp/x\")\n(allow default)\n(\"")
   assert_false(escaped.contains("\n(allow default)"))

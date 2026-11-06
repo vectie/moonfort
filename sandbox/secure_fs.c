@@ -27,6 +27,12 @@ extern long syscall(long, ...);
 #include <sys/types.h>
 #include <unistd.h>
 
+MOONBIT_FFI_EXPORT
+int32_t moonfort_snapshot_execute_bits(int32_t fd) {
+  struct stat st;
+  return fstat(fd, &st) == 0 ? (int32_t)(st.st_mode & 0111) : -1;
+}
+
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 0
 #endif

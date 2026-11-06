@@ -391,15 +391,21 @@ async fn local_invocation(
   match local_os_platform() {
     MacOs => {
       let policy = local_sbpl_profile(profile, executable)
+      let environment = {
+        "HOME": profile.scratch_root,
+        "TMPDIR": profile.scratch_root,
+        "PATH": executable[:executable.rev_find("/").unwrap_or(0)].to_owned() +
+        ":/usr/bin:/bin:/usr/sbin:/sbin",
+        "LANG": "C.UTF-8",
+      }
+      // Moon's companion registry/core follows the resolved SDK executable.
+      // Keep HOME private and avoid inheriting the host process environment.
+      if executable.has_suffix("/bin/moon") {
+        environment["MOON_HOME"] = executable[:executable.length() - 9].to_owned()
+      }
       {
         argv: [SandboxExecPath, "-p", policy, executable, ..command_args],
-        environment: {
-          "HOME": profile.scratch_root,
-          "TMPDIR": profile.scratch_root,
-          "PATH": executable[:executable.rev_find("/").unwrap_or(0)].to_owned() +
-          ":/usr/bin:/bin:/usr/sbin:/sbin",
-          "LANG": "C.UTF-8",
-        },
+        environment,
       }
     }
     Linux => {

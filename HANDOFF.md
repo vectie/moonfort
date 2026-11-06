@@ -1,5 +1,24 @@
 # MoonFort handoff notes
 
+## SDK and snapshot fidelity follow-up 2026-11-06
+
+- Default Exec moon ide outline failed under private HOME; the same sandbox
+  command succeeded with explicit SDK home/PATH. Existing macOS invocation
+  now derives MOON_HOME from a resolved SDK/bin/moon binding, while HOME stays
+  private. No inherited host environment, added config API or expanded roots.
+  Native compiler/SDK selection still uses the documented explicit Shell.
+- Snapshot files now retain execute bits from the open source fd, in addition
+  to private read/write permissions. Existing E2E gained a copied executable:
+  red with Permission denied, green after fix. Actual Git snapshot no longer
+  reports unchanged scripts as mode edits. One private fstat C helper only.
+- Native 298/298, including required real local E2E and one SDK environment
+  regression. Public interfaces unchanged. Unrelated formatter migrations and
+  pre-existing SQLite workbench files are outside this task's commit.
+- A single live Git invocation timed out (20s grant, 25s transport); exact
+  independent replay succeeded, root cause undetermined. No blanket timeout
+  increase, new retry/recovery mechanism or isolation guarantee.
+- Full comparison: ../moondesk/docs/MOONCODE_TOKEN_AUDIT_FOLLOWUP_2026-11-06.md.
+
 ## Timeout diagnostics 2026-11-06
 
 - Actual MoonCode task repeated 18 refused calls because MoonClaw replaced
