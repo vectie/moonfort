@@ -1,5 +1,17 @@
 # MoonFort handoff notes
 
+## Default macOS toolchain 2026-11-07
+
+- Default Native/Git failures reproduce with the original authorized developer
+  and `/private/var/select` roots: policy omitted `/var` alias metadata. Add one
+  metadata rule; skip unavailable host Git system config and attributes in the
+  existing private environment. Three production lines, no discovery/fallback.
+- Same real repository/executor config: default Exec moon Native 108/108 and
+  Shell Git checks pass without explicit compiler/environment exports. Local
+  tool regression only; no paid model rerun or projected token/round savings.
+  Evidence: /Users/kq/mooncode-toolchain-20261107. Old explicit-Shell notes below
+  describe earlier behavior; current configuration guide supersedes them.
+
 ## Retention footprint 2026-11-07
 
 - Only reviewable_files are exposed/read/promoted, but retain_scratch kept the

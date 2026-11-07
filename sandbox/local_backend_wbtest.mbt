@@ -92,6 +92,47 @@ async test "Moon SDK invocation locates its registry without changing private HO
 }
 
 ///|
+async test "default macOS tools resolve the authorized developer directory" {
+  if !(local_os_platform() is MacOs) {
+    return
+  }
+  let (selection_exit, selection) = @process.collect_output_merged(
+    "/usr/bin/xcode-select",
+    ["-p"],
+    inherit_env=false,
+  )
+  if selection_exit != 0 {
+    println("macOS toolchain test skipped: developer tools are not installed")
+    return
+  }
+  let developer_root = @utf8.decode_lossy(selection.binary()).trim().to_owned()
+  let scratch = @fs.realpath(@fs.tmpdir(prefix="moonfort-toolchain-"))
+  defer ignore(@fs.rmdir(scratch, recursive=true) catch { _ => () })
+  let profile = {
+    ..local_profile("toolchain", "/workspace", scratch).allow_degraded(),
+    allowed_commands: ["shell-compat"],
+    read_only_roots: ["/workspace", developer_root, "/private/var/select"],
+  }
+  let prepared = prepare_sandbox_command(
+      profile,
+      Shell(script="git --version && clang --version"),
+      BackendDegraded("fixture"),
+    )
+    .prepared()
+    .unwrap()
+  let invocation = local_invocation(prepared, [], scratch)
+  let (exit_code, output) = @process.collect_output_merged(
+    invocation.argv[0],
+    invocation.argv[1:].to_owned(),
+    extra_env=invocation.environment,
+    inherit_env=false,
+    cwd=scratch,
+  )
+  assert_eq(exit_code, 0, msg=@utf8.decode_lossy(output.binary()))
+  assert_eq(invocation.environment.get("HOME"), Some(scratch))
+}
+
+///|
 test "SBPL string escaping cannot inject a policy form" {
   let escaped = sbpl_escape("/tmp/x\")\n(allow default)\n(\"")
   assert_false(escaped.contains("\n(allow default)"))

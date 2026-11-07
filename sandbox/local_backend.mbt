@@ -402,6 +402,8 @@ async fn local_invocation(
         "PATH": executable[:executable.rev_find("/").unwrap_or(0)].to_owned() +
         ":/usr/bin:/bin:/usr/sbin:/sbin",
         "LANG": "C.UTF-8",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_ATTR_NOSYSTEM": "1",
       }
       // Moon's companion registry/core follows the resolved SDK executable.
       // Keep HOME private and avoid inheriting the host process environment.
@@ -446,6 +448,7 @@ fn local_sbpl_profile(profile : SandboxProfile, executable : String) -> String {
     $|(deny network*)
     $|(allow file-read-data)
     $|(deny file-read* (subpath "/"))
+    $|(allow file-read-metadata (literal "/var"))
     $|(allow file-read* (subpath "/System"))
     $|(allow file-read* (subpath "/usr/bin"))
     $|(allow file-read* (subpath "/bin"))
