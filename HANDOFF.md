@@ -1,5 +1,26 @@
 # MoonFort handoff notes
 
+## Retention footprint 2026-11-07
+
+- Only reviewable_files are exposed/read/promoted, but retain_scratch kept the
+  entire copied workspace. Actual MoonCode disk exhaustion followed repeated
+  snapshots whose sole declared change was .git/index. Retention now keeps only
+  verified manifest files plus their ancestor directories, before publishing the
+  same record. No API, TTL, grant, retry or state change; original workspace and
+  separate output artifacts are untouched. No old-record cleanup migration.
+- Existing retention/TTL test red -> green: two retained files/16 bytes survive;
+  an unlisted 1 MiB cache and unused sibling disappear. No extra inventory/hash
+  pass; recursive cleanup reuses existing no-follow discard for unused trees.
+- First required-E2E suite failed 23 missing compiled CLI environment paths
+  (276/299); release build plus existing browse/compare/diff/output reader CLI
+  paths resolves setup: final required-E2E Native 299/299, real sandbox-exec and
+  artifact/promotion/TTL checks. Info/fmt passes, public interfaces unchanged.
+  Do not count this as model/provider usage or hide the failed setup.
+- Sibling report: moondesk/docs/
+  MOONCODE_RESOURCE_AND_FRAMEWORK_COMPARISON_2026-11-07.md. Peer tests cover
+  actual retention primitives, not complete live Agent deliveries. Shared model
+  configuration is still required for the requested four-framework live run.
+
 ## Hashing cost and I/O cause 2026-11-07
 
 - The live adapter pointed at debug executables. Original Shell replay took

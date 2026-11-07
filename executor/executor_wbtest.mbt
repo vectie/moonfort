@@ -324,6 +324,19 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
     create_mode=CreateOrTruncate,
     permission=0o600,
   )
+  @fs.mkdir("\{scratch}/nested")
+  @fs.mkdir("\{scratch}/cache")
+  @fs.write_file("\{scratch}/nested/keep", "artifact", create_mode=CreateNew)
+  @fs.write_file(
+    "\{scratch}/nested/unused",
+    "unchanged source",
+    create_mode=CreateNew,
+  )
+  @fs.write_file(
+    "\{scratch}/cache/large",
+    "x".repeat(1_048_576),
+    create_mode=CreateNew,
+  )
   for content in [b"changed!", b"artifact"] {
     assert_eq(
       retain_scratch(
@@ -340,6 +353,14 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
             size_bytes: 8L,
             fingerprint: @crypto.bytes_to_hex_string(@crypto.sha256(content)),
           },
+          {
+            relative_path: "nested/keep",
+            kind: RegularFile,
+            size_bytes: 8L,
+            fingerprint: @crypto.bytes_to_hex_string(
+              @crypto.sha256(b"artifact"),
+            ),
+          },
         ],
         config,
       ),
@@ -349,6 +370,9 @@ async test "changed local scratch is retained by opaque ID and TTL sweep removes
   let scratch = "\{config.scratch_root}/\{retention_id}"
   let metadata = "\{config.retention_root}/\{retention_id}.json"
   assert_true(@fs.exists("\{scratch}/made"))
+  assert_true(@fs.exists("\{scratch}/nested/keep"))
+  assert_false(@fs.exists("\{scratch}/nested/unused"))
+  assert_false(@fs.exists("\{scratch}/cache"))
   assert_true(@fs.exists(metadata))
   let record : RetentionRecord = @json.from_json(
     @json.parse(bounded_regular_file(metadata, 16_384)),

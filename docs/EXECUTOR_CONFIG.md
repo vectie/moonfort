@@ -7,6 +7,13 @@ snapshot preparation and result collection also consume the caller's transport
 time. Retention rechecks the published file manifest, without a third whole-tree
 inventory after the execution boundary has already collected it.
 
+After verifying those files, retention removes everything outside that manifest
+and its ancestor directories from the private execution snapshot. Retaining a
+small change such as `.git/index` therefore keeps that file, not another whole
+workspace until TTL expiry. Original workspace files and separately retained
+command-output artifacts are untouched; artifact browsing and promotion still
+use the same verified manifest and retention record.
+
 `cmd/executor` requires `MOONFORT_EXECUTOR_CONFIG` to name a canonical regular
 file owned by the executor user (or root), not writable by group/other, beneath
 a trusted canonical parent chain. The approval, scratch, and retention roots

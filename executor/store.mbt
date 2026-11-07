@@ -386,6 +386,30 @@ fn retention_manifest_is_valid(
 }
 
 ///|
+async fn prune_retention_directory(
+  root : String,
+  directory : String,
+  retained : Map[String, Unit],
+) -> Unit {
+  let path = if directory == "" { root } else { "\{root}/\{directory}" }
+  for name in @fs.readdir(path) {
+    let relative = if directory == "" { name } else { "\{directory}/\{name}" }
+    let child = "\{root}/\{relative}"
+    if retained.contains(relative) {
+      if @fs.kind(child, follow_symlink=false) is Directory {
+        prune_retention_directory(root, relative, retained)
+      }
+    } else if @fs.kind(child, follow_symlink=false) is Directory {
+      guard @sandbox.discard_scratch_tree(child) is Ok(_) else {
+        fail("unused snapshot directory could not be removed")
+      }
+    } else {
+      @fs.remove(child)
+    }
+  }
+}
+
+///|
 async fn retain_scratch(
   scratch : String,
   retention_id : String,
@@ -440,6 +464,20 @@ async fn retain_scratch(
   }
   let path = "\{config.retention_root}/\{retention_id}.json"
   try {
+    // Only the verified manifest is readable or promotable. Keeping the rest
+    // of every workspace snapshot fills the disk without retaining more work.
+    let retained : Map[String, Unit] = Map([])
+    for entry in manifest {
+      let mut relative = entry.relative_path
+      for ;; {
+        retained[relative] = ()
+        match relative.rev_split_once("/") {
+          Some((parent, _)) => relative = parent.to_owned()
+          None => break
+        }
+      }
+    }
+    prune_retention_directory(scratch, "", retained)
     @fs.write_file(
       path,
       encoded,
